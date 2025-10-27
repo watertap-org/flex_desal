@@ -58,7 +58,14 @@ import srp.components.brine_concentrator as bc
 
 solver = get_solver()
 
-def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=11343, Cin=1467, feed_temp=27):
+
+def build_primary_fs(
+    RO_pump_pressure=350,
+    BCs=["BC_C", "BC_A", "BC_B"],
+    Qin=11343,
+    Cin=1467,
+    feed_temp=27,
+):
 
     Qin = Qin * pyunits.gallons / pyunits.minute
     Cin = Cin * pyunits.mg / pyunits.L
@@ -68,7 +75,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     m.fs = FlowsheetBlock()
 
     m.fs.costing = WaterTAPCosting()
-    
+
     m.fs.properties_feed = SeawaterParameterBlock()
     m.fs.properties_vapor = SteamParameterBlock()
 
@@ -76,6 +83,14 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     # ------------------------ WELLS ------------------------
     m.fs.wells = Feed(property_package=m.fs.properties_feed)
     touch_flow_and_conc(m.fs.wells)
+
+    m.fs.raw_water_tank_mix = Mixer(
+        property_package=m.fs.properties_feed,
+        momentum_mixing_type=MomentumMixingType.none,
+        inlet_list=["from_permeate", "from_wells"],
+    )
+    m.fs.raw_water_tank_mix.outlet.pressure[0].fix(101325)
+    touch_flow_and_conc(m.fs.raw_water_tank_mix)
 
     # ------------------------ RAW WATER TANK ------------------------
     m.fs.raw_water_tank = Separator(
@@ -111,14 +126,46 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     )
     m.fs.ro_pump.control_volume.properties_out[0].pressure.fix(
         RO_pump_pressure * pyunits.psi
-    ) 
+    )
     # m.fs.ro_pump.costing = UnitModelCostingBlock(
     #     flowsheet_costing_block=m.fs.costing,
     # )
     m.fs.ro_pump.efficiency_pump.fix(0.8)
+
+    m.fs.ro_pump.op_pressure_slope = Param(
+        initialize=15.7,
+        mutable=True,
+        units=pyunits.psi / (pyunits.kg / pyunits.m**3),
+        doc="Slope of pump outlet pressure vs salinity",
+    )
+    m.fs.ro_pump.op_pressure_intercept = Param(
+        initialize=96.47,
+        mutable=True,
+        units=pyunits.psi,
+        doc="Intercept of pump outlet pressure vs salinity",
+    )
+    m.fs.ro_pump.pressure_constr = Constraint(
+        expr=m.fs.ro_pump.control_volume.properties_out[0].pressure
+        == pyunits.convert(
+            m.fs.ro_pump.op_pressure_slope
+            * m.fs.ro_pump.control_volume.properties_in[0].conc_mass_phase_comp[
+                "Liq", "TDS"
+            ]
+            + m.fs.ro_pump.op_pressure_intercept,
+            to_units=pyunits.Pa,
+        )
+    )
+    m.fs.ro_pump.pressure_constr.deactivate()
+
     touch_flow_and_conc(m.fs.ro_pump)
-    
+
     # ------------------------ RO ------------------------
+    m.fs.feed_osm_pressure = Param(
+        initialize=9.76,
+        units=pyunits.bar,
+        mutable=True,
+        doc="Feed osmotic pressure",  # estimated from vant Hoff equation for NaCl @ 25C
+    )
     m.fs.ro = Separator(
         property_package=m.fs.properties_feed,
         outlet_list=["to_ro_containment", "to_ro_permeate"],
@@ -127,16 +174,35 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     # m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"].fix(56.2 / 91.3)
     m.fs.ro.split_fraction[0, "to_ro_permeate", "TDS"].fix(0.025)
     touch_flow_and_conc(m.fs.ro)
-    m.fs.ro.recov_base = Param(initialize=0.10992131, mutable=True)
-    m.fs.ro.recov_exp = Param(initialize=0.64757567, mutable=True)
+
+    m.fs.ro.recov_base = Param(initialize=0.1370946, mutable=True)
+    m.fs.ro.recov_exp = Param(initialize=0.58863718, mutable=True)
     m.fs.ro_recovery_constr = Constraint(
-        expr=m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"] ==m.fs.ro.recov_base * pyunits.convert(m.fs.ro_pump.control_volume.properties_out[0].pressure, to_units=pyunits.bar)**m.fs.ro.recov_exp
+        expr=m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"]
+        == m.fs.ro.recov_base
+        * (
+            pyunits.convert(
+                m.fs.ro_pump.control_volume.properties_out[0].pressure,
+                to_units=pyunits.bar,
+            )
+            - m.fs.feed_osm_pressure
+        )
+        ** m.fs.ro.recov_exp
     )
     m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"].setlb(0.5)
     m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"].setub(0.8)
 
     # ------------------------ PERMEATE ------------------------
     m.fs.permeate = StateJunction(property_package=m.fs.properties_feed)
+    m.fs.permeate = Separator(
+        property_package=m.fs.properties_feed,
+        outlet_list=["to_demin", "to_raw_water_tank_mix"],
+        split_basis=SplittingType.componentFlow,
+    )
+    # m.fs.permeate.split_fraction[0, "to_demin", "H2O"].fix(1.0)
+    # m.fs.permeate.split_fraction[0, "to_demin", "TDS"].fix(1.0)
+    m.fs.permeate.split_fraction[0, "to_raw_water_tank_mix", "H2O"].fix(49 / 56.2)
+    m.fs.permeate.split_fraction[0, "to_raw_water_tank_mix", "TDS"].fix(49 / 56.2)
     touch_flow_and_conc(m.fs.permeate)
 
     # ------------------------ COOLING TOWER ------------------------
@@ -149,6 +215,34 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     m.fs.cooling_tower.split_fraction[0, "to_evaporation", "TDS"].fix(0)
     touch_flow_and_conc(m.fs.cooling_tower)
 
+    m.fs.power_gen = Var(
+        initialize=100, units=pyunits.MWh, bounds=(0, 200), doc="Power generated by SRP"
+    )
+    m.fs.power_gen_slope = Param(
+        initialize=6.96333391e-03,
+        mutable=True,
+        units=pyunits.MWh / (pyunits.gallons / pyunits.minute),
+        doc="Slope of power generated vs flow rate",
+    )
+    m.fs.power_gen_intercept = Param(
+        initialize=28.89,
+        mutable=True,
+        units=pyunits.MWh,
+        doc="Intercept of power generated vs flow rate",
+    )
+    m.fs.power_gen_constr = Constraint(
+        expr=m.fs.power_gen
+        == pyunits.convert(
+            m.fs.power_gen_slope
+            * pyunits.convert(
+                m.fs.cooling_tower.to_evaporation_state[0].flow_vol_phase["Liq"],
+                to_units=pyunits.gallons / pyunits.minute,
+            )
+            + m.fs.power_gen_intercept,
+            to_units=pyunits.MWh,
+        )
+    )
+
     # ------------------------ EVAPORATION FROM COOLING TOWER ------------------------
     m.fs.evaporation = Product(property_package=m.fs.properties_feed)
     touch_flow_and_conc(m.fs.evaporation)
@@ -159,8 +253,13 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
         outlet_list=["to_ro_reject_tank", "to_bc_feed_tank", "to_mystery"],
         split_basis=SplittingType.componentFlow,
     )
-    m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "H2O"].fix(544.5 / 1353.1)
-    m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "TDS"].fix(544.5 / 1353.1)
+    # original split from spreadsheet
+    # modified so most of "mystery" missing flow goes to BC feed tank
+    # so that the total flow to BCs is 350 + 350 + 450 gpm (the stated capacity of each BC)
+    # m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "H2O"].fix(544.5 / 1353.1)
+    # m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "TDS"].fix(544.5 / 1353.1)
+    m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "H2O"].fix(966.2 / 1353.1)
+    m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "TDS"].fix(966.2 / 1353.1)
     m.fs.ww_surge_tank.split_fraction[0, "to_ro_reject_tank", "H2O"].fix(305.1 / 1353.1)
     m.fs.ww_surge_tank.split_fraction[0, "to_ro_reject_tank", "TDS"].fix(305.1 / 1353.1)
     touch_flow_and_conc(m.fs.ww_surge_tank)
@@ -225,7 +324,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
         )
         # assume even split to each BC
         # even_split = 1 / len(BCs)
-        split = 350 / (350*2 + 450)
+        split = 350 / (350 * 2 + 450)
         for i, bc_label in enumerate(BCs):
             if i == 0:
                 continue
@@ -266,9 +365,22 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     # Connections
     # =======================================================================
 
-    m.fs.wells_to_raw_water_tank = Arc(
-        source=m.fs.wells.outlet, destination=m.fs.raw_water_tank.inlet
+    # WELLS TO RAW WATER TANK MIXER
+    m.fs.wells_to_raw_water_tank_mix = Arc(
+        source=m.fs.wells.outlet, destination=m.fs.raw_water_tank_mix.from_wells
     )
+    m.fs.permeate_to_raw_water_tank_mix = Arc(
+        source=m.fs.permeate.to_raw_water_tank_mix,
+        destination=m.fs.raw_water_tank_mix.from_permeate,
+    )
+
+    # RAW WATER TANK MIXER TO RAW WATER TANK
+
+    m.fs.raw_water_tank_mix_to_raw_water_tank = Arc(
+        source=m.fs.raw_water_tank_mix.outlet, destination=m.fs.raw_water_tank.inlet
+    )
+
+    # RAW WATER TANK TO COOLING TOWER AND SERVICE & FIRE
 
     m.fs.raw_water_tank_to_cooling_tower = Arc(
         source=m.fs.raw_water_tank.to_cooling_tower,
@@ -279,6 +391,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
         destination=m.fs.service_and_fire.inlet,
     )
 
+    # COOLING TOWER TO EVAPORATION AND WW SURGE TANK
     m.fs.cooling_tower_to_evaporation = Arc(
         source=m.fs.cooling_tower.to_evaporation, destination=m.fs.evaporation.inlet
     )
@@ -286,6 +399,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
         source=m.fs.cooling_tower.to_ww_surge_tank, destination=m.fs.ww_surge_tank.inlet
     )
 
+    # WW SURGE TANK TO RO REJECT TANK, BC FEED TANK, AND MYSTERY
     m.fs.ww_surge_tank_to_ro_reject_tank = Arc(
         source=m.fs.ww_surge_tank.to_ro_reject_tank,
         destination=m.fs.ro_reject_tank.inlet,
@@ -298,6 +412,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
         source=m.fs.ww_surge_tank.to_mystery, destination=m.fs.mystery.inlet
     )
 
+    # RO REJECT TANK TO BC FEED TANK, RO CONTAINMENT, CONC WASTE, AND UF
     m.fs.ro_reject_tank_to_bc_feed_tank = Arc(
         source=m.fs.ro_reject_tank.to_bc_feed_tank,
         destination=m.fs.bc_feed_tank.from_ro_reject_tank,
@@ -315,13 +430,17 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
         # destination=m.fs.conc_waste.inlet,
     )
 
+    # UF TO RO CONTAINMENT AND RO PUMP
+
     m.fs.uf_to_ro_containment = Arc(
         source=m.fs.uf.to_ro_containment, destination=m.fs.ro_containment.from_uf
     )
     m.fs.uf_to_ro_pump = Arc(source=m.fs.uf.to_ro_pump, destination=m.fs.ro_pump.inlet)
 
+    # RO PUMP TO RO
     m.fs.ro_pump_to_ro = Arc(source=m.fs.ro_pump.outlet, destination=m.fs.ro.inlet)
 
+    # RO TO RO CONTAINMENT AND RO PERMEATE
     m.fs.ro_to_ro_containment = Arc(
         source=m.fs.ro.to_ro_containment, destination=m.fs.ro_containment.from_ro
     )
@@ -348,7 +467,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     )
 
     m.fs.ro_permeate_to_demin = Arc(
-        source=m.fs.permeate.outlet, destination=m.fs.demin.from_ro_permeate
+        source=m.fs.permeate.to_demin, destination=m.fs.demin.from_ro_permeate
     )
 
     m.fs.demin_to_product = Arc(
@@ -390,7 +509,21 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
 
     print(f"dof = {degrees_of_freedom(m)}")
     m.fs.wells.initialize()
-    propagate_state(m.fs.wells_to_raw_water_tank)
+    propagate_state(m.fs.wells_to_raw_water_tank_mix)
+    perm_flow = pyunits.convert(
+        49 * pyunits.gallon / pyunits.minute, to_units=pyunits.m**3 / pyunits.s
+    )()
+    m.fs.raw_water_tank_mix.from_permeate_state.calculate_state(
+        var_args={
+            ("flow_vol_phase", ("Liq")): perm_flow,
+            ("conc_mass_phase_comp", ("Liq", "TDS")): 0.5,
+            ("pressure", None): 101325,
+            ("temperature", None): 273.15 + 27,
+        },
+        hold_state=False,
+    )
+    m.fs.raw_water_tank_mix.initialize()
+    propagate_state(m.fs.raw_water_tank_mix_to_raw_water_tank)
 
     m.fs.raw_water_tank.initialize()
     propagate_state(m.fs.raw_water_tank_to_cooling_tower)
@@ -411,6 +544,7 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
     propagate_state(m.fs.ro_to_ro_permeate)
 
     m.fs.permeate.initialize()
+    propagate_state(m.fs.permeate_to_raw_water_tank_mix)
 
     m.fs.ww_surge_tank.initialize()
     propagate_state(m.fs.ww_surge_tank_to_ro_reject_tank)
@@ -452,11 +586,10 @@ def build_primary_fs(RO_pump_pressure=200, BCs=["BC_A", "BC_B", "BC_C"], Qin=113
 
     m.fs.pond_evap.initialize()
 
-    # clear_output(wait=False)
-
     print(f"dof = {degrees_of_freedom(m)}")
 
     return m
+
 
 def add_MVCs(m, recovery_vol=0.92):
 
@@ -535,11 +668,7 @@ def add_MVCs(m, recovery_vol=0.92):
 
     iscale.calculate_scaling_factors(m)
 
-    d = {
-        "evaporator.area": 455.0,
-        "hx_brine.area": 10.4,
-        "hx_distillate.area": 60.8
-    }
+    d = {"evaporator.area": 455.0, "hx_brine.area": 10.4, "hx_distillate.area": 60.8}
 
     for i, bc_label in enumerate(m.BCs):
         if i == 0:
@@ -614,7 +743,7 @@ def print_stream_flows(m, w=30):
             print(f'{"TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
         elif isinstance(b, Separator) or isinstance(b, Mixer):
             if b.name == "fs.ro":
-                recov = b.split_fraction[0, 'to_ro_permeate', 'H2O']()*100
+                recov = b.split_fraction[0, "to_ro_permeate", "H2O"]() * 100
                 print(f'{"Recovery":<{w}s}{f"{recov:<{w},.2f}"}{"%":<{w}s}')
             ms = b.find_component("mixed_state")
             if isinstance(b, Separator):
@@ -784,6 +913,7 @@ def touch_flow_and_conc(b):
             sb[0].flow_vol_phase
             sb[0].conc_mass_phase_comp
 
+
 def print_MVC_stream_flows(blk, w=30):
     # sb_in = model.fs.BCs.find_component(f"to_{blk.name}_state")
     # conc_in = sb_in[0].conc_mass_phase_comp["Liq", "TDS"]
@@ -818,6 +948,7 @@ def print_MVC_stream_flows(blk, w=30):
     print(f"{'Conc TDS In':<{w}s}{value(conc_in):<{w}.3f}{'g/L':<{w}s}")
     print(f"{'Conc TDS Distillate':<{w}s}{value(conc_out):<{w}.3f}{'g/L':<{w}s}")
     print(f"{'Conc TDS Brine':<{w}s}{value(conc_brine):<{w}.3f}{'g/L':<{w}s}")
+
 
 def report_pump(blk, w=35):
 
@@ -857,7 +988,7 @@ def report_pump(blk, w=35):
     )
     temp_out_F = (
         blk.control_volume.properties_out[0].temperature.value - 273.15
-    ) * 9 / 5 + 32  
+    ) * 9 / 5 + 32
     print(f'{"Temp. Out (F)":<{w}s}{temp_out_F:<{w}.1f}{"F":<{w}s}')
     print(
         f'{"Pressure Ratio":<{w}s}{value(blk.ratioP[0]):<{w}.1f}{f"{pyunits.get_units(blk.ratioP[0])}":<{w}s}'
@@ -890,18 +1021,24 @@ def report_MVC(blk, w=35):
         temp_out_F = (
             blk.compressor.control_volume.properties_out[0].temperature.value - 273.15
         ) * 9 / 5 + 32
-        pressure_in_psi = value(pyunits.convert(
-            blk.compressor.control_volume.properties_in[0].pressure,
-            to_units=pyunits.psi,
-        ))
-        pressure_out_psi = value(pyunits.convert(
-            blk.compressor.control_volume.properties_out[0].pressure,
-            to_units=pyunits.psi,
-        ))
-        print(f'{"Inlet Pressure":<{w}s}{blk.compressor.control_volume.properties_in[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_in[0].pressure)}":<{w}s}'
+        pressure_in_psi = value(
+            pyunits.convert(
+                blk.compressor.control_volume.properties_in[0].pressure,
+                to_units=pyunits.psi,
+            )
+        )
+        pressure_out_psi = value(
+            pyunits.convert(
+                blk.compressor.control_volume.properties_out[0].pressure,
+                to_units=pyunits.psi,
+            )
+        )
+        print(
+            f'{"Inlet Pressure":<{w}s}{blk.compressor.control_volume.properties_in[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_in[0].pressure)}":<{w}s}'
         )
         print(f'{"Inlet Pressure (psi)":<{w}s}{pressure_in_psi:<{w}.3f}{"psi":<{w}s}')
-        print(f'{"Outlet Pressure":<{w}s}{blk.compressor.control_volume.properties_out[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_out[0].pressure)}":<{w}s}'
+        print(
+            f'{"Outlet Pressure":<{w}s}{blk.compressor.control_volume.properties_out[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_out[0].pressure)}":<{w}s}'
         )
         print(f'{"Outlet Pressure (psi)":<{w}s}{pressure_out_psi:<{w}.3f}{"psi":<{w}s}')
 
@@ -917,10 +1054,12 @@ def report_MVC(blk, w=35):
         )
 
     if hasattr(blk, "condenser"):
-        cond_pressure_psi = value(pyunits.convert(
-            blk.condenser.control_volume.properties_out[0].pressure,
-            to_units=pyunits.psi,
-        ))
+        cond_pressure_psi = value(
+            pyunits.convert(
+                blk.condenser.control_volume.properties_out[0].pressure,
+                to_units=pyunits.psi,
+            )
+        )
         print(f"\nCondenser {'.' * w}")
         print(
             f'{"Vapor Temp.":<{w}s}{blk.condenser.control_volume.properties_out[0].temperature.value:<{w}.3f}{f"{pyunits.get_units(blk.condenser.control_volume.properties_out[0].temperature)}":<{w}s}'
@@ -928,9 +1067,7 @@ def report_MVC(blk, w=35):
         print(
             f'{"Vapor Pressure":<{w}s}{blk.condenser.control_volume.properties_out[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.condenser.control_volume.properties_out[0].pressure)}":<{w}s}'
         )
-        print(
-            f'{"Vapor Pressure (psi)":<{w}s}{cond_pressure_psi:<{w}.3f}{"psi":<{w}s}'
-        )
+        print(f'{"Vapor Pressure (psi)":<{w}s}{cond_pressure_psi:<{w}.3f}{"psi":<{w}s}')
         condensed_vap_temp_F = (
             blk.condenser.control_volume.properties_out[0].temperature.value - 273.15
         ) * 9 / 5 + 32
@@ -963,7 +1100,10 @@ def report_MVC(blk, w=35):
         print(
             f'{"Delta T_out":<{w}s}{blk.evaporator.delta_temperature_out.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.delta_temperature_out)}":<{w}s}'
         )
-        U2 = pyunits.convert(blk.evaporator.U, to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR))
+        U2 = pyunits.convert(
+            blk.evaporator.U,
+            to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR),
+        )
         print(
             f'{"U":<{w}s}{blk.evaporator.U.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.U)}":<{w}s}'
         )
@@ -1011,7 +1151,6 @@ def report_MVC(blk, w=35):
 
 if __name__ == "__main__":
 
-
     m = build_primary_fs()
     m.fs.ro_pump.control_volume.properties_out[0].pressure.unfix()
     m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"].fix(0.7)
@@ -1020,3 +1159,4 @@ if __name__ == "__main__":
     print(f"termination condition: {results.solver.termination_condition}")
     # bc_fs.add_MVCs(m)
     print_stream_flows(m)
+    add_MVCs(m, recovery_vol=0.92)
