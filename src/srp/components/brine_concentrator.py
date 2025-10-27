@@ -1,6 +1,6 @@
-import os
 import pathlib
 import math
+
 from pyomo.environ import (
     ConcreteModel,
     value,
@@ -8,27 +8,17 @@ from pyomo.environ import (
     Param,
     Var,
     Constraint,
-    Set,
     Expression,
     Objective,
-    RangeSet,
     check_optimal_termination,
     assert_optimal_termination,
     units as pyunits,
 )
-from pyomo.util.calc_var_value import calculate_variable_from_constraint as cvc
 from pyomo.network import Arc, SequentialDecomposition
-from pyomo.util.check_units import assert_units_consistent
+
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
 import idaes.core.util.scaling as iscale
-from idaes.core import MaterialFlowBasis
-from idaes.core.util.scaling import (
-    constraint_scaling_transform,
-    calculate_scaling_factors,
-    set_scaling_factor,
-)
-import idaes.logger as idaeslogger
 from idaes.models.unit_models import (
     Product,
     Feed,
@@ -47,9 +37,6 @@ from idaes.core.util.model_statistics import *
 
 from watertap.core.solvers import get_solver
 from watertap.core.util.model_diagnostics.infeasible import *
-from watertap.property_models.multicomp_aq_sol_prop_pack import MCASParameterBlock
-from watertap.core.util.initialization import *
-
 from watertap.unit_models.pressure_changer import Pump
 from watertap.unit_models.mvc.components import Evaporator
 from watertap.unit_models.mvc.components import Compressor
@@ -57,7 +44,6 @@ from watertap.unit_models.mvc.components import Condenser
 from watertap.unit_models.mvc.components.lmtd_chen_callback import (
     delta_temperature_chen_callback,
 )
-
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
 from watertap.property_models.water_prop_pack import (
     WaterParameterBlock as SteamParameterBlock,
@@ -66,6 +52,7 @@ from watertap.costing import WaterTAPCosting
 
 from srp.components.translator_sw_to_water import Translator_SW_to_Water
 
+__author__ = "Kurban Sitterley"
 
 __all__ = [
     "build_mvc",
@@ -75,27 +62,22 @@ __all__ = [
     "init_mvc",
     "add_mvc_costing",
     "scale_mvc_costs",
-    "display_metrics",
-    "display_costing",
-    "display_design",
     "run_sequential_decomposition",
+    "solve_mvc",
+    "display_MVC_flow_table",
+    "scale_mvc_costs",
+    "report_pump",
+    "report_MVC",
 ]
 
-electricity_cost_base = 0.0434618999  # USD_2018/kWh equivalent to 0.0575 USD_2023/kWh
-heat_cost_base = 0.00894
-
 solver = get_solver()
-
-reflo_dir = pathlib.Path(__file__).resolve().parents[4]
-case_study_yaml = f"{reflo_dir}/data/technoeconomic/permian_case_study.yaml"
-rho = 1000 * pyunits.kg / pyunits.m**3
 
 _log = idaeslog.getLogger("SRP")
 
 
 def build_and_run_mvc(
     recovery=0.5,
-    Qin=728/30, # gpm
+    Qin=728 / 30,  # gpm
     Cin=11.408,
     **kwargs,
 ):
@@ -160,9 +142,9 @@ def build_and_run_mvc(
     m.fs.BC.disposal.initialize()
     results = solve_mvc(m)
     print_infeasible_constraints(m)
-    
+
     report_MVC(m.fs.BC)
-    print(f'dof = {degrees_of_freedom(m)}')
+    print(f"dof = {degrees_of_freedom(m)}")
 
     return m
 
@@ -189,8 +171,6 @@ def build_mvc_system(recovery=0.5, **kwargs):
 
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.costing = WaterTAPCosting()
-    m.fs.costing.electricity_cost.fix(electricity_cost_base)
-    # m.fs.costing.heat_cost.fix(heat_cost_base)
 
     m.fs.properties_feed = SeawaterParameterBlock()
     m.fs.properties_vapor = SteamParameterBlock()
@@ -402,7 +382,7 @@ def set_mvc_operating_conditions(
     compressor_temp_out_lb=65,
     compressor_temp_out_ub=180,
     flow_mass_tds_dist=0.01,
-    brine_pump_deltaP=1600, 
+    brine_pump_deltaP=1600,
     dist_pump_deltaP=3700,
     U=3e3,
     **kwargs,
@@ -443,9 +423,15 @@ def set_mvc_operating_conditions(
     # blk.evaporator.area.set_value(4275)  # m^2
 
     # Compressor
-    blk.compressor.control_volume.properties_out[0].temperature.setlb(compressor_temp_out_lb + 273.15)
-    blk.compressor.control_volume.properties_out[0].temperature.setub(compressor_temp_out_ub + 273.15)
-    blk.compressor.control_volume.properties_out[0].temperature.set_value((compressor_temp_out_lb + compressor_temp_out_ub) / 2 + 273.15)
+    blk.compressor.control_volume.properties_out[0].temperature.setlb(
+        compressor_temp_out_lb + 273.15
+    )
+    blk.compressor.control_volume.properties_out[0].temperature.setub(
+        compressor_temp_out_ub + 273.15
+    )
+    blk.compressor.control_volume.properties_out[0].temperature.set_value(
+        (compressor_temp_out_lb + compressor_temp_out_ub) / 2 + 273.15
+    )
     blk.compressor.pressure_ratio.fix(1.6)
     blk.compressor.efficiency.fix(0.8)
 
@@ -460,7 +446,9 @@ def set_mvc_operating_conditions(
     # Fix 0 TDS
     # blk.tb_sw_to_water.properties_out[0].flow_mass_phase_comp["Liq", "TDS"].fix(1e-5)
 
-    blk.tb_sw_to_water.properties_out[0].flow_mass_phase_comp["Liq", "TDS"].fix(flow_mass_tds_dist)
+    blk.tb_sw_to_water.properties_out[0].flow_mass_phase_comp["Liq", "TDS"].fix(
+        flow_mass_tds_dist
+    )
     print("DOF after setting operating conditions: ", degrees_of_freedom(blk))
 
 
@@ -508,7 +496,7 @@ def set_mvc_scaling(
         "flow_mass_phase_comp", 1, index=("Liq", "H2O")
     )
 
-    set_scaling_factor(blk.external_heating, 1e-6)
+    iscale.set_scaling_factor(blk.external_heating, 1e-6)
 
     # MVC FEED
     # set_scaling_factor(
@@ -521,53 +509,59 @@ def set_mvc_scaling(
     # MVC DISPOSAL
 
     # PUMPS
-    set_scaling_factor(blk.pump_feed.control_volume.work, 1e-3)
-    set_scaling_factor(blk.pump_brine.control_volume.work, 1e-3)
-    set_scaling_factor(blk.pump_distillate.control_volume.work, 1e-3)
+    iscale.set_scaling_factor(blk.pump_feed.control_volume.work, 1e-3)
+    iscale.set_scaling_factor(blk.pump_brine.control_volume.work, 1e-3)
+    iscale.set_scaling_factor(blk.pump_distillate.control_volume.work, 1e-3)
 
     # DISTILLATE HX
-    set_scaling_factor(blk.hx_distillate.hot.heat, 1e-3)
-    set_scaling_factor(blk.hx_distillate.cold.heat, 1e-3)
-    set_scaling_factor(blk.hx_distillate.overall_heat_transfer_coefficient, 1e-3)
+    iscale.set_scaling_factor(blk.hx_distillate.hot.heat, 1e-3)
+    iscale.set_scaling_factor(blk.hx_distillate.cold.heat, 1e-3)
+    iscale.set_scaling_factor(blk.hx_distillate.overall_heat_transfer_coefficient, 1e-3)
 
-    set_scaling_factor(blk.hx_distillate.area, 1e-1)
-    constraint_scaling_transform(blk.hx_distillate.cold_side.pressure_balance[0], 1e-5)
-    constraint_scaling_transform(blk.hx_distillate.hot_side.pressure_balance[0], 1e-5)
+    iscale.set_scaling_factor(blk.hx_distillate.area, 1e-1)
+    iscale.constraint_scaling_transform(
+        blk.hx_distillate.cold_side.pressure_balance[0], 1e-5
+    )
+    iscale.constraint_scaling_transform(
+        blk.hx_distillate.hot_side.pressure_balance[0], 1e-5
+    )
 
     # BRINE HX
-    set_scaling_factor(blk.hx_brine.hot.heat, 1e-3)
-    set_scaling_factor(blk.hx_brine.cold.heat, 1e-3)
-    set_scaling_factor(blk.hx_brine.overall_heat_transfer_coefficient, 1e-3)
-    set_scaling_factor(blk.hx_brine.area, 1e-1)
-    constraint_scaling_transform(blk.hx_brine.cold_side.pressure_balance[0], 1e-5)
-    constraint_scaling_transform(blk.hx_brine.hot_side.pressure_balance[0], 1e-5)
+    iscale.set_scaling_factor(blk.hx_brine.hot.heat, 1e-3)
+    iscale.set_scaling_factor(blk.hx_brine.cold.heat, 1e-3)
+    iscale.set_scaling_factor(blk.hx_brine.overall_heat_transfer_coefficient, 1e-3)
+    iscale.set_scaling_factor(blk.hx_brine.area, 1e-1)
+    iscale.constraint_scaling_transform(
+        blk.hx_brine.cold_side.pressure_balance[0], 1e-5
+    )
+    iscale.constraint_scaling_transform(blk.hx_brine.hot_side.pressure_balance[0], 1e-5)
 
     # EVAPORATOR
     # set_scaling_factor(blk.evaporator.properties_brine[0].pressure, 1e-4)
-    set_scaling_factor(blk.evaporator.area, 1e-3)
-    set_scaling_factor(blk.evaporator.U, 1e-3)
-    set_scaling_factor(blk.evaporator.delta_temperature_in, 1e-1)
-    set_scaling_factor(blk.evaporator.delta_temperature_out, 1e-1)
-    set_scaling_factor(blk.evaporator.lmtd, 1e-1)
+    iscale.set_scaling_factor(blk.evaporator.area, 1e-3)
+    iscale.set_scaling_factor(blk.evaporator.U, 1e-3)
+    iscale.set_scaling_factor(blk.evaporator.delta_temperature_in, 1e-1)
+    iscale.set_scaling_factor(blk.evaporator.delta_temperature_out, 1e-1)
+    iscale.set_scaling_factor(blk.evaporator.lmtd, 1e-1)
     # set_scaling_factor(blk.evaporator.heat_transfer, 1e-7)
 
     # COMPRESSOR
-    set_scaling_factor(blk.compressor.control_volume.work, 1e-6)
+    iscale.set_scaling_factor(blk.compressor.control_volume.work, 1e-6)
     # set_scaling_factor(
     #     blk.compressor.control_volume.properties_in[0].enth_flow_phase["Liq"], 1
     # )
 
     # CONDENSER
-    set_scaling_factor(blk.condenser.control_volume.heat, 1e-5)
+    iscale.set_scaling_factor(blk.condenser.control_volume.heat, 1e-5)
 
     # if hasattr(blk.evaporator, "costing"):
     #     scale_mvc_costs(m, blk)
 
     if calc_blk_scaling_factors:
-        calculate_scaling_factors(blk)
+        iscale.calculate_scaling_factors(blk)
 
     else:
-        calculate_scaling_factors(m)
+        iscale.calculate_scaling_factors(m)
 
 
 def init_system(m, blk, **kwargs):
@@ -591,7 +585,7 @@ def init_mvc(
     delta_temperature_in=10,
     delta_temperature_out=None,
     solver=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Initialization routine for generic MVC setup.
@@ -768,7 +762,8 @@ def init_mvc(
         m,
         blk,
         delta_temperature_in=delta_temperature_in,
-        delta_temperature_out=delta_temperature_out, **kwargs
+        delta_temperature_out=delta_temperature_out,
+        **kwargs,
     )
 
     blk.product.initialize()
@@ -940,7 +935,7 @@ def add_external_heating(m, blk):
         == blk.evaporator.properties_brine[0].enth_flow
         + blk.evaporator.properties_vapor[0].enth_flow_phase["Vap"]
     )
-    set_scaling_factor(blk.external_heating, 1e-6)
+    iscale.set_scaling_factor(blk.external_heating, 1e-6)
 
 
 def add_mvc_costing(m, blk, flowsheet_costing_block=None):
@@ -1036,6 +1031,7 @@ def display_MVC_flow_table(blk, w=25):
 
     print("\n\n")
 
+
 def calculate_cost_sf(cost):
     print(cost.name, cost.value)
     if cost.value in [0, None]:
@@ -1056,7 +1052,7 @@ def scale_mvc_costs(m, blk):
     # calculate_cost_sf(m.fs.costing.total_capital_cost)
     # calculate_cost_sf(m.fs.costing.total_operating_cost)
 
-    calculate_scaling_factors(m)
+    iscale.calculate_scaling_factors(m)
 
     print("Scaled costs")
 
@@ -1096,6 +1092,7 @@ def print_MVC_stream_flows(blk, w=30):
     print(f"{'Conc TDS Distillate':<{w}s}{value(conc_out):<{w}.3f}{'g/L':<{w}s}")
     print(f"{'Conc TDS Brine':<{w}s}{value(conc_brine):<{w}.3f}{'g/L':<{w}s}")
 
+
 def report_pump(blk, w=35):
 
     pump_power_watt = value(pyunits.convert(blk.work_mechanical[0], to_units=pyunits.W))
@@ -1134,7 +1131,7 @@ def report_pump(blk, w=35):
     )
     temp_out_F = (
         blk.control_volume.properties_out[0].temperature.value - 273.15
-    ) * 9 / 5 + 32  
+    ) * 9 / 5 + 32
     print(f'{"Temp. Out (F)":<{w}s}{temp_out_F:<{w}.1f}{"F":<{w}s}')
     print(
         f'{"Pressure Ratio":<{w}s}{value(blk.ratioP[0]):<{w}.1f}{f"{pyunits.get_units(blk.ratioP[0])}":<{w}s}'
@@ -1167,18 +1164,24 @@ def report_MVC(blk, w=35):
         temp_out_F = (
             blk.compressor.control_volume.properties_out[0].temperature.value - 273.15
         ) * 9 / 5 + 32
-        pressure_in_psi = value(pyunits.convert(
-            blk.compressor.control_volume.properties_in[0].pressure,
-            to_units=pyunits.psi,
-        ))
-        pressure_out_psi = value(pyunits.convert(
-            blk.compressor.control_volume.properties_out[0].pressure,
-            to_units=pyunits.psi,
-        ))
-        print(f'{"Inlet Pressure":<{w}s}{blk.compressor.control_volume.properties_in[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_in[0].pressure)}":<{w}s}'
+        pressure_in_psi = value(
+            pyunits.convert(
+                blk.compressor.control_volume.properties_in[0].pressure,
+                to_units=pyunits.psi,
+            )
+        )
+        pressure_out_psi = value(
+            pyunits.convert(
+                blk.compressor.control_volume.properties_out[0].pressure,
+                to_units=pyunits.psi,
+            )
+        )
+        print(
+            f'{"Inlet Pressure":<{w}s}{blk.compressor.control_volume.properties_in[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_in[0].pressure)}":<{w}s}'
         )
         print(f'{"Inlet Pressure (psi)":<{w}s}{pressure_in_psi:<{w}.3f}{"psi":<{w}s}')
-        print(f'{"Outlet Pressure":<{w}s}{blk.compressor.control_volume.properties_out[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_out[0].pressure)}":<{w}s}'
+        print(
+            f'{"Outlet Pressure":<{w}s}{blk.compressor.control_volume.properties_out[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.compressor.control_volume.properties_out[0].pressure)}":<{w}s}'
         )
         print(f'{"Outlet Pressure (psi)":<{w}s}{pressure_out_psi:<{w}.3f}{"psi":<{w}s}')
 
@@ -1194,10 +1197,12 @@ def report_MVC(blk, w=35):
         )
 
     if hasattr(blk, "condenser"):
-        cond_pressure_psi = value(pyunits.convert(
-            blk.condenser.control_volume.properties_out[0].pressure,
-            to_units=pyunits.psi,
-        ))
+        cond_pressure_psi = value(
+            pyunits.convert(
+                blk.condenser.control_volume.properties_out[0].pressure,
+                to_units=pyunits.psi,
+            )
+        )
         print(f"\nCondenser {'.' * w}")
         print(
             f'{"Vapor Temp.":<{w}s}{blk.condenser.control_volume.properties_out[0].temperature.value:<{w}.3f}{f"{pyunits.get_units(blk.condenser.control_volume.properties_out[0].temperature)}":<{w}s}'
@@ -1205,9 +1210,7 @@ def report_MVC(blk, w=35):
         print(
             f'{"Vapor Pressure":<{w}s}{blk.condenser.control_volume.properties_out[0].pressure.value:<{w}.3f}{f"{pyunits.get_units(blk.condenser.control_volume.properties_out[0].pressure)}":<{w}s}'
         )
-        print(
-            f'{"Vapor Pressure (psi)":<{w}s}{cond_pressure_psi:<{w}.3f}{"psi":<{w}s}'
-        )
+        print(f'{"Vapor Pressure (psi)":<{w}s}{cond_pressure_psi:<{w}.3f}{"psi":<{w}s}')
         condensed_vap_temp_F = (
             blk.condenser.control_volume.properties_out[0].temperature.value - 273.15
         ) * 9 / 5 + 32
@@ -1240,7 +1243,10 @@ def report_MVC(blk, w=35):
         print(
             f'{"Delta T_out":<{w}s}{blk.evaporator.delta_temperature_out.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.delta_temperature_out)}":<{w}s}'
         )
-        U2 = pyunits.convert(blk.evaporator.U, to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR))
+        U2 = pyunits.convert(
+            blk.evaporator.U,
+            to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR),
+        )
         print(
             f'{"U":<{w}s}{blk.evaporator.U.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.U)}":<{w}s}'
         )
@@ -1345,57 +1351,55 @@ if __name__ == "__main__":
     m.fs.BC.disposal.properties[0].flow_vol_phase
     m.fs.BC.disposal.properties[0].conc_mass_phase_comp
     m.fs.BC.disposal.initialize()
-    m.fs.BC.hx_area_constr = Constraint(expr=m.fs.BC.hx_distillate.area <=  m.fs.BC.hx_brine.area)
+    m.fs.BC.hx_area_constr = Constraint(
+        expr=m.fs.BC.hx_distillate.area <= m.fs.BC.hx_brine.area
+    )
     results = solve_mvc(m)
     print_infeasible_constraints(m)
-    
+
     report_MVC(m.fs.BC)
-    print(f'dof = {degrees_of_freedom(m)}')
+    print(f"dof = {degrees_of_freedom(m)}")
 
     # m.fs.BC.compressor.pressure_ratio.fix(1.6)
     # results = solve_mvc(m)
     # print_infeasible_constraints(m)
-    
+
     # report_MVC(m.fs.BC)
     # print(f'dof = {degrees_of_freedom(m)}')
 
     # m.fs.BC.hx_distillate.area.fix()
     # results = solve_mvc(m)
     # print_infeasible_constraints(m)
-    
+
     # report_MVC(m.fs.BC)
     # print(f'dof = {degrees_of_freedom(m)}')
 
     # m.fs.BC.hx_brine.area.fix()
     # results = solve_mvc(m)
     # print_infeasible_constraints(m)
-    
+
     # report_MVC(m.fs.BC)
     # print(f'dof = {degrees_of_freedom(m)}')
 
     # m.fs.BC.evaporator.area.fix()
     # results = solve_mvc(m)
     # print_infeasible_constraints(m)
-    
+
     # report_MVC(m.fs.BC)
     # print(f'dof = {degrees_of_freedom(m)}')
 
-    m.fs.costing.add_LCOW(
-        m.fs.BC.product.properties[0].flow_vol_phase["Liq"]
-    )
+    m.fs.costing.add_LCOW(m.fs.BC.product.properties[0].flow_vol_phase["Liq"])
     m.fs.costing.add_specific_energy_consumption(
         m.fs.BC.product.properties[0].flow_vol_phase["Liq"], name="SEC"
     )
     m.fs.obj = Objective(expr=m.fs.costing.LCOW)
     results = solve_mvc(m)
     print_infeasible_constraints(m)
-    
+
     report_MVC(m.fs.BC)
-    print(f'dof = {degrees_of_freedom(m)}')
+    print(f"dof = {degrees_of_freedom(m)}")
     m.fs.costing.SEC.display()
     m.fs.costing.LCOW.display()
-    
-    
 
     # m.fs.BC.evaporator.outlet_brine.temperature[0].unfix()
     # m.fs.BC.compressor.pressure_ratio.unfix()
@@ -1407,7 +1411,7 @@ if __name__ == "__main__":
     #         results = solve_mvc(m)
     #     except:
     #         print_infeasible_constraints(m)
-        
+
     #     # report_MVC(m.fs.BC)
     #     print(f'dof = {degrees_of_freedom(m)}')
     # m.fs.BC.recovery_vol.fix(0.91)
@@ -1415,13 +1419,12 @@ if __name__ == "__main__":
     #     results = solve_mvc(m)
     # except:
     #     print_infeasible_constraints(m)
-    
+
     # report_MVC(m.fs.BC)
 
-    
     # print(f"LCOW = {value(m.fs.costing.LCOW):.3f} $/m3")
 
-    # m.fs.BC.pump_brine.display() 
+    # m.fs.BC.pump_brine.display()
     # # m = build_and_run_mvc(recovery=0.48, Qin=4.9, tds=117.416)
     # U2 = pyunits.convert(m.fs.BC.evaporator.U, to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR))
     # hx2 = pyunits.convert(m.fs.BC.evaporator.heat_transfer, to_units=pyunits.BTU / pyunits.hr)
