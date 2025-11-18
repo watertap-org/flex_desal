@@ -15,7 +15,6 @@ from pyomo.environ import (
 )
 from pyomo.network import Arc, SequentialDecomposition
 
-import pyomo.environ as pyo
 from idaes.core import FlowsheetBlock
 from watertap.core.solvers import get_solver
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -193,7 +192,7 @@ def build_primary_fs(
     m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"].setub(0.8)
 
     # ------------------------ PERMEATE ------------------------
-    m.fs.permeate = StateJunction(property_package=m.fs.properties_feed)
+    # m.fs.permeate = StateJunction(property_package=m.fs.properties_feed)
     m.fs.permeate = Separator(
         property_package=m.fs.properties_feed,
         outlet_list=["to_demin", "to_raw_water_tank_mix"],
@@ -204,6 +203,7 @@ def build_primary_fs(
     m.fs.permeate.split_fraction[0, "to_raw_water_tank_mix", "H2O"].fix(49 / 56.2)
     m.fs.permeate.split_fraction[0, "to_raw_water_tank_mix", "TDS"].fix(49 / 56.2)
     touch_flow_and_conc(m.fs.permeate)
+    # assert False
 
     # ------------------------ COOLING TOWER ------------------------
     m.fs.cooling_tower = Separator(
