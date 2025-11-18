@@ -26,12 +26,8 @@ from idaes.core.util.exceptions import InitializationError
 __author__ = "Kurban Sitterley"
 
 
-# Set up logger
-_log = idaeslog.getLogger(__name__)
-
-
-@declare_process_block_class("Translator_SW_to_Water")
-class Translator_ZO_to_SW_Data(TranslatorData):
+@declare_process_block_class("TranslatorSWtoWater")
+class TranslatorSWtoWaterData(TranslatorData):
     """
     Translator block for Seawater to Water property packages
     """
@@ -59,15 +55,6 @@ class Translator_ZO_to_SW_Data(TranslatorData):
                 == b.properties_out[0].flow_mass_phase_comp["Liq", "H2O"]
             )
 
-        # @self.Constraint(
-        #     doc="Equality mass flow TDS equation",
-        # )
-        # def eq_flow_mass_tds(b):
-        #     return (
-        #         b.properties_in[0].flow_mass_phase_comp["Liq", "TDS"]
-        #         == b.properties_out[0].flow_mass_phase_comp["Liq", "TDS"]
-        #     )
-
     def initialize_build(
         self,
         state_args_in=None,
@@ -76,27 +63,6 @@ class Translator_ZO_to_SW_Data(TranslatorData):
         solver=None,
         optarg=None,
     ):
-        """
-        This method calls the initialization method of the state blocks.
-
-        Keyword Arguments:
-            state_args_in : a dict of arguments to be passed to the inlet
-                            property package (to provide an initial state for
-                            initialization (see documentation of the specific
-                            property package) (default = None).
-            state_args_out : a dict of arguments to be passed to the outlet
-                             property package (to provide an initial state for
-                             initialization (see documentation of the specific
-                             property package) (default = None).
-            outlvl : sets output level of initialization routine
-            optarg : solver options dictionary object (default=None, use
-                     default solver options)
-            solver : str indicating which solver to use during
-                     initialization (default = None, use default solver)
-
-        Returns:
-            None
-        """
         init_log = idaeslog.getInitLogger(self.name, outlvl, tag="unit")
 
         # Create solver

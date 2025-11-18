@@ -1,9 +1,7 @@
-import pathlib
 import math
 
 from pyomo.environ import (
     ConcreteModel,
-    value,
     TransformationFactory,
     Param,
     Var,
@@ -12,6 +10,7 @@ from pyomo.environ import (
     Objective,
     check_optimal_termination,
     assert_optimal_termination,
+    value,
     units as pyunits,
 )
 from pyomo.network import Arc, SequentialDecomposition
@@ -38,9 +37,7 @@ from idaes.core.util.model_statistics import *
 from watertap.core.solvers import get_solver
 from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.unit_models.pressure_changer import Pump
-from watertap.unit_models.mvc.components import Evaporator
-from watertap.unit_models.mvc.components import Compressor
-from watertap.unit_models.mvc.components import Condenser
+from watertap.unit_models.mvc.components import Evaporator, Compressor, Condenser
 from watertap.unit_models.mvc.components.lmtd_chen_callback import (
     delta_temperature_chen_callback,
 )
@@ -50,7 +47,7 @@ from watertap.property_models.water_prop_pack import (
 )
 from watertap.costing import WaterTAPCosting
 
-from srp.components.translator_sw_to_water import Translator_SW_to_Water
+from srp.components.translator_sw_to_water import TranslatorSWtoWater
 
 __author__ = "Kurban Sitterley"
 
@@ -241,7 +238,7 @@ def build_mvc(m, blk, external_heating=True):
     blk.condenser = Condenser(property_package=m.fs.properties_vapor)
 
     # Translator SW to Water
-    blk.tb_sw_to_water = Translator_SW_to_Water(
+    blk.tb_sw_to_water = TranslatorSWtoWater(
         inlet_property_package=m.fs.properties_vapor,
         outlet_property_package=m.fs.properties_feed,
     )
