@@ -28,8 +28,6 @@ from idaes.models.unit_models import (
 from pyomo.network import Arc
 import idaes.core.util.scaling as iscale
 
-from watertap.unit_models.pressure_changer import Pump, EnergyRecoveryDevice
-
 from watertap.unit_models.reverse_osmosis_1D import (
     ReverseOsmosis1D,
     PressureChangeType,
@@ -60,7 +58,7 @@ def load_config(config):
         return yaml.safe_load(file)
 
 
-def get_config_value(
+def get_config_value( # Will need to update this to match new yaml
     config,
     key,
     section,
@@ -152,7 +150,7 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3):
+def build_wrd_ro_system(blk, prop_package=None):
     """
     Build reverse osmosis system for WRD
     """
@@ -161,33 +159,12 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     if prop_package is None:
         prop_package = m.fs.ro_properties
 
-    blk.number_trains = number_trains
-    blk.number_stages = number_stages
-
-    # Feed stream to first pump and system permeate
+    # Feed stream, permeate, and brine 
     blk.feed = StateJunction(property_package=prop_package)
-    blk.feed_splitter = Separator(
-        property_package=prop_package,
-        outlet_list=[f"train_{i+1}_feed" for i in range(number_trains)],
-    )
-
     blk.permeate = Product(property_package=prop_package)
-    blk.permeate_mixer = Mixer(
-        property_package=prop_package,
-        inlet_list=[f"train_{i+1}_permeate" for i in range(number_trains)],
-        energy_mixing_type=MixingType.extensive,
-        momentum_mixing_type=MomentumMixingType.minimize,
-    )
-
     blk.brine = Product(property_package=prop_package)
-    blk.brine_mixer = Mixer(
-        property_package=prop_package,
-        inlet_list=[f"train_{i+1}_brine" for i in range(number_trains)],
-        energy_mixing_type=MixingType.extensive,
-        momentum_mixing_type=MomentumMixingType.minimize,
-    )
 
-    blk.recovery = Var(
+    blk.recovery = Var( # Creating variable for RR. This may no longer be needed here, but moved to main flowsheet as an overall recovery from the different stages
         initialize=0.5,
         bounds=(0, 1),
         units=pyunits.dimensionless,
@@ -197,9 +174,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     @blk.Constraint(doc="Overall recovery constraint")
     def eq_recovery(b):
         return (
-            b.recovery
-            == b.permeate.properties[0].flow_vol_phase["Liq"]
-            / b.feed.properties[0].flow_vol_phase["Liq"]
+            b.recovery == b.permeate.properties[0].flow_vol_phase["Liq"] / b.feed.properties[0].flow_vol_phase["Liq"]
         )
 
     # WRD RO configurations input file. References to all values included in yml file
@@ -213,105 +188,45 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     config = parent_directory + "/meta_data/wrd_ro_inputs.yaml"
     blk.config_data = load_config(config)
 
-    total_power_consumption = 0
-
-    for i, n in enumerate(range(number_trains)):
-        blk.add_component(f"train_{n+1}", FlowsheetBlock(dynamic=False))
-        train = blk.find_component(f"train_{n+1}")
-        train.number_stages = number_stages
-
-        blk.feed_splitter.split_fraction[0, f"train_{i+1}_feed"].set_value(
-            1 / number_trains
-        )
-        if i != 0:
-            blk.feed_splitter.split_fraction[0, f"train_{i+1}_feed"].fix()
-        splitter_outlet = blk.feed_splitter.find_component(f"train_{i+1}_feed")
-
-        add_ro_units(train, prop_package=prop_package)
-        total_power_consumption += train.train_power_consumption
-        add_ro_connections(train)
-
-        train.add_component(
-            f"feed_to_train_{i+1}",
-            Arc(source=splitter_outlet, destination=train.feed.inlet),
-        )
-        prod_mixer_inlet = blk.permeate_mixer.find_component(f"train_{i+1}_permeate")
-        train.add_component(
-            f"train_{i+1}_permeate_to_mixer",
-            Arc(source=train.permeate.outlet, destination=prod_mixer_inlet),
-        )
-        brine_mixer_inlet = blk.brine_mixer.find_component(f"train_{i+1}_brine")
-        train.add_component(
-            f"train_{i+1}_brine_to_mixer",
-            Arc(source=train.brine.outlet, destination=brine_mixer_inlet),
-        )
-
-    blk.feed_to_feed_splitter = Arc(
-        source=blk.feed.outlet, destination=blk.feed_splitter.inlet
-    )
-    blk.permeate_mixer_to_permeate = Arc(
-        source=blk.permeate_mixer.outlet, destination=blk.permeate.inlet
-    )
-    blk.brine_mixer_to_brine = Arc(
-        source=blk.brine_mixer.outlet, destination=blk.brine.inlet
-    )
-
-    blk.total_power_consumption = Expression(expr=total_power_consumption)
-
-    TransformationFactory("network.expand_arcs").apply_to(blk)
-    print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
-
-
-def add_ro_units(blk, prop_package=None):
     """
+    add_ro_units(train, prop_package=prop_package)
     Add RO units to a single RO train
     """
 
-    m = blk.model()
-    if prop_package is None:
-        prop_package = m.fs.ro_properties
-
-    blk.feed = StateJunction(property_package=prop_package)
-    blk.train_power_consumption = 0
-
-    for i in range(1, (blk.number_stages + 1)):
-        blk.add_component(
-            f"pump{i}",
-            Pump(property_package=prop_package),
-        )
-        blk.train_power_consumption += pyunits.convert(
-            blk.find_component(f"pump{i}").work_mechanical[0], to_units=pyunits.kW
-        )
-        blk.add_component(
-            f"ro_stage_{i}",
-            ReverseOsmosis1D(
-                property_package=prop_package,
-                has_pressure_change=True,
-                # pressure_change_type=PressureChangeType.calculated,
-                pressure_change_type=PressureChangeType.fixed_per_stage,
-                mass_transfer_coefficient=MassTransferCoefficient.calculated,
-                concentration_polarization_type=ConcentrationPolarizationType.calculated,
-                transformation_scheme="BACKWARD",
-                transformation_method="dae.finite_difference",
-                module_type="spiral_wound",
-                finite_elements=7,
-                has_full_reporting=True,
-            ),
-        )
-
-    # Add permeate mixer
-    blk.permeate_mixer = Mixer(
-        property_package=prop_package,
-        inlet_list=[
-            f"ro_stage_{i}_permeate" for i in range(1, (blk.number_stages + 1))
-        ],
-        energy_mixing_type=MixingType.extensive,
-        momentum_mixing_type=MomentumMixingType.minimize,
+    blk.add_component(
+        "ro", # May want to replace with a name
+        ReverseOsmosis1D(
+            property_package=prop_package,
+            has_pressure_change=True,
+            # pressure_change_type=PressureChangeType.calculated, # Why this setting?
+            pressure_change_type=PressureChangeType.fixed_per_stage,
+            mass_transfer_coefficient=MassTransferCoefficient.calculated,
+            concentration_polarization_type=ConcentrationPolarizationType.calculated,
+            transformation_scheme="BACKWARD",
+            transformation_method="dae.finite_difference",
+            module_type="spiral_wound",
+            finite_elements=7,
+            has_full_reporting=True,
+        ),
     )
-    blk.power_consumption = Expression(expr=blk.train_power_consumption)
 
-    blk.permeate = StateJunction(property_package=prop_package)
-    blk.brine = StateJunction(property_package=prop_package)
+    """
+    add_ro_connections(train)
+    Add connections between the units in the RO system
+    """
+    # Connect permeate mixer to permeate product stream
+    blk.RO_to_permeate = Arc(
+        source=blk.feed.outlet, destination=blk.ro.inlet
+    )
+
+    blk.RO_to_permeate = Arc(
+        source=blk.ro.outlet, destination=blk.permeate.inlet
+    )
+    blk.RO_to_brine = Arc(
+        source=blk.ro.retentate, destination=blk.brine.inlet
+    )
+    TransformationFactory("network.expand_arcs").apply_to(blk)
+    print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
 
 def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
@@ -436,49 +351,6 @@ def set_ro_system_op_conditions(blk):
                     f"stage_{s}",
                 )
             )
-
-
-def add_ro_connections(blk):
-    """
-    Add connections between the units in the RO system
-    """
-
-    # Connect feed to first pump
-    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.inlet)
-
-    for i in range(1, blk.number_stages + 1):
-
-        p_out = blk.find_component(f"pump{i}").outlet
-        ro_in = blk.find_component(f"ro_stage_{i}").inlet
-        ro_perm = blk.find_component(f"ro_stage_{i}").permeate
-        blk.add_component(
-            f"pump{i}_to_ro_stage_{i}",
-            Arc(source=p_out, destination=ro_in),
-        )
-        blk.add_component(
-            f"ro_stage_{i}_to_permeate_mixer",
-            Arc(
-                source=ro_perm,
-                destination=blk.permeate_mixer.find_component(f"ro_stage_{i}_permeate"),
-            ),
-        )
-        if i != blk.number_stages:
-            ro_out = blk.find_component(f"ro_stage_{i}").retentate
-            p_in = blk.find_component(f"pump{i+1}").inlet
-            blk.add_component(
-                f"ro_stage_{i}_to_pump{i+1}",
-                Arc(source=ro_out, destination=p_in),
-            )
-    # Connect permeate mixer to permeate product stream
-    blk.permeate_mixer_to_permeate = Arc(
-        source=blk.permeate_mixer.outlet, destination=blk.permeate.inlet
-    )
-    last_stage = blk.find_component(f"ro_stage_{blk.number_stages}")
-    blk.last_stage_to_brine = Arc(
-        source=last_stage.retentate, destination=blk.brine.inlet
-    )
-
-    TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
 def add_ro_scaling(blk):
