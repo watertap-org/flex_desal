@@ -161,8 +161,8 @@ def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
 
     # Feed stream, permeate, and brine 
     blk.feed = StateJunction(property_package=prop_package)
-    blk.permeate = Product(property_package=prop_package)
-    blk.brine = Product(property_package=prop_package)
+    blk.permeate = StateJunction(property_package=prop_package)
+    blk.brine = StateJunction(property_package=prop_package)
 
     blk.recovery = Var( # Creating variable for RR. This may no longer be needed here, but moved to main flowsheet as an overall recovery from the different stages
         initialize=0.5,
@@ -215,7 +215,7 @@ def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     )
 
     blk.RO_to_permeate = Arc(
-        source=blk.ro.outlet, destination=blk.permeate.inlet
+        source=blk.ro.permeate, destination=blk.permeate.inlet
     )
     blk.RO_to_brine = Arc(
         source=blk.ro.retentate, destination=blk.brine.inlet
@@ -224,7 +224,7 @@ def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
 
-def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
+def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
     """
     Set the operation conditions for the RO system
     """
@@ -237,7 +237,7 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed.properties[0].pressure.fix(101325 * pyunits.Pa)  # 1 bar
+    blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)  
 
 
 def set_ro_system_op_conditions(blk):
@@ -306,7 +306,7 @@ def set_ro_system_op_conditions(blk):
             f"stage_{s}",
         )
     )
-    blk.ro.e.deltaP.fix(
+    blk.ro.deltaP.fix(
         get_config_value(
             blk.config_data, "pressure_drop", "reverse_osmosis_1d", f"stage_{s}"
         )
@@ -328,7 +328,7 @@ def add_ro_scaling(blk):
     # Properties
     m = blk.model()
     m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1, index=("Liq", "H2O")
+        "flow_mass_phase_comp", 1, index=("Liq", "H2O") # 1e-2 ????
     )
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
@@ -340,12 +340,12 @@ def add_ro_scaling(blk):
     set_scaling_factor(blk.ro.feed_side.spacer_porosity, 1e-1)
     # set_scaling_factor(blk.feed_side.channel_height, 1e-5)
     for i, x in blk.ro.feed_side.mass_transfer_term.items():
-        if i[3] == "NaCl":
+        if i[3] == "NaCl": # Not seeing why these are the scaling factors used
             set_scaling_factor(x, 1e4)
         else:
             set_scaling_factor(x, 1)
-    constraint_scaling_transform(blk.feed_side.eq_dh, 1e-5)
-    constraint_scaling_transform(blk.eq_area, 1e-5)
+    constraint_scaling_transform(blk.ro.feed_side.eq_dh, 1e-5)
+    constraint_scaling_transform(blk.ro.eq_area, 1e-5)
     for i, c in blk.ro.feed_side.eq_K.items():
         set_scaling_factor(c, 1e4)
     # constraint_scaling_transform(blk.feed_side.eq_K, 1e4)
@@ -387,18 +387,15 @@ def report_ro(blk, w=30): # This is not super informative yet
     
 
 if __name__ == "__main__":
-    m = build_system(number_trains=4, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=4*0.154, Cin=0.542)
+    m = build_system() # optional input of stage_num
+    set_inlet_conditions(m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=10.6) # ro_system just adds feed,brine,perm. May consider renaming to avoid implying pumps are included?
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     initialize_ro_system(m.fs.ro_system)
-    m.fs.obj = Objective(
-        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
-    )
+    m.fs.obj = Objective(expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"])
     results = solver.solve(m)
     assert_optimal_termination(results)
 
     print(f"{iscale.jacobian_cond(m.fs.ro_system):.2e}")
-    # m.fs.ro_system.recovery.display()
-    m.fs.ro_system.total_power_consumption.display()
-    report_ro(m.fs.ro, w=40)
+    m.fs.ro_system.recovery.display()
+    report_ro(m.fs.ro_system, w=40)

@@ -78,7 +78,7 @@ def build_wrd_system():
 
     # RO unit
     m.fs.ro_train = FlowsheetBlock(dynamic=False)
-    build_wrd_ro_system(m.fs.ro_train, prop_package=m.fs.ro_properties)
+    build_wrd_ro_system(m.fs.ro_train, prop_package=m.fs.ro_properties) # Need to pass stage_num now
 
     # Translator block between RO to ZO property packages
 
