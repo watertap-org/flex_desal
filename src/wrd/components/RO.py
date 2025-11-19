@@ -245,17 +245,17 @@ def set_ro_system_op_conditions(blk):
     """
     s = blk.stage_num
     # Set RO configuration for each stage
-    blk.A_comp.fix(
+    blk.ro.A_comp.fix(
         get_config_value(
             blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}"
         )
     )
-    blk.B_comp.fix(
+    blk.ro.B_comp.fix(
         get_config_value(
             blk.config_data, "B_comp", "reverse_osmosis_1d", f"stage_{s}"
         )
     )
-    blk.feed_side.channel_height.fix(
+    blk.ro.feed_side.channel_height.fix(
         get_config_value(
             blk.config_data,
             "channel_height",
@@ -263,7 +263,7 @@ def set_ro_system_op_conditions(blk):
             f"stage_{s}",
         )
     )
-    blk.feed_side.spacer_porosity.fix(
+    blk.ro.feed_side.spacer_porosity.fix(
         get_config_value(
             blk.config_data,
             "spacer_porosity",
@@ -271,7 +271,7 @@ def set_ro_system_op_conditions(blk):
             f"stage_{s}",
         )
     )
-    blk.feed_side.length.fix(
+    blk.ro.feed_side.length.fix(
         get_config_value(
             blk.config_data,
             "number_of_elements_per_vessel",
@@ -285,11 +285,7 @@ def set_ro_system_op_conditions(blk):
             f"stage_{s}",
         )
     )
-
-    #blk.area.setub(1e6)
-    #blk.width.setub(1e5)
-
-    blk.area.fix(
+    blk.ro.area.fix(
         get_config_value(
             blk.config_data,
             "element_membrane_area",
@@ -309,12 +305,12 @@ def set_ro_system_op_conditions(blk):
             f"stage_{s}",
         )
     )
-    blk.e.deltaP.fix(
+    blk.ro.e.deltaP.fix(
         get_config_value(
             blk.config_data, "pressure_drop", "reverse_osmosis_1d", f"stage_{s}"
         )
     )
-    blk.recovery_mass_phase_comp[0, "Liq", "H2O"].fix(
+    blk.ro.recovery_mass_phase_comp[0, "Liq", "H2O"].fix(
         get_config_value(
             blk.config_data,
             "water_recovery_mass_phase",
@@ -328,39 +324,30 @@ def add_ro_scaling(blk):
     """
     Add scaling to the units in the RO system
     """
+    # Properties
     m = blk.model()
-
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1, index=("Liq", "H2O")
     )
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
     )
-    for t in range(1, blk.number_trains + 1):
-        train = blk.find_component(f"train_{t}")
-        for s in range(1, train.number_stages + 1):
-            pump = train.find_component(f"pump{s}")
-
-            set_scaling_factor(pump.control_volume.work, 1e-3)
-
-            ro_stage = train.find_component(f"ro_stage_{s}")
-
-            # Calculate RO scaling factors
-            set_scaling_factor(ro_stage.feed_side.length, 1e-1)
-            set_scaling_factor(ro_stage.feed_side.width, 1e-3)
-            set_scaling_factor(ro_stage.area, 1e-5)
-            set_scaling_factor(ro_stage.feed_side.spacer_porosity, 1e-1)
-            # set_scaling_factor(ro_stage.feed_side.channel_height, 1e-5)
-            for i, x in ro_stage.feed_side.mass_transfer_term.items():
-                if i[3] == "NaCl":
-                    set_scaling_factor(x, 1e4)
-                else:
-                    set_scaling_factor(x, 1)
-            constraint_scaling_transform(ro_stage.feed_side.eq_dh, 1e-5)
-            constraint_scaling_transform(ro_stage.eq_area, 1e-5)
-            for i, c in ro_stage.feed_side.eq_K.items():
-                set_scaling_factor(c, 1e4)
-            # constraint_scaling_transform(ro_stage.feed_side.eq_K, 1e4
+    # RO Variables
+    set_scaling_factor(blk.ro.feed_side.length, 1e-1)
+    set_scaling_factor(blk.ro.feed_side.width, 1e-3)
+    set_scaling_factor(blk.ro.area, 1e-5)
+    set_scaling_factor(blk.ro.feed_side.spacer_porosity, 1e-1)
+    # set_scaling_factor(blk.feed_side.channel_height, 1e-5)
+    for i, x in blk.ro.feed_side.mass_transfer_term.items():
+        if i[3] == "NaCl":
+            set_scaling_factor(x, 1e4)
+        else:
+            set_scaling_factor(x, 1)
+    constraint_scaling_transform(blk.feed_side.eq_dh, 1e-5)
+    constraint_scaling_transform(blk.eq_area, 1e-5)
+    for i, c in blk.ro.feed_side.eq_K.items():
+        set_scaling_factor(c, 1e4)
+    # constraint_scaling_transform(blk.feed_side.eq_K, 1e4)
 
     calculate_scaling_factors(blk)
 
