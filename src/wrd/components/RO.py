@@ -142,22 +142,21 @@ def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
-
     m.fs.ro_system = FlowsheetBlock(dynamic=False)
-
     build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties, **kwargs)
-
     return m
 
 
-def build_wrd_ro_system(blk, prop_package=None):
+def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     """
     Build reverse osmosis system for WRD
+    stage_num is the current stage number, which determines membrane properties 
     """
-
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
+    # Stage number
+    blk.stage_num = stage_num
 
     # Feed stream, permeate, and brine 
     blk.feed = StateJunction(property_package=prop_package)
@@ -187,28 +186,23 @@ def build_wrd_ro_system(blk, prop_package=None):
 
     config = parent_directory + "/meta_data/wrd_ro_inputs.yaml"
     blk.config_data = load_config(config)
-
     """
     add_ro_units(train, prop_package=prop_package)
     Add RO units to a single RO train
     """
-
-    blk.add_component(
-        "ro", # May want to replace with a name
-        ReverseOsmosis1D(
-            property_package=prop_package,
-            has_pressure_change=True,
-            # pressure_change_type=PressureChangeType.calculated, # Why this setting?
-            pressure_change_type=PressureChangeType.fixed_per_stage,
-            mass_transfer_coefficient=MassTransferCoefficient.calculated,
-            concentration_polarization_type=ConcentrationPolarizationType.calculated,
-            transformation_scheme="BACKWARD",
-            transformation_method="dae.finite_difference",
-            module_type="spiral_wound",
-            finite_elements=7,
-            has_full_reporting=True,
-        ),
-    )
+    blk.ro = ReverseOsmosis1D(
+                property_package=prop_package,
+                has_pressure_change=True,
+                # pressure_change_type=PressureChangeType.calculated, # Why this setting?
+                pressure_change_type=PressureChangeType.fixed_per_stage,
+                mass_transfer_coefficient=MassTransferCoefficient.calculated,
+                concentration_polarization_type=ConcentrationPolarizationType.calculated,
+                transformation_scheme="BACKWARD",
+                transformation_method="dae.finite_difference",
+                module_type="spiral_wound",
+                finite_elements=7,
+                has_full_reporting=True,
+                )
 
     """
     add_ro_connections(train)
@@ -249,108 +243,85 @@ def set_ro_system_op_conditions(blk):
     """
     Set the operation conditions for the RO system
     """
-    # Set pump operating conditions
-    for t in range(1, blk.number_trains + 1):
-        train = blk.find_component(f"train_{t}")
-        for s in range(1, (train.number_stages + 1)):
-            pump = train.find_component(f"pump{s}")
+    s = blk.stage_num
+    # Set RO configuration for each stage
+    blk.A_comp.fix(
+        get_config_value(
+            blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}"
+        )
+    )
+    blk.B_comp.fix(
+        get_config_value(
+            blk.config_data, "B_comp", "reverse_osmosis_1d", f"stage_{s}"
+        )
+    )
+    blk.feed_side.channel_height.fix(
+        get_config_value(
+            blk.config_data,
+            "channel_height",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+    )
+    blk.feed_side.spacer_porosity.fix(
+        get_config_value(
+            blk.config_data,
+            "spacer_porosity",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+    )
+    blk.feed_side.length.fix(
+        get_config_value(
+            blk.config_data,
+            "number_of_elements_per_vessel",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+        * get_config_value(
+            blk.config_data,
+            "element_length",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+    )
 
-            pump.control_volume.properties_out[0].pressure.fix(
-                get_config_value(
-                    blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{s}"
-                )
-            )
+    #blk.area.setub(1e6)
+    #blk.width.setub(1e5)
 
-            pump.efficiency_pump.fix(
-                get_config_value(
-                    blk.config_data, "pump_efficiency", "pumps", f"pump_{s}"
-                )
-            )
-
-            # Set RO configuration for each stage
-            ro_stage = train.find_component(f"ro_stage_{s}")
-
-            ro_stage.A_comp.fix(
-                get_config_value(
-                    blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}"
-                )
-            )
-            ro_stage.B_comp.fix(
-                get_config_value(
-                    blk.config_data, "B_comp", "reverse_osmosis_1d", f"stage_{s}"
-                )
-            )
-
-            ro_stage.feed_side.channel_height.fix(
-                get_config_value(
-                    blk.config_data,
-                    "channel_height",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-            )
-            ro_stage.feed_side.spacer_porosity.fix(
-                get_config_value(
-                    blk.config_data,
-                    "spacer_porosity",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-            )
-
-            ro_stage.feed_side.length.fix(
-                get_config_value(
-                    blk.config_data,
-                    "number_of_elements_per_vessel",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-                * get_config_value(
-                    blk.config_data,
-                    "element_length",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-            )
-
-            ro_stage.area.setub(1e6)
-            ro_stage.width.setub(1e5)
-
-            ro_stage.area.fix(
-                get_config_value(
-                    blk.config_data,
-                    "element_membrane_area",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-                * get_config_value(
-                    blk.config_data,
-                    "number_of_vessels",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-                * get_config_value(
-                    blk.config_data,
-                    "number_of_elements_per_vessel",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-            )
-
-            ro_stage.deltaP.fix(
-                get_config_value(
-                    blk.config_data, "pressure_drop", "reverse_osmosis_1d", f"stage_{s}"
-                )
-            )
-
-            ro_stage.recovery_mass_phase_comp[0, "Liq", "H2O"].fix(
-                get_config_value(
-                    blk.config_data,
-                    "water_recovery_mass_phase",
-                    "reverse_osmosis_1d",
-                    f"stage_{s}",
-                )
-            )
+    blk.area.fix(
+        get_config_value(
+            blk.config_data,
+            "element_membrane_area",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+        * get_config_value(
+            blk.config_data,
+            "number_of_vessels",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+        * get_config_value(
+            blk.config_data,
+            "number_of_elements_per_vessel",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+    )
+    blk.e.deltaP.fix(
+        get_config_value(
+            blk.config_data, "pressure_drop", "reverse_osmosis_1d", f"stage_{s}"
+        )
+    )
+    blk.recovery_mass_phase_comp[0, "Liq", "H2O"].fix(
+        get_config_value(
+            blk.config_data,
+            "water_recovery_mass_phase",
+            "reverse_osmosis_1d",
+            f"stage_{s}",
+        )
+    )
 
 
 def add_ro_scaling(blk):
