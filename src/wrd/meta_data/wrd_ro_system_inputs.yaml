@@ -1,23 +1,41 @@
 # Feed stream for Train 2 data on 2/20/21
-# feed_stream:
-#   feed_flow_water: 
-#     value: 0.154 
-#     units: m**3/s
-#   feed_density_water: 
-#     value: 1000
-#     units: kg/m**3
-#   feed_conductivity: 
-#     value: 1082
-#     units: uS/cm
-#   feed_conductivity_conversion: 
-#     value: 0.5
-#     units: mg/L/(uS/cm)
-#   feed_temperature: 
-#     value: 298.15
-#     units: K
-#   feed_pressure: 
-#     value: 101325
-#     units: Pa
+feed_stream:
+  feed_flow_water: 
+    value: 0.154 
+    units: m**3/s
+  feed_density_water: 
+    value: 1000
+    units: kg/m**3
+  feed_conductivity: 
+    value: 1082
+    units: uS/cm
+  feed_conductivity_conversion: 
+    value: 0.5
+    units: mg/L/(uS/cm)
+  feed_temperature: 
+    value: 298.15
+    units: K
+  feed_pressure: 
+    value: 101325
+    units: Pa
+
+# Pump pressure for Train 2 data on 2/20/21. Pump efficiencies to be updated    
+pumps:
+  pump_1:
+    pump_efficiency: 0.7  # unitless
+    pump_outlet_pressure: 
+      value: 153.5
+      units: psi 
+  pump_2:
+    pump_efficiency: 0.7  # unitless
+    pump_outlet_pressure: 
+      value: 157.8
+      units: psi  
+  pump_3:
+    pump_efficiency: 0.7  # unitless
+    pump_outlet_pressure: 
+      value: 156.8
+      units: psi
 
 # A and B coefficients for the RO system from Josh estimates
 reverse_osmosis_1d:

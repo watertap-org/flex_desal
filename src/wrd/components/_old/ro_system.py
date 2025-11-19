@@ -115,7 +115,7 @@ def build_wrd_ro_system(blk, prop_package=None):
     # Get the parent directory of the current directory (one folder prior)
     parent_directory = os.path.dirname(current_directory)
 
-    config = parent_directory + "/meta_data/wrd_ro_inputs.yaml"
+    config = parent_directory + "/meta_data/wrd_ro_system_inputs.yaml"
     blk.config_data = load_config(config)
 
     add_ro_units(blk, prop_package=prop_package)
