@@ -32,7 +32,7 @@ from wrd.components.UF import *
 from wrd.components.chemical_addition import *
 
 # from watertap.flowsheets.flex_desal.wrd.components.ro_system import *
-from wrd.components.RO import *
+from wrd.components.ro_system import *
 from wrd.components.translator_ZO_to_NaCl import (
     TranslatorZOtoNaCl,
 )

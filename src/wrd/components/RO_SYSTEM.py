@@ -43,7 +43,7 @@ from watertap_contrib.reflo.costing import TreatmentCosting
 from watertap_contrib.reflo.flowsheets.KBHDP.utils import solve, calc_scale
 
 
-def build_ro(blk, number_of_stages=1, prop_package=None):
+def build_ro_system(blk, number_of_stages=1, prop_package=None):
     print(f'\n{"=======> BUILDING RO SYSTEM <=======":^60}\n')
 
     if prop_package is None:
@@ -72,18 +72,24 @@ def build_ro(blk, number_of_stages=1, prop_package=None):
     # blk.stage = FlowsheetBlock(RangeSet(number_of_stages), dynamic=False)
 
     for stage in range(1, number_of_stages + 1):
-        build_pump(
-            blk, stage, prop_package=prop_package
-        )  # Add a pump based on the characteristics of that stage
-        build_wrd_ro_system(
-            blk, stage, prop_package=prop_package
-        )  # Add RO based on that stage
+        # Add a pump based on the characteristics of that stage
+        blk.add_component(f"pump{stage}",FlowsheetBlock(dynamic=False))
+        build_wrd_pump(
+            blk.find_component(f"pump{stage}"), stage, prop_package=prop_package
+        ) 
+
+        # Add RO based on that stage
+        blk.add_component(f"ro{stage}",FlowsheetBlock(dynamic=False))
+        build_wrd_ro(
+            blk.find_component(f"ro{stage}"), stage, prop_package=prop_package
+        ) 
+
         # Permeate to mixer
         blk.add_component(
             f"stage{stage}_permeate_to_mixer",
             Arc(
-                source=blk.find_component(f"ro{stage}").permeate.outlet,
-                destination=blk.permeate_mixer.find_component(f"ro{stage}_permeate"),
+                source=blk.find_component(f"ro{stage}").ro.permeate.outlet, 
+                destination=blk.permeate_mixer.find_component(f"ro{stage}_permeate"), # This might be wrong
             ),
         )
         if (
@@ -158,3 +164,17 @@ def build_ro(blk, number_of_stages=1, prop_package=None):
     blk.feed.properties[0].conc_mass_phase_comp
     blk.product.properties[0].conc_mass_phase_comp
     blk.disposal.properties[0].conc_mass_phase_comp
+
+def scale_ro_system(blk,number_of_stages):
+    # Properties. Potentially, this could occur in the treatment train?
+    m = blk.model()
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1, index=("Liq", "H2O")  # 1e-2 ????
+    )
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
+
+    for stage in range(1,number_of_stages+1):
+        add_ro_scaling(blk.find_component(f"ro{stage}"))
+        add_pump_scaling(blk.find_component(f"pump{stage}"))

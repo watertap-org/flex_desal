@@ -27,6 +27,14 @@ from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from wrd.components.ro import load_config, get_config_value
 
+from idaes.core.util.scaling import (
+    constraint_scaling_transform,
+    calculate_scaling_factors,
+    set_scaling_factor,
+    list_badly_scaled_variables,
+    extreme_jacobian_rows,
+)
+
 def build_system(**kwargs): # For testing
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -52,7 +60,7 @@ def build_wrd_pump(blk,stage_num=1,prop_pack=None):
     # Get the parent directory of the current directory (one folder prior)
     parent_directory = os.path.dirname(current_directory)
 
-    config = parent_directory + "/meta_data/wrd_ro_system_inputs.yaml"
+    config = parent_directory + "/meta_data/wrd_ro_system_inputs.yaml" # Should change ro back and delete the other yaml file (ro_inputs)
     blk.config_data = load_config(config)
     blk.pump = Pump(property_package=prop_pack)    
 
@@ -62,9 +70,19 @@ def build_wrd_pump(blk,stage_num=1,prop_pack=None):
     TransformationFactory("network.expand_arcs").apply_to(blk)  
    # print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
-# def set_pump_op_conditions:
-    # blk.ro.A_comp.fix(
-    # get_config_value(blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}")
-    # )
+def set_pump_op_conditions(blk,stage_num=1,prop_pack):
+    #Configure with input values
+    blk.pump.efficiency_pump.fix(
+    get_config_value(blk.config_data, "pump_efficiency", "pumps", f"pump_{stage_num}")
+    )
+    blk.pump.control_volume.properties_out[0].pressure.fix(
+    get_config_value(
+        blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{i}"
+    )
+)
 
-    # Configure with input values
+def add_pump_scaling(blk):
+    set_scaling_factor(blk.pump.work_mechanical[0], 1e-3) # Not sure what value to use here yet
+    # Isn't there a needed scaling factor for electricity costs? Where is that scaled?
+
+
