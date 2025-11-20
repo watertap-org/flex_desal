@@ -59,7 +59,7 @@ def build_ro_system(blk, number_of_stages=1, prop_package=None):
 
     blk.FirstStage = blk.Stages.first()
     blk.LastStage = blk.Stages.last()
-    blk.NonFinalStages = RangeSet(number_of_stages - 1)
+    blk.NonFinalStages = RangeSet(number_of_stages - 1) # Not sure how to use these
 
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
@@ -92,9 +92,7 @@ def build_ro_system(blk, number_of_stages=1, prop_package=None):
                 destination=blk.permeate_mixer.find_component(f"ro{stage}_permeate"), # This might be wrong
             ),
         )
-        if (
-            stage in blk.FirstStage
-        ):  # Create Arcs for the 1 stage. Only inlet b/c other components not yet created
+        if stage == 1:  # Create Arcs for the 1 stage. Only inlet b/c other components not yet created
             blk.feed_to_pump1 = Arc(
                 source=blk.feed.outlet,
                 destination=blk.find_component(f"pump{stage}").feed_in.inlet,
@@ -107,7 +105,7 @@ def build_ro_system(blk, number_of_stages=1, prop_package=None):
                 destination=blk.find_component(f"pump{stage}").feed.inlet,
             )
 
-        elif stage in blk.NonFinalStages:
+        elif stage != number_of_stages: # So not the final stage
             # prev stage to current pump
             blk.add_component(
                 f"ro{stage-1}_to_pump{stage}",
@@ -119,7 +117,7 @@ def build_ro_system(blk, number_of_stages=1, prop_package=None):
 
             # current pump to current stage
             blk.add_component(
-                f"ro{stage}_to_pump{stage}",
+                f"pump{stage}_to_ro{stage}",
                 Arc(
                     source=blk.find_component(f"pump{stage}").feed_out.outlet,
                     destination=blk.find_component(f"ro{stage}").feed.inlet,
@@ -139,7 +137,7 @@ def build_ro_system(blk, number_of_stages=1, prop_package=None):
         )
 
     # Final Stage to Brine
-    blk.last_stage_retentate_to_ro_retentate = Arc(
+    blk.last_stage_retentate_to_disposal = Arc(
         source=blk.find_component(
             f"ro{number_of_stages}"
         ).retentate.outlet,  # Might not be named that...
@@ -178,3 +176,27 @@ def scale_ro_system(blk,number_of_stages):
     for stage in range(1,number_of_stages+1):
         add_ro_scaling(blk.find_component(f"ro{stage}"))
         add_pump_scaling(blk.find_component(f"pump{stage}"))
+
+def initialize_ro_system(blk,number_of_stages):
+    
+    blk.feed.initialize()
+    
+    for stage in range(1,number_of_stages+1):
+        if  stage == 1:
+            propagate_state(blk.feed_to_pump1)
+        else: 
+            propagate_state(blk.find_component(f"ro{stage-1}_to_pump{stage}"))
+        
+        initialize_pump(blk.find_component(f"pump{stage}"))
+        propagate_state(blk.find_component(f"pump{stage}_to_ro{stage}"))
+        initialize_ro(blk.find_component(f"ro{stage}"))
+        propagate_state(blk.find_component(f"ro{stage}_permeate_to_mixer"))
+
+    # Final stage to products
+    blk.permeate_mixer.initialize()
+    propagate_state(blk.permeate_mixer_to_product)
+    blk.product.initialize()
+
+    propagate_state(blk.last_stage_retentate_to_disposal)
+    blk.disposal.initialize()
+    

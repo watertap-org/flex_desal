@@ -70,7 +70,7 @@ def build_wrd_pump(blk,stage_num=1,prop_pack=None):
     TransformationFactory("network.expand_arcs").apply_to(blk)  
    # print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
-def set_pump_op_conditions(blk,stage_num=1,prop_pack):
+def set_pump_op_conditions(blk,stage_num=1):
     #Configure with input values
     blk.pump.efficiency_pump.fix(
     get_config_value(blk.config_data, "pump_efficiency", "pumps", f"pump_{stage_num}")
@@ -79,10 +79,17 @@ def set_pump_op_conditions(blk,stage_num=1,prop_pack):
     get_config_value(
         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{i}"
     )
-)
+    )
+    # This will be written over by the surrogate model for the pumps
 
 def add_pump_scaling(blk):
     set_scaling_factor(blk.pump.work_mechanical[0], 1e-3) # Not sure what value to use here yet
     # Isn't there a needed scaling factor for electricity costs? Where is that scaled?
 
 
+def initialize_pump(blk):
+    blk.feed_in.initialize()
+    propagate_state(blk.feed_in_to_pump)
+    blk.pump.initialize()
+    propagate_state(blk.pump_to_feed_out)
+    blk.feed_out.initialize()
