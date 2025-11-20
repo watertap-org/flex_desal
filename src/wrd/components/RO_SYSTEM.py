@@ -42,8 +42,15 @@ from wrd.components.pump import *
 from watertap_contrib.reflo.costing import TreatmentCosting
 from watertap_contrib.reflo.flowsheets.KBHDP.utils import solve, calc_scale
 
+def build_system(**kwargs)
+    m = ConcreteModel()
+    m.fs = FlowsheetBlock(dynamic=False)
+    m.fs.ro_properties = NaClParameterBlock()
+    m.fs.ro_system = FlowsheetBlock(dynamic=False)
+    build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties, **kwargs)
+    return m
 
-def build_ro_system(blk, number_of_stages=1, prop_package=None):
+def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
     print(f'\n{"=======> BUILDING RO SYSTEM <=======":^60}\n')
 
     if prop_package is None:
@@ -163,7 +170,30 @@ def build_ro_system(blk, number_of_stages=1, prop_package=None):
     blk.product.properties[0].conc_mass_phase_comp
     blk.disposal.properties[0].conc_mass_phase_comp
 
-def scale_ro_system(blk,number_of_stages):
+def set_ro_system_op_conditions(blk,number_of_stages):
+    # Could load and pass config data here?
+    for stage in range(1,number_of_stages+1):
+        set_pump_op_conditions(blk.find_component(f"pump{stage}"))
+        set_ro_op_conditions(blk.find_component(f"ro{stage}"))
+                             
+
+def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=1):
+    """
+    Set the operation conditions for the entire RO System
+    """
+    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
+    Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
+    rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
+    feed_mass_flow_water = Qin * rho
+    feed_mass_flow_salt = Cin * Qin
+
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
+    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
+    blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
+
+
+def add_ro_system_scaling(blk,number_of_stages):
     # Properties. Potentially, this could occur in the treatment train?
     m = blk.model()
     m.fs.ro_properties.set_default_scaling(
@@ -200,3 +230,29 @@ def initialize_ro_system(blk,number_of_stages):
     propagate_state(blk.last_stage_retentate_to_disposal)
     blk.disposal.initialize()
     
+def report_ro_system(blk):
+    title = "Pump Report"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
+    print(f"{'-' * (3 * w)}")
+    
+    total_flow = blk.feed_in.properties[0].flow_vol
+    #deltaP = value(blk.feed_out.properties[0].pressure) - value(blk.feed.properties[0].pressure)
+    print(
+        f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
+    )
+    print(f'{f"Total Flow Rate (m3/s)":<{w}s}{value(total_flow):<{w}.3e}{"m3/s"}')
+    print(
+        f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+    )
+    #print(f'{f"Pressure Change (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
+
+if __name__ == "__main__":
+    m = build_system()  # optional input of stage_num
+    set_inlet_conditions(m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=1)  # ro_system just adds feed,retentate,perm. May consider renaming to avoid implying pumps are included?
+    set_ro_system_op_conditions(m.fs.ro_system)
+    add_ro_system_scaling(m.fs.ro_system)
+    initialize_ro_system(m.fs.ro_system)
+    report_ro_system(m.fs.ro_system)

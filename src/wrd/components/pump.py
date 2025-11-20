@@ -82,6 +82,25 @@ def set_pump_op_conditions(blk,stage_num=1):
     )
     # This will be written over by the surrogate model for the pumps
 
+
+def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=1):
+    """
+    Set the operation conditions for the Pump
+    """
+    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
+    Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
+    rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
+    feed_mass_flow_water = Qin * rho
+    feed_mass_flow_salt = Cin * Qin
+
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
+    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
+    blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
+
+
+
+
 def add_pump_scaling(blk):
     set_scaling_factor(blk.pump.work_mechanical[0], 1e-3) # Not sure what value to use here yet
     # Isn't there a needed scaling factor for electricity costs? Where is that scaled?
@@ -93,3 +112,42 @@ def initialize_pump(blk):
     blk.pump.initialize()
     propagate_state(blk.pump_to_feed_out)
     blk.feed_out.initialize()
+
+def report_pump(blk):
+    title = "Pump Report"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
+    print(f"{'-' * (3 * w)}")
+    
+    total_flow = blk.feed_in.properties[0].flow_vol
+    deltaP = value(blk.feed_out.properties[0].pressure) - value(blk.feed.properties[0].pressure)
+    print(
+        f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
+    )
+    print(f'{f"Total Flow Rate (m3/s)":<{w}s}{value(total_flow):<{w}.3e}{"m3/s"}')
+    print(
+        f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+    )
+    print(f'{f"Pressure Change (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
+
+if __name__ == "__main__":
+    m = build_system()  # optional input of stage_num
+    set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, P_in=1) 
+    set_pump_op_conditions(m.fs.pump_system)
+    add_pump_scaling(m.fs.pump_system)
+    initialize_pump(m.fs.pump_system)
+    report_pump(m.fs.pump_system, w=40)
+    """
+    m.fs.obj = Objective(
+        expr=m.fs.pump_system.permeate.properties[0].flow_vol_phase["Liq"]
+    )
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+
+    print(f"{iscale.jacobian_cond(m.fs.pump_system):.2e}")
+    m.fs.pump_system.recovery.display()
+    
+    """
+    
