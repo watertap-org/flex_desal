@@ -143,12 +143,14 @@ def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
-    m.fs.ro = FlowsheetBlock(dynamic=False)
-    build_wrd_ro(m.fs.ro, prop_package=m.fs.ro_properties, **kwargs)
+    m.fs.ro_stage = FlowsheetBlock(dynamic=False)
+    build_wrd_ro(m.fs.ro_stage, prop_package=m.fs.ro_properties, **kwargs)
     return m
 
 
-def build_wrd_ro(blk, prop_package=None, stage_num=1): #blk should be flowsheet with pumps and ro stages
+def build_wrd_ro(
+    blk, prop_package=None, stage_num=1
+):  # blk should be flowsheet with pumps and ro stages
     """
     Build reverse osmosis system for WRD
     stage_num is the current stage number, which determines membrane properties
@@ -221,7 +223,7 @@ def build_wrd_ro(blk, prop_package=None, stage_num=1): #blk should be flowsheet 
 
 def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
     """
-    Set the operation conditions for the RO system
+    Set the operation conditions for the RO stage
     """
     Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
     Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
@@ -233,6 +235,7 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
     blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
+    blk.feed.properties[0].flow_vol  # Touching
 
 
 def set_ro_op_conditions(blk):
@@ -371,18 +374,20 @@ def report_ro(blk, w=30):  # This is not super informative yet
 
 if __name__ == "__main__":
     m = build_system()  # optional input of stage_num
+    print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     set_inlet_conditions(
-        m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=10.6
+        m.fs.ro_stage, Qin=0.154, Cin=0.542, P_in=10.6
     )  # ro_system just adds feed,retentate,perm. May consider renaming to avoid implying pumps are included?
-    set_ro_op_conditions(m.fs.ro_system)
-    add_ro_scaling(m.fs.ro_system)
-    initialize_ro(m.fs.ro_system)
+    set_ro_op_conditions(m.fs.ro_stage)
+    print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
+    add_ro_scaling(m.fs.ro_stage)
+    initialize_ro(m.fs.ro_stage)
     m.fs.obj = Objective(
-        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
+        expr=m.fs.ro_stage.permeate.properties[0].flow_vol_phase["Liq"]
     )
     results = solver.solve(m)
     assert_optimal_termination(results)
 
-    print(f"{iscale.jacobian_cond(m.fs.ro_system):.2e}")
-    m.fs.ro_system.recovery.display()
-    report_ro(m.fs.ro_system, w=40)
+    print(f"{iscale.jacobian_cond(m.fs.ro_stage):.2e}")
+    m.fs.ro_stage.recovery.display()
+    report_ro(m.fs.ro_stage, w=40)
