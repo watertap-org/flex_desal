@@ -58,7 +58,7 @@ def load_config(config):
         return yaml.safe_load(file)
 
 
-def get_config_value(   # Did not touch, don't think this needs to change - Jake
+def get_config_value(  # Did not touch, don't think this needs to change - Jake
     config,
     key,
     section,
@@ -109,7 +109,7 @@ def get_config_value(   # Did not touch, don't think this needs to change - Jake
 
 
 def relax_bounds_for_low_salinity_waters(blk):
-    #blk here is only the ro unit block
+    # blk here is only the ro unit block
     blk.feed_side.cp_modulus.setub(5)
     for e in blk.feed_side.K:
         blk.feed_side.K[e].setub(0.01)
@@ -151,7 +151,7 @@ def build_system(**kwargs):
 def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     """
     Build reverse osmosis system for WRD
-    stage_num is the current stage number, which determines membrane properties 
+    stage_num is the current stage number, which determines membrane properties
     """
     m = blk.model()
     if prop_package is None:
@@ -159,12 +159,12 @@ def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     # Stage number
     blk.stage_num = stage_num
 
-    # Feed stream, permeate, and brine 
+    # Feed stream, permeate, and brine
     blk.feed = StateJunction(property_package=prop_package)
     blk.permeate = StateJunction(property_package=prop_package)
     blk.brine = StateJunction(property_package=prop_package)
 
-    blk.recovery = Var( # Creating variable for RR. This may no longer be needed here, but moved to main flowsheet as an overall recovery from the different stages
+    blk.recovery = Var(  # Creating variable for RR. This may no longer be needed here, but moved to main flowsheet as an overall recovery from the different stages
         initialize=0.5,
         bounds=(0, 1),
         units=pyunits.dimensionless,
@@ -174,7 +174,9 @@ def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     @blk.Constraint(doc="Overall recovery constraint")
     def eq_recovery(b):
         return (
-            b.recovery == b.permeate.properties[0].flow_vol_phase["Liq"] / b.feed.properties[0].flow_vol_phase["Liq"]
+            b.recovery
+            == b.permeate.properties[0].flow_vol_phase["Liq"]
+            / b.feed.properties[0].flow_vol_phase["Liq"]
         )
 
     # WRD RO configurations input file. References to all values included in yml file
@@ -192,34 +194,28 @@ def build_wrd_ro_system(blk, prop_package=None, stage_num=1):
     Add RO units to a single RO train
     """
     blk.ro = ReverseOsmosis1D(
-                property_package=prop_package,
-                has_pressure_change=True,
-                # pressure_change_type=PressureChangeType.calculated, # Why this setting?
-                pressure_change_type=PressureChangeType.fixed_per_stage,
-                mass_transfer_coefficient=MassTransferCoefficient.calculated,
-                concentration_polarization_type=ConcentrationPolarizationType.calculated,
-                transformation_scheme="BACKWARD",
-                transformation_method="dae.finite_difference",
-                module_type="spiral_wound",
-                finite_elements=7,
-                has_full_reporting=True,
-                )
+        property_package=prop_package,
+        has_pressure_change=True,
+        # pressure_change_type=PressureChangeType.calculated, # Why this setting?
+        pressure_change_type=PressureChangeType.fixed_per_stage,
+        mass_transfer_coefficient=MassTransferCoefficient.calculated,
+        concentration_polarization_type=ConcentrationPolarizationType.calculated,
+        transformation_scheme="BACKWARD",
+        transformation_method="dae.finite_difference",
+        module_type="spiral_wound",
+        finite_elements=7,
+        has_full_reporting=True,
+    )
 
     """
     add_ro_connections(train)
     Add connections between the units in the RO system
     """
     # Connect permeate mixer to permeate product stream
-    blk.feed_to_RO = Arc(
-        source=blk.feed.outlet, destination=blk.ro.inlet
-    )
+    blk.feed_to_RO = Arc(source=blk.feed.outlet, destination=blk.ro.inlet)
 
-    blk.RO_to_permeate = Arc(
-        source=blk.ro.permeate, destination=blk.permeate.inlet
-    )
-    blk.RO_to_brine = Arc(
-        source=blk.ro.retentate, destination=blk.brine.inlet
-    )
+    blk.RO_to_permeate = Arc(source=blk.ro.permeate, destination=blk.permeate.inlet)
+    blk.RO_to_brine = Arc(source=blk.ro.retentate, destination=blk.brine.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
     print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
@@ -237,7 +233,7 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)  
+    blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
 
 
 def set_ro_system_op_conditions(blk):
@@ -247,14 +243,10 @@ def set_ro_system_op_conditions(blk):
     s = blk.stage_num
     # Set RO configuration for each stage
     blk.ro.A_comp.fix(
-        get_config_value(
-            blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}"
-        )
+        get_config_value(blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}")
     )
     blk.ro.B_comp.fix(
-        get_config_value(
-            blk.config_data, "B_comp", "reverse_osmosis_1d", f"stage_{s}"
-        )
+        get_config_value(blk.config_data, "B_comp", "reverse_osmosis_1d", f"stage_{s}")
     )
     blk.ro.feed_side.channel_height.fix(
         get_config_value(
@@ -328,7 +320,7 @@ def add_ro_scaling(blk):
     # Properties
     m = blk.model()
     m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1, index=("Liq", "H2O") # 1e-2 ????
+        "flow_mass_phase_comp", 1, index=("Liq", "H2O")  # 1e-2 ????
     )
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
@@ -340,7 +332,7 @@ def add_ro_scaling(blk):
     set_scaling_factor(blk.ro.feed_side.spacer_porosity, 1e-1)
     # set_scaling_factor(blk.feed_side.channel_height, 1e-5)
     for i, x in blk.ro.feed_side.mass_transfer_term.items():
-        if i[3] == "NaCl": # Not seeing why these are the scaling factors used
+        if i[3] == "NaCl":  # Not seeing why these are the scaling factors used
             set_scaling_factor(x, 1e4)
         else:
             set_scaling_factor(x, 1)
@@ -357,7 +349,7 @@ def initialize_ro_system(blk):
 
     blk.feed.initialize()
     propagate_state(blk.feed_to_RO)
-    
+
     relax_bounds_for_low_salinity_waters(blk.ro)
     blk.ro.initialize()
 
@@ -368,14 +360,14 @@ def initialize_ro_system(blk):
     blk.brine.initialize()
 
 
-def report_ro(blk, w=30): # This is not super informative yet
+def report_ro(blk, w=30):  # This is not super informative yet
     title = "RO Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
     print(f"\n{header}\n")
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
-    
+
     total_flow = blk.feed.properties[0].flow_vol
     print(
         f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
@@ -384,15 +376,19 @@ def report_ro(blk, w=30): # This is not super informative yet
     print(
         f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
     )
-    
+
 
 if __name__ == "__main__":
-    m = build_system() # optional input of stage_num
-    set_inlet_conditions(m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=10.6) # ro_system just adds feed,brine,perm. May consider renaming to avoid implying pumps are included?
+    m = build_system()  # optional input of stage_num
+    set_inlet_conditions(
+        m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=10.6
+    )  # ro_system just adds feed,brine,perm. May consider renaming to avoid implying pumps are included?
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     initialize_ro_system(m.fs.ro_system)
-    m.fs.obj = Objective(expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"])
+    m.fs.obj = Objective(
+        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
+    )
     results = solver.solve(m)
     assert_optimal_termination(results)
 
