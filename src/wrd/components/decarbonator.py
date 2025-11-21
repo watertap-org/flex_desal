@@ -115,6 +115,12 @@ def initialize_decarb(blk):
     propagate_state(blk.decarb_to_product)
     blk.product.initialize()
 
+def cost_decarbonator(blk):
+    lb = blk.unit.power_consumption.lb # Not sure why this is here, but it was in pump costing method
+    blk.unit_model.work_mechanical.setlb(0)
+    blk.costing_package.cost_flow(blk.unit.power_consumption,"electricity")
+    blk.unit.power_consumption.setlb(lb)
+
 def report_decarb(blk, w=30):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
