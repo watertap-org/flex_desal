@@ -14,6 +14,7 @@ from pyomo.environ import (
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
+from idaes.core.util import DiagnosticsToolbox
 from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import (
     MixingType,
@@ -42,6 +43,7 @@ from idaes.core.util.scaling import (
     constraint_scaling_transform,
     calculate_scaling_factors,
     set_scaling_factor,
+    get_scaling_factor,
     list_badly_scaled_variables,
     extreme_jacobian_rows,
 )
@@ -198,7 +200,7 @@ def build_wrd_ro(
     blk.ro = ReverseOsmosis1D(
         property_package=prop_package,
         has_pressure_change=True,
-        # pressure_change_type=PressureChangeType.calculated, # Why this setting?
+        #pressure_change_type=PressureChangeType.calculated, # Why this setting?
         pressure_change_type=PressureChangeType.fixed_per_stage,
         mass_transfer_coefficient=MassTransferCoefficient.calculated,
         concentration_polarization_type=ConcentrationPolarizationType.calculated,
@@ -236,7 +238,9 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
     blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
     blk.feed.properties[0].flow_vol  # Touching
-
+    # m = blk.model()
+    # m.fs.ro_properties.flow_mass_phase_comp["Liq","H2O"]
+    # m.fs.ro_properties.flow_mass_phase_comp["Liq","NaCl"]
 
 def set_ro_op_conditions(blk):
     """
@@ -319,14 +323,34 @@ def add_ro_scaling(blk):
     """
     Add scaling to the units in the RO system
     """
+    # Properties
+    m = blk.model()
+    # print(get_scaling_factor(m.fs.ro_stage.feed.properties[0].flow_mass_phase_comp["Liq","H2O"]))
+    # m.fs.ro_stage.feed.properties[0].set_default_scaling(
+    #     "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+    # )
+    # print(get_scaling_factor(m.fs.ro_stage.feed.properties[0].flow_mass_phase_comp["Liq","H2O"]))
+    # m.fs.ro_stage.feed.properties[0].set_default_scaling(
+    #     "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    # )
+    # print(get_scaling_factor(m.fs.ro_stage.feed.properties[0].flow_mass_phase_comp["Liq","H2O"])) # Will not work until feed.initialize!
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+    )
+    # print(get_scaling_factor(m.fs.ro_stage.feed.properties[0].flow_mass_phase_comp["Liq","H2O"]))
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
+
     # RO Variables
     set_scaling_factor(blk.ro.feed_side.length, 1e-1)
     set_scaling_factor(blk.ro.feed_side.width, 1e-3)
     set_scaling_factor(blk.ro.area, 1e-5)
+    set_scaling_factor(blk.ro.feed_side.area,1e-5) # Why is there area and feed_side.area?
     set_scaling_factor(blk.ro.feed_side.spacer_porosity, 1e-1)
     # set_scaling_factor(blk.feed_side.channel_height, 1e-5)
     for i, x in blk.ro.feed_side.mass_transfer_term.items():
-        if i[3] == "NaCl":  # Not seeing why these are the scaling factors used
+        if i[3] == "NaCl":  
             set_scaling_factor(x, 1e4)
         else:
             set_scaling_factor(x, 1)
@@ -336,7 +360,7 @@ def add_ro_scaling(blk):
         set_scaling_factor(c, 1e4)
     # constraint_scaling_transform(blk.feed_side.eq_K, 1e4)
 
-    calculate_scaling_factors(blk)
+    calculate_scaling_factors(m)
 
 
 def initialize_ro(blk):
@@ -345,6 +369,13 @@ def initialize_ro(blk):
     propagate_state(blk.feed_to_RO)
 
     relax_bounds_for_low_salinity_waters(blk.ro)
+    dt = DiagnosticsToolbox(blk.ro)
+    dt.report_structural_issues()
+    print(blk.ro.width.bounds)
+    print(blk.ro.area.value / blk.ro.length.value)
+    # Is A / L > W_max ???
+    # relax that constraint?
+    blk.ro.width.bounds = (0.1,3000)
     blk.ro.initialize()
 
     propagate_state(blk.RO_to_permeate)
@@ -371,6 +402,84 @@ def report_ro(blk, w=30):  # This is not super informative yet
         f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
     )
 
+def check_scaling(blk, descend_into=True, w=(60, 20, 20, 20)):
+    def format_entries(name, unscaled_value, scaling_factor, scaled_value):
+
+        if "e" in repr(unscaled_value) and unscaled_value is not None:
+            unscaled_value = f"{unscaled_value:.4e}"
+        else:
+            if unscaled_value == 0:
+                unscaled_value = "<zero>"
+            elif abs(unscaled_value) < 5e-3:
+                unscaled_value = f"{unscaled_value:.4e}"
+            else:
+                unscaled_value = f"{unscaled_value:.4f}"
+        if scaling_factor is None:
+            scaling_factor = "NONE"
+        elif "e" in repr(scaling_factor) and scaling_factor is not None:
+            scaling_factor = f"{scaling_factor:.4e}"
+        else:
+            if scaling_factor == 0:
+                scaling_factor = "<zero>"
+            elif abs(scaling_factor) < 5e-3:
+                scaling_factor = f"{scaling_factor:.4e}"
+            else:
+                scaling_factor = f"{scaling_factor:.4f}"
+        if "e" in repr(scaled_value) and scaled_value is not None:
+            scaled_value = f"{scaled_value:.4e}"
+        else:
+            if scaled_value == 0:
+                scaled_value = "<zero>"
+            elif abs(scaled_value) < 5e-3:
+                scaled_value = f"{scaled_value:.4e}"
+            else:
+                scaled_value = f"{scaled_value:.4f}"
+        print(
+            f"{name:<{w[0]}} | {unscaled_value:>{w[1]}} | {scaling_factor:>{w[2]}} | {scaled_value:>{w[3]}} |"
+        )
+
+    print(f"\n\n")
+    header = f"{'VAR NAME':<{w[0]}} | {'UNSCALED VALUE':>{w[1]}} | {'SCALING FACTOR':>{w[2]}} | {'SCALED VALUE':>{w[3]}} |"
+    print(header)
+    print("=" * len(header))
+    for v in blk.component_objects(Var, descend_into=descend_into):
+        if "._" in v.name:
+            continue
+        if v.is_indexed():
+            for i, vv in v.items():
+                x = v.name.replace("[0.0]", "")
+                x = x.split(".")
+                vname = f"{x[-2]}.{x[-1]}[{i}]"
+                sf = get_scaling_factor(vv)
+                try:
+                    var_val = value(vv)
+                except ValueError:
+                    var_val = None
+                if var_val is None:
+                    continue
+                if sf is None:
+                    sval = var_val
+                    format_entries(vname, var_val, sf, sval)
+                    continue
+                sval = var_val * sf
+                format_entries(vname, var_val, sf, sval)
+        else:
+            vname = v.name.split(".")[-1]
+
+            sf = get_scaling_factor(v)
+            try:
+                var_val = value(v)
+            except ValueError:
+                var_val = None
+            if var_val is None:
+                continue
+            if sf is None:
+                sval = var_val
+                format_entries(vname, var_val, sf, sval)
+                continue
+            sval = var_val * sf
+            format_entries(vname, var_val, sf, sval)
+
 
 if __name__ == "__main__":
     m = build_system()  # optional input of stage_num
@@ -381,6 +490,9 @@ if __name__ == "__main__":
     set_ro_op_conditions(m.fs.ro_stage)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_ro_scaling(m.fs.ro_stage)
+    check_scaling(m.fs.ro_stage.ro)
+    dt = DiagnosticsToolbox(m.fs.ro_stage)
+    dt.report_structural_issues()
     initialize_ro(m.fs.ro_stage)
     m.fs.obj = Objective(
         expr=m.fs.ro_stage.permeate.properties[0].flow_vol_phase["Liq"]
