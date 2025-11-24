@@ -63,13 +63,13 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
     blk.product = StateJunction(property_package=prop_package)
     blk.disposal = StateJunction(property_package=prop_package)
     blk.numberOfStages = Param(initialize=number_of_stages)  # Is Param really needed?
-    blk.Stages = RangeSet(blk.numberOfStages)
-    # blk.booster_pumps = False
+    # blk.Stages = RangeSet(blk.numberOfStages)
 
-    blk.FirstStage = blk.Stages.first()
-    blk.LastStage = blk.Stages.last()
-    blk.NonFinalStages = RangeSet(number_of_stages - 1)  # Not sure how to use these
-
+    # blk.FirstStage = blk.Stages.first()
+    # blk.LastStage = blk.Stages.last()
+    # blk.NonFinalStages = RangeSet(number_of_stages - 1)  
+    # blk.stage = FlowsheetBlock(RangeSet(number_of_stages), dynamic=False) # I think I understand this, but opted to do it differently
+    
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[f"ro{i+1}_permeate" for i in range(number_of_stages)],
@@ -77,8 +77,6 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
         energy_mixing_type=MixingType.extensive,
         momentum_mixing_type=MomentumMixingType.minimize,
     )
-
-    # blk.stage = FlowsheetBlock(RangeSet(number_of_stages), dynamic=False)
 
     for stage in range(1, number_of_stages + 1):
         # Add a pump based on the characteristics of that stage
@@ -91,19 +89,20 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
         blk.add_component(f"ro{stage}", FlowsheetBlock(dynamic=False))
         build_wrd_ro(blk.find_component(f"ro{stage}"), stage, prop_package=prop_package)
 
+        #Somewhere need to add the overall srecovery, like in ro_multi_skid
+
         # Permeate to mixer
         blk.add_component(
             f"stage{stage}_permeate_to_mixer",
             Arc(
-                source=blk.find_component(f"ro{stage}").ro.permeate.outlet,
+                source=blk.find_component(f"ro{stage}").ro.permeate,
                 destination=blk.permeate_mixer.find_component(
                     f"ro{stage}_permeate"
                 ),  # This might be wrong
             ),
         )
-        if (
-            stage == 1
-        ):  # Create Arcs for the 1 stage. Only inlet b/c other components not yet created
+        if (stage == 1):
+            # Create Arcs for the 1 stage. Only inlet b/c other components not yet created
             blk.feed_to_pump1 = Arc(
                 source=blk.feed.outlet,
                 destination=blk.find_component(f"pump{stage}").feed_in.inlet,
@@ -113,15 +112,15 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
                 source=blk.find_component(
                     f"pump{stage}"
                 ).feed_out.outlet,  # Pump exits are feed_out
-                destination=blk.find_component(f"pump{stage}").feed.inlet,
+                destination=blk.find_component(f"ro{stage}").feed.inlet,
             )
 
-        elif stage != number_of_stages:  # So not the final stage
+        elif stage != number_of_stages:  # Not the final stage
             # prev stage to current pump
             blk.add_component(
                 f"ro{stage-1}_to_pump{stage}",
                 Arc(
-                    source=blk.find_component(f"ro{stage-1}").retentate.outlet,
+                    source=blk.find_component(f"ro{stage-1}").retentate,
                     destination=blk.find_component(f"pump{stage}").feed_in.inlet,
                 ),
             )
@@ -131,7 +130,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
                 f"pump{stage}_to_ro{stage}",
                 Arc(
                     source=blk.find_component(f"pump{stage}").feed_out.outlet,
-                    destination=blk.find_component(f"ro{stage}").feed.inlet,
+                    destination=blk.find_component(f"ro{stage}").feed,
                 ),
             )
         # else:
@@ -142,7 +141,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
         blk.add_component(
             f"ro{number_of_stages-1}_to_pump{number_of_stages}",
             Arc(
-                source=blk.find_component(f"ro{stage-1}").retentate.outlet,
+                source=blk.find_component(f"ro{stage-1}").retentate,
                 destination=blk.find_component(f"pump{stage}").feed_in.inlet,
             ),
         )
@@ -151,7 +150,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
     blk.last_stage_retentate_to_disposal = Arc(
         source=blk.find_component(
             f"ro{number_of_stages}"
-        ).retentate.outlet,  # Might not be named that...
+        ).retentate.outlet, 
         destination=blk.disposal.inlet,
     )
 
@@ -160,14 +159,22 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
         source=blk.permeate_mixer.outlet,
         destination=blk.product.inlet,
     )
+    TransformationFactory("network.expand_arcs").apply_to(blk)
 
-    # blk.stage_retentate_to_next_stage = Arc( # May be worth understanding this syntax!
-    #     blk.NonFinalStages,
-    #     rule=lambda blk, n: {
-    #         "source": blk.stage[n].retentate.outlet,
-    #         "destination": blk.stage[n + 1].feed.inlet,
-    #     },
-    # )
+    blk.recovery = Var(
+        initialize=0.5,
+        bounds=(0, 1),
+        units=pyunits.dimensionless,
+        doc="Overall recovery",
+    )
+
+    @blk.Constraint(doc="Overall recovery constraint")
+    def eq_recovery(b):
+        return (
+            b.recovery
+            == b.product.properties[0].flow_vol_phase["Liq"]
+            / b.feed.properties[0].flow_vol_phase["Liq"]
+        )
 
     # Touch key properties
     blk.feed.properties[0].conc_mass_phase_comp
@@ -175,7 +182,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
     blk.disposal.properties[0].conc_mass_phase_comp
 
 
-def set_ro_system_op_conditions(blk, number_of_stages):
+def set_ro_system_op_conditions(blk, number_of_stages=1):
     # Could load and pass config data here?
     for stage in range(1, number_of_stages + 1):
         set_pump_op_conditions(blk.find_component(f"pump{stage}"))
@@ -198,11 +205,11 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=1):
     blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
 
 
-def add_ro_system_scaling(blk, number_of_stages):
+def add_ro_system_scaling(blk, number_of_stages=1):
     # Properties. Potentially, this could occur in the treatment train?
     m = blk.model()
     m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1, index=("Liq", "H2O")  # 1e-2 ????
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O") 
     )
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
@@ -211,9 +218,11 @@ def add_ro_system_scaling(blk, number_of_stages):
     for stage in range(1, number_of_stages + 1):
         add_ro_scaling(blk.find_component(f"ro{stage}"))
         add_pump_scaling(blk.find_component(f"pump{stage}"))
+    
+    calculate_scaling_factors(m)
 
 
-def initialize_ro_system(blk, number_of_stages):
+def initialize_ro_system(blk, number_of_stages=1):
 
     blk.feed.initialize()
 
@@ -237,7 +246,7 @@ def initialize_ro_system(blk, number_of_stages):
     blk.disposal.initialize()
 
 
-def report_ro_system(blk):
+def report_ro_system(blk,w=30):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -246,7 +255,8 @@ def report_ro_system(blk):
     print(f"{'-' * (3 * w)}")
 
     total_flow = blk.feed_in.properties[0].flow_vol
-    # deltaP = value(blk.feed_out.properties[0].pressure) - value(blk.feed.properties[0].pressure)
+    overall_recovery = blk.recovery
+    deltaP = blk.product.properties[0].pressure - blk.feed.properties[0].pressure # Probably not the properties to report
     print(
         f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
     )
@@ -254,19 +264,21 @@ def report_ro_system(blk):
     print(
         f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
     )
-    # print(f'{f"Pressure Change (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
+    print(f'{f"Overall Recovery (-)":<{w}s}{value(overall_recovery):<{w}.1e}{"-"}')
+    print(f'{f"Pressure Change (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
+    print(f'{f"Pressure Change (bar)":<{w}s}{value(pyunits.convert(deltaP,to_units=pyunits.bar)):<{w}.3e}{"bar"}')
 
 
 if __name__ == "__main__":
-    m = build_system()  # optional input of stage_num
+    m = build_system(number_of_stages=1)  # should test 1 stage and 3 stage
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     set_inlet_conditions(
         m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=1
-    )  # ro_system just adds feed,retentate,perm. May consider renaming to avoid implying pumps are included?
-    set_ro_system_op_conditions(m.fs.ro_system)
+    )  
+    set_ro_system_op_conditions(m.fs.ro_system,number_of_stages=1)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
-    add_ro_system_scaling(m.fs.ro_system)
-    initialize_ro_system(m.fs.ro_system)
+    add_ro_system_scaling(m.fs.ro_system,number_of_stages=1)
+    initialize_ro_system(m.fs.ro_system,number_of_stages=1)
     m.fs.obj = Objective(
         expr=m.fs.ro_system.product.properties[0].flow_vol_phase["Liq"]
     )  # There is no D.o.f to optimize with

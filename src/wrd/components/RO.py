@@ -151,7 +151,7 @@ def build_system(**kwargs):
 
 
 def build_wrd_ro(
-    blk, prop_package=None, stage_num=1
+    blk, stage_num=1,prop_package=None
 ):  # blk should be flowsheet with pumps and ro stages
     """
     Build reverse osmosis system for WRD
@@ -207,7 +207,7 @@ def build_wrd_ro(
     blk.RO_to_permeate = Arc(source=blk.ro.permeate, destination=blk.permeate.inlet)
     blk.RO_to_retentate = Arc(source=blk.ro.retentate, destination=blk.retentate.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
-    print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
+    #print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
 
 def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
@@ -225,6 +225,14 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
     blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
     blk.feed.properties[0].flow_vol  # Touching
+    # Scaling Properties here. In full flowsheet, this occurs in add_ro_system_scaling
+    m = blk.model()
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+    )
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
 
 
 def set_ro_op_conditions(blk):
@@ -308,15 +316,6 @@ def add_ro_scaling(blk):
     """
     Add scaling to the units in the RO system
     """
-    # Properties
-    m = blk.model()
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
-    )
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
-    )
-
     # RO Variables
     set_scaling_factor(blk.ro.feed_side.length, 1e-1)
     set_scaling_factor(blk.ro.feed_side.width, 1e-3)
@@ -336,7 +335,6 @@ def add_ro_scaling(blk):
     for i, c in blk.ro.feed_side.eq_K.items():
         set_scaling_factor(c, 1e4)
     # constraint_scaling_transform(blk.feed_side.eq_K, 1e4)
-    calculate_scaling_factors(m)
 
 
 def initialize_ro(blk):
@@ -349,7 +347,7 @@ def initialize_ro(blk):
     # print(blk.ro.area.value / blk.ro.length.value)
     # A / L > W_ub --> relax that constraint
     blk.ro.width.bounds = (0.1, 3000)
-
+    #blk.ro.feed_side.N_Re[0,0].bounds  = (0,5000)
     blk.ro.initialize()
 
     propagate_state(blk.RO_to_permeate)
@@ -398,6 +396,7 @@ if __name__ == "__main__":
     add_ro_scaling(m.fs.ro_stage)
     #    dt = DiagnosticsToolbox(m.fs.ro_stage)
     #    dt.report_structural_issues()
+    calculate_scaling_factors(m)
     initialize_ro(m.fs.ro_stage)
     m.fs.obj = Objective(
         expr=m.fs.ro_stage.permeate.properties[0].flow_vol_phase["Liq"]

@@ -33,7 +33,7 @@ from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-from wrd.components.RO import load_config, get_config_value
+from wrd.components.ro import load_config, get_config_value
 
 
 def build_system(**kwargs):  # For testing
@@ -116,7 +116,7 @@ def add_pump_scaling(blk):
     # Properties?
     set_scaling_factor(
         blk.pump.work_mechanical[0], 1e-3
-    )  # Not sure what value to use here yet
+    ) 
     # Isn't there a needed scaling factor for electricity costs? Where is that scaled?
 
 
