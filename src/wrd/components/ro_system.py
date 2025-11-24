@@ -1,4 +1,6 @@
-# Flowsheet that will include pumps and RO unit models for each stage
+"""
+This flowsheet models one train, calling ro_stage to build each train. 
+The outputs could be multiplied by 2,3, or 4 to simulate operation of different numbers of trains. 
 
 # Feed
 # Feed Pump
@@ -10,6 +12,7 @@
 # Mixer for each stage's permeate
 # Permeate
 # Brine
+"""
 
 from pyomo.environ import (
     ConcreteModel,
@@ -37,7 +40,7 @@ import idaes.core.util.scaling as iscale
 
 from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 
-from wrd.components.ro import *
+from wrd.components.ro_stage import *
 from wrd.components.pump import *
 from watertap_contrib.reflo.costing import TreatmentCosting
 from watertap_contrib.reflo.flowsheets.KBHDP.utils import solve, calc_scale
@@ -67,9 +70,9 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
 
     # blk.FirstStage = blk.Stages.first()
     # blk.LastStage = blk.Stages.last()
-    # blk.NonFinalStages = RangeSet(number_of_stages - 1)  
+    # blk.NonFinalStages = RangeSet(number_of_stages - 1)
     # blk.stage = FlowsheetBlock(RangeSet(number_of_stages), dynamic=False) # I think I understand this, but opted to do it differently
-    
+
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[f"ro{i+1}_permeate" for i in range(number_of_stages)],
@@ -89,7 +92,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
         blk.add_component(f"ro{stage}", FlowsheetBlock(dynamic=False))
         build_wrd_ro(blk.find_component(f"ro{stage}"), stage, prop_package=prop_package)
 
-        #Somewhere need to add the overall srecovery, like in ro_multi_skid
+        # Somewhere need to add the overall srecovery, like in ro_multi_skid
 
         # Permeate to mixer
         blk.add_component(
@@ -101,7 +104,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
                 ),  # This might be wrong
             ),
         )
-        if (stage == 1):
+        if stage == 1:
             # Create Arcs for the 1 stage. Only inlet b/c other components not yet created
             blk.feed_to_pump1 = Arc(
                 source=blk.feed.outlet,
@@ -148,9 +151,7 @@ def build_wrd_ro_system(blk, number_of_stages=1, prop_package=None):
 
     # Final Stage to Brine
     blk.last_stage_retentate_to_disposal = Arc(
-        source=blk.find_component(
-            f"ro{number_of_stages}"
-        ).retentate.outlet, 
+        source=blk.find_component(f"ro{number_of_stages}").retentate.outlet,
         destination=blk.disposal.inlet,
     )
 
@@ -209,7 +210,7 @@ def add_ro_system_scaling(blk, number_of_stages=1):
     # Properties. Potentially, this could occur in the treatment train?
     m = blk.model()
     m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O") 
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
     )
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
@@ -218,7 +219,7 @@ def add_ro_system_scaling(blk, number_of_stages=1):
     for stage in range(1, number_of_stages + 1):
         add_ro_scaling(blk.find_component(f"ro{stage}"))
         add_pump_scaling(blk.find_component(f"pump{stage}"))
-    
+
     calculate_scaling_factors(m)
 
 
@@ -246,7 +247,7 @@ def initialize_ro_system(blk, number_of_stages=1):
     blk.disposal.initialize()
 
 
-def report_ro_system(blk,w=30):
+def report_ro_system(blk, w=30):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -256,7 +257,9 @@ def report_ro_system(blk,w=30):
 
     total_flow = blk.feed_in.properties[0].flow_vol
     overall_recovery = blk.recovery
-    deltaP = blk.product.properties[0].pressure - blk.feed.properties[0].pressure # Probably not the properties to report
+    deltaP = (
+        blk.product.properties[0].pressure - blk.feed.properties[0].pressure
+    )  # Probably not the properties to report
     print(
         f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
     )
@@ -266,19 +269,19 @@ def report_ro_system(blk,w=30):
     )
     print(f'{f"Overall Recovery (-)":<{w}s}{value(overall_recovery):<{w}.1e}{"-"}')
     print(f'{f"Pressure Change (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
-    print(f'{f"Pressure Change (bar)":<{w}s}{value(pyunits.convert(deltaP,to_units=pyunits.bar)):<{w}.3e}{"bar"}')
+    print(
+        f'{f"Pressure Change (bar)":<{w}s}{value(pyunits.convert(deltaP,to_units=pyunits.bar)):<{w}.3e}{"bar"}'
+    )
 
 
 if __name__ == "__main__":
     m = build_system(number_of_stages=1)  # should test 1 stage and 3 stage
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
-    set_inlet_conditions(
-        m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=1
-    )  
-    set_ro_system_op_conditions(m.fs.ro_system,number_of_stages=1)
+    set_inlet_conditions(m.fs.ro_system, Qin=0.154, Cin=0.542, P_in=1)
+    set_ro_system_op_conditions(m.fs.ro_system, number_of_stages=1)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
-    add_ro_system_scaling(m.fs.ro_system,number_of_stages=1)
-    initialize_ro_system(m.fs.ro_system,number_of_stages=1)
+    add_ro_system_scaling(m.fs.ro_system, number_of_stages=1)
+    initialize_ro_system(m.fs.ro_system, number_of_stages=1)
     m.fs.obj = Objective(
         expr=m.fs.ro_system.product.properties[0].flow_vol_phase["Liq"]
     )  # There is no D.o.f to optimize with

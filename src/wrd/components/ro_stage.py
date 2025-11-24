@@ -1,3 +1,4 @@
+# This models one RO stage in one train
 from pyomo.environ import (
     ConcreteModel,
     Param,
@@ -10,7 +11,6 @@ from pyomo.environ import (
     value,
     TransformationFactory,
 )
-
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -151,7 +151,7 @@ def build_system(**kwargs):
 
 
 def build_wrd_ro(
-    blk, stage_num=1,prop_package=None
+    blk, stage_num=1, prop_package=None
 ):  # blk should be flowsheet with pumps and ro stages
     """
     Build reverse osmosis system for WRD
@@ -207,7 +207,7 @@ def build_wrd_ro(
     blk.RO_to_permeate = Arc(source=blk.ro.permeate, destination=blk.permeate.inlet)
     blk.RO_to_retentate = Arc(source=blk.ro.retentate, destination=blk.retentate.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
-    #print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
+    # print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
 
 def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=10.6):
@@ -347,7 +347,7 @@ def initialize_ro(blk):
     # print(blk.ro.area.value / blk.ro.length.value)
     # A / L > W_ub --> relax that constraint
     blk.ro.width.bounds = (0.1, 3000)
-    #blk.ro.feed_side.N_Re[0,0].bounds  = (0,5000)
+    # blk.ro.feed_side.N_Re[0,0].bounds  = (0,5000)
     blk.ro.initialize()
 
     propagate_state(blk.RO_to_permeate)

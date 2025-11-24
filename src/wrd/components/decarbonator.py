@@ -41,6 +41,7 @@ from watertap.costing.zero_order_costing import ZeroOrderCosting
 from watertap.core.util.initialization import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 
+
 def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -48,6 +49,7 @@ def build_system(**kwargs):
     m.fs.decarb_system = FlowsheetBlock(dynamic=False)
     build_decarbonator(m.fs.decarb_system, prop_package=m.fs.ro_properties, **kwargs)
     return m
+
 
 def build_decarbonator(blk, prop_package):
 
@@ -81,7 +83,7 @@ def build_decarbonator(blk, prop_package):
 
 
 # This function should have different default test values, but it doesn't do any thing really...
-def set_inlet_conditions(blk, Qin=.5*0.154, Cin=2*0.542, P_in=10.6):
+def set_inlet_conditions(blk, Qin=0.5 * 0.154, Cin=2 * 0.542, P_in=10.6):
     """
     Set the operation conditions for the RO stage
     """
@@ -97,16 +99,19 @@ def set_inlet_conditions(blk, Qin=.5*0.154, Cin=2*0.542, P_in=10.6):
     blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
     blk.feed.properties[0].flow_vol  # Touching
 
+
 def set_decarb_op_conditions(blk):
     # Instead of hard coding value, this should be in some yaml file, but it doesn't need one of its own
-    blk.unit.power_consumption.fix(2.5*pyunits.kW)
+    blk.unit.power_consumption.fix(2.5 * pyunits.kW)
     # Decarb fit params: y = mx + b
     # blk.unit.power_eq = Constraint(
-    #     expr = blk.unit.power_consumption == m * blk.unit.feed.properties[0].flow_vol + b 
+    #     expr = blk.unit.power_consumption == m * blk.unit.feed.properties[0].flow_vol + b
     # )
+
 
 def add_decarb_scaling(blk):
     set_scaling_factor(blk.unit.power_consumption, 1e-3)
+
 
 def initialize_decarb(blk):
     blk.feed.initialize()
@@ -115,11 +120,15 @@ def initialize_decarb(blk):
     propagate_state(blk.decarb_to_product)
     blk.product.initialize()
 
+
 def cost_decarbonator(blk):
-    lb = blk.unit.power_consumption.lb # Not sure why this is here, but it was in pump costing method
+    lb = (
+        blk.unit.power_consumption.lb
+    )  # Not sure why this is here, but it was in pump costing method
     blk.unit_model.work_mechanical.setlb(0)
-    blk.costing_package.cost_flow(blk.unit.power_consumption,"electricity")
+    blk.costing_package.cost_flow(blk.unit.power_consumption, "electricity")
     blk.unit.power_consumption.setlb(lb)
+
 
 def report_decarb(blk, w=30):
     title = "Pump Report"
@@ -141,6 +150,7 @@ def report_decarb(blk, w=30):
     print(
         f'{f"Power Consumption (kW)":<{w}s}{value(pyunits.convert(power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+
 
 if __name__ == "__main__":
     m = build_system()  # optional input of stage_num
