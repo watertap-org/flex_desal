@@ -1,3 +1,5 @@
+import yaml
+import os
 from pyomo.environ import (
     ConcreteModel,
     Param,
@@ -48,11 +50,7 @@ from idaes.core.util.scaling import (
     extreme_jacobian_rows,
 )
 
-import yaml
-import os
-
-
-solver = get_solver()
+from wrd.components.pump import *
 
 
 def load_config(config):
@@ -171,7 +169,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
         outlet_list=[f"train_{i+1}_feed" for i in range(number_trains)],
     )
 
-    blk.permeate = Product(property_package=prop_package)
+    blk.permeate = StateJunction(property_package=prop_package)
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[f"train_{i+1}_permeate" for i in range(number_trains)],
@@ -179,7 +177,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
         momentum_mixing_type=MomentumMixingType.minimize,
     )
 
-    blk.brine = Product(property_package=prop_package)
+    blk.brine = StateJunction(property_package=prop_package)
     blk.brine_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[f"train_{i+1}_brine" for i in range(number_trains)],
@@ -210,7 +208,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     # Get the parent directory of the current directory (one folder prior)
     parent_directory = os.path.dirname(current_directory)
 
-    config = parent_directory + "/meta_data/wrd_ro_inputs.yaml"
+    config = parent_directory + "\\meta_data\\wrd_ro_inputs.yaml"
     blk.config_data = load_config(config)
 
     total_power_consumption = 0
@@ -227,7 +225,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
             blk.feed_splitter.split_fraction[0, f"train_{i+1}_feed"].fix()
         splitter_outlet = blk.feed_splitter.find_component(f"train_{i+1}_feed")
 
-        add_ro_units(train, prop_package=prop_package)
+        build_ro_train(train, prop_package=prop_package) # This also adds the pumps. Rename to build_train?
         total_power_consumption += train.train_power_consumption
         add_ro_connections(train)
 
@@ -262,11 +260,10 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
 
-def add_ro_units(blk, prop_package=None):
+def build_ro_train(blk, prop_package=None):
     """
     Add RO units to a single RO train
     """
-
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
@@ -274,11 +271,8 @@ def add_ro_units(blk, prop_package=None):
     blk.feed = StateJunction(property_package=prop_package)
     blk.train_power_consumption = 0
 
-    for i in range(1, (blk.number_stages + 1)):
-        blk.add_component(
-            f"pump{i}",
-            Pump(property_package=prop_package),
-        )
+    for i in range(1, (blk.number_stages + 1)): #blk is one train
+        build_wrd_pump(blk,stage_num=i,prop_package=prop_package)
         blk.train_power_consumption += pyunits.convert(
             blk.find_component(f"pump{i}").work_mechanical[0], to_units=pyunits.kW
         )
@@ -637,6 +631,7 @@ if __name__ == "__main__":
     m.fs.obj = Objective(
         expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
     )
+    solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
 

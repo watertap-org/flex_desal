@@ -33,7 +33,7 @@ from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-from wrd.components.ro_stage import load_config, get_config_value
+from wrd.components.ro_system import load_config, get_config_value
 
 
 def build_system(**kwargs):  # For testing
@@ -62,15 +62,24 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     parent_directory = os.path.dirname(current_directory)
 
     config = (
-        parent_directory + "/meta_data/wrd_ro_system_inputs.yaml"
+        parent_directory + "\\meta_data\\wrd_ro_inputs.yaml"
     )  # Should change ro back and delete the other yaml file (ro_inputs)
     blk.config_data = load_config(config)
-    blk.pump = Pump(property_package=prop_package)
+    blk.add_component(
+        f"pump{stage_num}", 
+        Pump(property_package=prop_package))
 
     # Add Arcs
-    blk.feed_in_to_pump = Arc(source=blk.feed_in.outlet, destination=blk.pump.inlet)
-    blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.outlet)
-    TransformationFactory("network.expand_arcs").apply_to(blk)
+    # pump_inlet = blk.find_component(f"")
+    # blk.add_component(
+    #     f"feed_in_to_pump{stage_num}",,
+    #     Arc(source=blk.feed_in.outlet, destination=prod_mixer_inlet),
+    #     )
+    
+    # Arc(source=, destination=blk.f"pump{stage_num}".inlet))
+
+    # blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.outlet)
+    # TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
 # print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
