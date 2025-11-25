@@ -97,32 +97,32 @@ def build_wrd_system():
 
 def add_connections(m):
     # Connect feed to ammonia addition
-    m.fs.s01 = Arc(
+    m.fs.feed_to_chem_add = Arc(
         source=m.fs.feed.outlet, destination=m.fs.ammonia_addition.feed.inlet
     )
     # Connect ammonia addition to hypochlorite addition
-    m.fs.s02 = Arc(
+    m.fs.ammonia_to_hypochlorite = Arc(
         source=m.fs.ammonia_addition.product.outlet,
         destination=m.fs.hypochlorite_addition.feed.inlet,
     )
     # Connect hypochlorite addition to UF
-    m.fs.s03 = Arc(
+    m.fs.hypochlorite_to_UF = Arc(
         source=m.fs.hypochlorite_addition.product.outlet, destination=m.fs.UF.feed.inlet
     )
     # Connect UF to RO translator
-    m.fs.s04 = Arc(
+    m.fs.UF_to_translator = Arc(
         source=m.fs.UF.product.outlet, destination=m.fs.translator_ZO_to_RO.inlet
     )
-    # Connect RO translator to RO
-    m.fs.s05 = Arc(
+    # Connect RO translator to RO 
+    m.fs.translator_to_ro = Arc(
         source=m.fs.translator_ZO_to_RO.outlet, destination=m.fs.ro_train.feed.inlet
     )
-    # Connect RO translator to UV_aop
-    m.fs.s06 = Arc(source=m.fs.ro_train.product.outlet,destination=m.fs.UV_aop.feed.inlet)
+    # Connect RO to UV_aop
+    m.fs.ro_to_uv = Arc(source=m.fs.ro_train.product.outlet,destination=m.fs.UV_aop.feed.inlet)
     # Connect UV_aop to Decarbonator
-    m.fs.s07 = Arc(source=m.fs.UV_aop.product.outlet,destination=m.fs.decarbonator.feed.inlet)
+    m.fs.uv_to_decarbonator = Arc(source=m.fs.UV_aop.product.outlet,destination=m.fs.decarbonator.feed.inlet)
     # Connect Decarbonator to the Product
-    m.fs.s08 = Arc(source=m.fs.decarbonator.product.outlet,destination=m.fs.product.inlet)
+    m.fs.decarbonator_to_product = Arc(source=m.fs.decarbonator.product.outlet,destination=m.fs.product.inlet)
 
     TransformationFactory("network.expand_arcs").apply_to(m)
 
@@ -150,24 +150,24 @@ def set_wrd_operating_conditions(m):
 def initialize_wrd_system(m):
 
     m.fs.feed.initialize()
-    propagate_state(m.fs.s01)
+    propagate_state(m.fs.feed_to_chem_add)
     init_chem_addition(m.fs.ammonia_addition)
-    propagate_state(m.fs.s02)
+    propagate_state(m.fs.ammonia_to_hypochlorite)
     init_chem_addition(m.fs.hypochlorite_addition)
-    propagate_state(m.fs.s03)
+    propagate_state(m.fs.hypochlorite_to_UF)
     init_UF(m.fs.UF)
-    propagate_state(m.fs.s04)
+    propagate_state(m.fs.s0UF_to_translator4)
     m.fs.translator_ZO_to_RO.initialize()
-    propagate_state(m.fs.s05)
+    propagate_state(m.fs.translator_to_ro)
     initialize_ro_system(m.fs.ro_train)
     # m.fs.ro_train.total_ro_feed.initialize()
     # build_ro_inlet_stream(m.fs.ro_train, test=False)
     # initialize_ro_units(m.fs.ro_train)
-    propagate_state(m.fs.s06)
+    propagate_state(m.fs.ro_to_uv)
     initialize_UV_aop(m.fs.UV_aop)
-    propagate_state(m.fs.s07)
+    propagate_state(m.fs.uv_to_decarbonator)
     initialize_decarbonator(m.fs.decarbonator)
-    propagate_state(m.fs.s08)
+    propagate_state(m.fs.decarbonator_to_product)
     m.fs.product.initialize()
 
 def set_wrd_system_scaling(m):
