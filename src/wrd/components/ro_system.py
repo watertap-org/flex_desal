@@ -50,7 +50,7 @@ from idaes.core.util.scaling import (
     extreme_jacobian_rows,
 )
 
-from wrd.components.pump import *
+from wrd.components.pump import build_wrd_pump, initialize_pump
 
 
 def load_config(config):
@@ -542,8 +542,7 @@ def initialize_ro_system(blk):
             stage.initialize()
             if s != train.number_stages:
                 propagate_state(train.find_component(f"ro_stage_{s}_to_pump{s+1}"))
-                pump = train.find_component(f"pump{s+1}")
-                initialize_pump(train.find_component(f"pump{s}"))
+                initialize_pump(train.find_component(f"pump{s+1}"))
             propagate_state(train.find_component(f"ro_stage_{s}_to_permeate_mixer"))
 
         train.permeate_mixer.initialize()
@@ -581,8 +580,8 @@ def report_pump(blk, w=30):
             side = int(((3 * w) - len(title)) / 2) - 1
             header = "." * side + f" {title} " + "." * side
             if s == 1:
-                total_flow += pump.control_volume.properties_out[0].flow_vol
-            total_power += pyunits.convert(pump.work_mechanical[0], to_units=pyunits.kW)
+                total_flow += pump.pump.control_volume.properties_out[0].flow_vol
+            total_power += pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)
             print(f"\n{header}\n")
             print(
                 f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.control_volume.properties_out[0].flow_vol, to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'

@@ -1,4 +1,5 @@
 import os
+import yaml
 from pyomo.environ import (
     ConcreteModel,
     Var,
@@ -33,8 +34,61 @@ from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-from wrd.components.ro_system import load_config, get_config_value
+# from wrd.components.ro_system import load_config, get_config_value
 
+def load_config(config):
+    with open(config, "r") as file:
+        return yaml.safe_load(file)
+
+
+def get_config_value(
+    config,
+    key,
+    section,
+    subsection=None,
+):
+    """
+    Get a value from the configuration file.
+    """
+
+    if section in config:
+        if subsection:
+            if subsection in config[section]:
+                if key in config[section][subsection]:
+                    if (
+                        isinstance(config[section][subsection][key], dict)
+                        and "value" in config[section][subsection][key]
+                        and "units" in config[section][subsection][key]
+                    ):
+                        return config[section][subsection][key]["value"] * getattr(
+                            pyunits, config[section][subsection][key]["units"]
+                        )
+                    return config[section][subsection][key]
+                else:
+                    raise KeyError(
+                        f"Key '{key}' not found in subsection '{subsection}' of section '{section}' of the configuration."
+                    )
+            else:
+                raise KeyError(
+                    f"Section '{section}' or subsection '{subsection}' not found in the configuration."
+                )
+        else:
+            if key in config[section]:
+                if (
+                    isinstance(config[section][key], dict)
+                    and "value" in config[section][key]
+                    and "units" in config[section][key]
+                ):
+                    return config[section][key]["value"] * getattr(
+                        pyunits, config[section][key]["units"]
+                    )
+                return config[section][key]
+            else:
+                raise KeyError(
+                    f"Key '{key}' not found in section '{section}' of the configuration."
+                )
+    else:
+        raise KeyError(f"Section '{section}' not found in the configuration.")
 
 def build_system(**kwargs):  # For testing
     m = ConcreteModel()
