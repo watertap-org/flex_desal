@@ -272,9 +272,13 @@ def build_ro_train(blk, prop_package=None):
     blk.train_power_consumption = 0
 
     for i in range(1, (blk.number_stages + 1)): #blk is one train
-        build_wrd_pump(blk,stage_num=i,prop_package=prop_package)
+        blk.add_component(
+            f"pump{i}",
+            FlowsheetBlock(dynamic=False)
+        )
+        build_wrd_pump(blk.find_component(f"pump{i}"),stage_num=i,prop_package=prop_package)
         blk.train_power_consumption += pyunits.convert(
-            blk.find_component(f"pump{i}").work_mechanical[0], to_units=pyunits.kW
+            blk.find_component(f"pump{i}").pump.work_mechanical[0], to_units=pyunits.kW
         )
         blk.add_component(
             f"ro_stage_{i}",
@@ -334,13 +338,13 @@ def set_ro_system_op_conditions(blk):
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
 
-            pump.control_volume.properties_out[0].pressure.fix(
+            pump.pump.control_volume.properties_out[0].pressure.fix(
                 get_config_value(
                     blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{s}"
                 )
             )
 
-            pump.efficiency_pump.fix(
+            pump.pump.efficiency_pump.fix(
                 get_config_value(
                     blk.config_data, "pump_efficiency", "pumps", f"pump_{s}"
                 )
@@ -438,11 +442,11 @@ def add_ro_connections(blk):
     """
 
     # Connect feed to first pump
-    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.inlet)
+    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.feed_in.inlet)
 
     for i in range(1, blk.number_stages + 1):
 
-        p_out = blk.find_component(f"pump{i}").outlet
+        p_out = blk.find_component(f"pump{i}").feed_out.outlet
         ro_in = blk.find_component(f"ro_stage_{i}").inlet
         ro_perm = blk.find_component(f"ro_stage_{i}").permeate
         blk.add_component(
@@ -458,7 +462,7 @@ def add_ro_connections(blk):
         )
         if i != blk.number_stages:
             ro_out = blk.find_component(f"ro_stage_{i}").retentate
-            p_in = blk.find_component(f"pump{i+1}").inlet
+            p_in = blk.find_component(f"pump{i+1}").feed_in.inlet
             blk.add_component(
                 f"ro_stage_{i}_to_pump{i+1}",
                 Arc(source=ro_out, destination=p_in),
@@ -492,7 +496,7 @@ def add_ro_scaling(blk):
         for s in range(1, train.number_stages + 1):
             pump = train.find_component(f"pump{s}")
 
-            set_scaling_factor(pump.control_volume.work, 1e-3)
+            set_scaling_factor(pump.pump.control_volume.work, 1e-3)
 
             ro_stage = train.find_component(f"ro_stage_{s}")
 
@@ -530,8 +534,8 @@ def initialize_ro_system(blk):
         propagate_state(splitter_to_train)
         train.feed.initialize()
         propagate_state(train.feed_to_pump1)
-        train.pump1.initialize()
-        for s in range(1, (train.number_stages + 1)):
+        initialize_pump(train.find_component("pump1"))
+        for s in range(1, (train.number_stages + 1)): 
             propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
             stage = train.find_component(f"ro_stage_{s}")
             relax_bounds_for_low_salinity_waters(stage)
@@ -539,7 +543,7 @@ def initialize_ro_system(blk):
             if s != train.number_stages:
                 propagate_state(train.find_component(f"ro_stage_{s}_to_pump{s+1}"))
                 pump = train.find_component(f"pump{s+1}")
-                pump.initialize()
+                initialize_pump(train.find_component(f"pump{s}"))
             propagate_state(train.find_component(f"ro_stage_{s}_to_permeate_mixer"))
 
         train.permeate_mixer.initialize()
@@ -623,8 +627,8 @@ def report_pump(blk, w=30):
 
 
 if __name__ == "__main__":
-    m = build_system(number_trains=4, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=4*0.154, Cin=0.542)
+    m = build_system(number_trains=1, number_stages=3)
+    set_inlet_conditions(m.fs.ro_system, Qin=1*0.154, Cin=0.542)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     initialize_ro_system(m.fs.ro_system)

@@ -65,21 +65,12 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         parent_directory + "\\meta_data\\wrd_ro_inputs.yaml"
     )  # Should change ro back and delete the other yaml file (ro_inputs)
     blk.config_data = load_config(config)
-    blk.add_component(
-        f"pump{stage_num}", 
-        Pump(property_package=prop_package))
+    blk.pump = Pump(property_package=prop_package)
 
     # Add Arcs
-    # pump_inlet = blk.find_component(f"")
-    # blk.add_component(
-    #     f"feed_in_to_pump{stage_num}",,
-    #     Arc(source=blk.feed_in.outlet, destination=prod_mixer_inlet),
-    #     )
-    
-    # Arc(source=, destination=blk.f"pump{stage_num}".inlet))
-
-    # blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.outlet)
-    # TransformationFactory("network.expand_arcs").apply_to(blk)
+    blk.feed_in_to_pump = Arc(source=blk.feed_in.outlet, destination=blk.pump.inlet)
+    blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.inlet)
+    TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
 # print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
