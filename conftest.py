@@ -71,4 +71,3 @@ def pytest_runtest_setup(item: Item):
         # either by providing args to the marker
         # or by inspecting the current value of the `solver` fixture
         _handle_requires_idaes_solver()
-
