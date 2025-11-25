@@ -45,7 +45,7 @@ def build_system():
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
-    m.db = Database(dbpath="watertap/flowsheets/flex_desal/wrd/meta_data")
+    m.db = Database(dbpath="src/wrd/meta_data")
     m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
 
     m.fs.chem_addition = FlowsheetBlock(dynamic=False)
@@ -111,9 +111,7 @@ def set_chem_addition_op_conditions(blk, **kwargs):
 
 def add_costing(m):
     m.fs.costing = ZeroOrderCosting(
-        case_study_definition=pathlib.Path(
-            "watertap/flowsheets/flex_desal/wrd/meta_data/wrd_case_study.yaml"
-        )
+        case_study_definition="src/wrd/meta_data/wrd_case_study.yaml"
     )
 
 
@@ -173,7 +171,7 @@ def solve(m, solver=None, tee=True, raise_on_failure=True):
         return results
 
 
-if __name__ == "__main__":
+def main():
     m = build_system()
     set_system_conditions(m.fs.chem_addition)
     set_chem_addition_op_conditions(m.fs.chem_addition)
@@ -190,3 +188,7 @@ if __name__ == "__main__":
     solve(m)
 
     m.fs.costing.display()
+
+
+if __name__ == "__main__":
+    main()
