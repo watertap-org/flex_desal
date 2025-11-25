@@ -628,6 +628,19 @@ def report_pump(blk, w=30):
     )
 
 
+def main():
+    m = build_system(number_trains=4, number_stages=3)
+    set_inlet_conditions(m.fs.ro_system, Qin=4 * 0.154, Cin=0.542)
+    set_ro_system_op_conditions(m.fs.ro_system)
+    add_ro_scaling(m.fs.ro_system)
+    initialize_ro_system(m.fs.ro_system)
+    m.fs.obj = Objective(
+        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
+    )
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+
+
 if __name__ == "__main__":
     m = build_system(number_trains=4, number_stages=3)
     set_inlet_conditions(m.fs.ro_system, Qin=4 * 0.154, Cin=0.542)
