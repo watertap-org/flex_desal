@@ -67,11 +67,11 @@ def set_uv_aop_op_conditions(blk):
     )
     
 
-def set_inlet_conditions(blk, Qin=.5*0.154, Cin=2*0.542, P_in = 10.6):
+def set_inlet_conditions(blk, Qin= 0.27, Cin= 0, P_in = 10.6):
     """
     Set the operation conditions for the UV. 
     """
-    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
+    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s # Flow into one UV unit, near max flow
     Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
@@ -86,8 +86,8 @@ def set_inlet_conditions(blk, Qin=.5*0.154, Cin=2*0.542, P_in = 10.6):
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
     blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
     blk.feed.properties[0].flow_vol  # Touching
-    m = blk.model()
 
+    m = blk.model()
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
     )
