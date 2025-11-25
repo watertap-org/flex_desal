@@ -70,82 +70,82 @@ jobs:
 #         run: |
 #           pylint watertap
 
-#   tests:
-#     name: Tests (py${{ matrix.python-version }}/${{ matrix.os }})
-#     runs-on: ${{ matrix.os-version }}
-#     needs: [code-formatting]
-#     strategy:
-#       fail-fast: false
-#       matrix:
-#         python-version:
-#           - '3.9'
-#           - '3.10'
-#           - '3.11'
-#         os:
-#           - linux
-#           - win64
-#           # - macos
-#         include:
-#           - os: linux
-#             os-version: ubuntu-22.04
-#           - os: win64
-#             os-version: windows-2022
-#           # - os: macos
-#           #   os-version: macos-10.15
-#           - python-version: '3.10'
-#             # limit uploading coverage report for a single Python version in the matrix
-#             coverage: true
-#     steps:
-#     - uses: actions/checkout@v4
-#     - name: Set up Python ${{ matrix.python-version }}
-#       uses: conda-incubator/setup-miniconda@v3
-#       with:
-#         activate-environment: watertap-dev
-#         python-version: ${{ matrix.python-version }}
-#         miniforge-version: latest
-#     - name: Install dependencies
-#       run: |
-#         echo '::group::Output of "conda install" commands'
-#         conda install --quiet --yes pip setuptools wheel pandoc
-#         echo '::endgroup::'
-#         echo '::group::Output of "pip install" commands'
-#         pip install -r requirements-dev.txt
-#         echo '::endgroup::'
-#         echo '::group::Output of "conda install -c conda-forge cyipopt" command'
-#         conda install -c conda-forge cyipopt
-#         echo '::endgroup::'
-#         echo '::group::Display installed packages'
-#         conda list
-#         pip list
-#         pip show idaes-pse
-#         echo '::endgroup::'
-#         echo '::group::Output of "idaes get-extensions" command'
-#         idaes get-extensions --extra petsc --verbose
-#         echo '::endgroup::'
-#     - name: Add coverage report pytest options
-#       if: matrix.coverage
-#       run:
-#         |
-#         echo PYTEST_ADDOPTS="$PYTEST_ADDOPTS --cov --cov-report=xml" >> $GITHUB_ENV
-#     - name: Test with pytest
-#       run: |
-#         pytest --pyargs watertap --idaes-flowsheets --entry-points-group watertap.flowsheets
-#     - name: Upload coverage report as job artifact
-#       if: matrix.coverage
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: coverage-report-${{ matrix.os }}
-#         path: coverage.xml
-#         if-no-files-found: error
-#     - name: Test documentation code
-#       run: |
-#         make -C docs doctest -d
-#     # TODO: this should be moved to a dedicated job/workflow
-#     # until then, we can leave this here as a reminder
-#     - name: Test documentation links
-#       if: 'false'
-#       run: |
-#         make -C docs linkcheck -d
+  tests:
+    name: Tests (py${{ matrix.python-version }}/${{ matrix.os }})
+    runs-on: ${{ matrix.os-version }}
+    needs: [code-formatting]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.9'
+          - '3.10'
+          - '3.11'
+        os:
+          - linux
+          - win64
+          # - macos
+        include:
+          - os: linux
+            os-version: ubuntu-22.04
+          - os: win64
+            os-version: windows-2022
+          - os: macos
+            os-version: macos-10.15
+          - python-version: '3.10'
+            # limit uploading coverage report for a single Python version in the matrix
+            coverage: true
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: flex_desal_analysis
+        python-version: ${{ matrix.python-version }}
+        miniforge-version: latest
+    - name: Install dependencies
+      run: |
+        echo '::group::Output of "conda install" commands'
+        conda install --quiet --yes pip setuptools wheel pandoc
+        echo '::endgroup::'
+        echo '::group::Output of "pip install" commands'
+        pip install -r requirements.txt
+        echo '::endgroup::'
+        echo '::group::Output of "conda install -c conda-forge cyipopt" command'
+        conda install -c conda-forge cyipopt
+        echo '::endgroup::'
+        echo '::group::Display installed packages'
+        conda list
+        pip list
+        pip show idaes-pse
+        echo '::endgroup::'
+        echo '::group::Output of "idaes get-extensions" command'
+        idaes get-extensions --extra petsc --verbose
+        echo '::endgroup::'
+    # - name: Add coverage report pytest options
+    #   if: matrix.coverage
+    #   run:
+    #     |
+    #     echo PYTEST_ADDOPTS="$PYTEST_ADDOPTS --cov --cov-report=xml" >> $GITHUB_ENV
+    - name: Test with pytest
+      run: |
+        pytest --pyargs flex_desal_analysis
+    # - name: Upload coverage report as job artifact
+    #   if: matrix.coverage
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: coverage-report-${{ matrix.os }}
+    #     path: coverage.xml
+    #     if-no-files-found: error
+    # - name: Test documentation code
+    #   run: |
+    #     make -C docs doctest -d
+    # TODO: this should be moved to a dedicated job/workflow
+    # until then, we can leave this here as a reminder
+    # - name: Test documentation links
+    #   if: 'false'
+    #   run: |
+    #     make -C docs linkcheck -d
 
 #   upload-coverage:
 #     name: Upload coverage report (Codecov)
