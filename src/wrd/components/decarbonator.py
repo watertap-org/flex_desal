@@ -66,18 +66,6 @@ def build_decarbonator(blk, prop_package):
         doc="Power consumption of decarbonator",
     )
 
-    # # Get the absolute path of the current script       # Consider moving config to the ro_system, then passing as input
-    # current_script_path = os.path.abspath(__file__)
-    # # Get the directory containing the current script
-    # current_directory = os.path.dirname(current_script_path)
-    # # Get the parent directory of the current directory (one folder prior)
-    # parent_directory = os.path.dirname(current_directory)
-
-    # config = (
-    #     parent_directory + "/meta_data/wrd_ro_system_inputs.yaml"
-    # )  # Should change ro back and delete the other yaml file (ro_inputs)
-    # blk.config_data = load_config(config)
-
     # Add Arcs
     blk.feed_to_decarb = Arc(source=blk.feed.outlet, destination=blk.unit.inlet)
     blk.decarb_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
@@ -87,9 +75,9 @@ def build_decarbonator(blk, prop_package):
 # This function should have different default test values, but it doesn't do any thing really...
 def set_inlet_conditions(blk, Qin=0.5 * 0.154, Cin=2 * 0.542, P_in=10.6):
     """
-    Set the operation conditions for the RO stage
+    Set the operation conditions for the decarbonator
     """
-    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
+    Qin = Qin * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
     Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
@@ -103,11 +91,11 @@ def set_inlet_conditions(blk, Qin=0.5 * 0.154, Cin=2 * 0.542, P_in=10.6):
 
 
 def set_decarbonator_op_conditions(blk):
-    # Instead of hard coding value, this should be in some yaml file, but it doesn't need one of its own
+    # Instead of hard coding value, this could be in yaml config file
     blk.unit.power_consumption.fix(2.5 * pyunits.kW)
-    # Decarb fit params: y = mx + b
+    # Decarb fit params: y = a*x + b
     # blk.unit.power_eq = Constraint(
-    #     expr = blk.unit.power_consumption == m * blk.unit.feed.properties[0].flow_vol + b
+    #     expr = blk.unit.power_consumption == a * blk.unit.feed.properties[0].flow_vol + b
     # )
 
 
@@ -157,7 +145,7 @@ def report_decarbonator(blk, w=30):
 if __name__ == "__main__":
     m = build_system()  # optional input of stage_num
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
-    set_inlet_conditions(m.fs.decarb_system, Qin=0.154, Cin=0.542, P_in=1)
+    set_inlet_conditions(m.fs.decarb_system)
     set_decarbonator_op_conditions(m.fs.decarb_system)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_decarbonator_scaling(m.fs.decarb_system)
