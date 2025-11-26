@@ -317,6 +317,14 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
     blk.feed.properties[0].pressure.fix(101325 * pyunits.Pa)  # 1 bar
 
+    m = blk.model()
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")  # changed from 1
+    )
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
+
 
 def set_ro_system_op_conditions(blk):
     """
@@ -471,13 +479,7 @@ def add_ro_scaling(blk):
     """
     Add scaling to the units in the RO system
     """
-    m = blk.model()
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")  # changed from 1
-    )
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
-    )
+
 
     for t in range(1, blk.number_trains + 1):
         train = blk.find_component(f"train_{t}")
@@ -505,7 +507,6 @@ def add_ro_scaling(blk):
                 set_scaling_factor(c, 1e4)
             # constraint_scaling_transform(ro_stage.feed_side.eq_K, 1e4
 
-    calculate_scaling_factors(blk)
 
 
 def initialize_ro_system(blk):
@@ -617,11 +618,12 @@ def report_ro_system(blk, w=30):
 
 
 if __name__ == "__main__":
-    num_trains = 4
+    num_trains = 1
     m = build_system(number_trains=num_trains, number_stages=3)
     set_inlet_conditions(m.fs.ro_system, Qin=num_trains * 0.154, Cin=0.542)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
+    calculate_scaling_factors(m)
     initialize_ro_system(m.fs.ro_system)
     m.fs.obj = Objective(
         expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
