@@ -2,11 +2,8 @@ import os
 import yaml
 from pyomo.environ import (
     ConcreteModel,
-    Var,
     Objective,
-    NonNegativeReals,
     TransformationFactory,
-    RangeSet,
     assert_optimal_termination,
     value,
     units as pyunits,
@@ -15,11 +12,7 @@ from pyomo.network import Arc
 
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
-from idaes.models.unit_models import Product, Feed, StateJunction
-from idaes.models.unit_models.mixer import (
-    Mixer,
-    MomentumMixingType,
-)
+from idaes.models.unit_models import StateJunction
 from idaes.core.util.model_statistics import degrees_of_freedom
 import idaes.core.util.scaling as iscale
 from idaes.core.util.scaling import (
@@ -34,7 +27,6 @@ from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-# from wrd.components.ro_system import load_config, get_config_value
 
 def load_config(config):
     with open(config, "r") as file:
@@ -89,6 +81,7 @@ def get_config_value(
                 )
     else:
         raise KeyError(f"Section '{section}' not found in the configuration.")
+
 
 def build_system(**kwargs):  # For testing
     m = ConcreteModel()
@@ -165,11 +158,20 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, P_in=1):
     blk.feed_in.properties[0].pressure.fix(P_in * pyunits.bar)
     blk.feed_in.properties[0].flow_vol  # Touching
 
+    # Scaling properties
+    m = blk.model()
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+    )
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
+
 
 def add_pump_scaling(blk):
-    # Properties?
+    # Properties
     set_scaling_factor(blk.pump.work_mechanical[0], 1e-3)
-    # Isn't there a needed scaling factor for electricity costs? Where is that scaled?
+    # Isn't there a needed scaling factor for electricity costs?
 
 
 def initialize_pump(blk):
@@ -215,6 +217,7 @@ if __name__ == "__main__":
     set_pump_op_conditions(m.fs.pump_system)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_pump_scaling(m.fs.pump_system)
+    calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
     m.fs.obj = Objective(
         expr=m.fs.pump_system.feed_out.properties[0].flow_vol_phase["Liq"]
