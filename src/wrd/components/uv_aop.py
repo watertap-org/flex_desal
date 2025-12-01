@@ -2,6 +2,7 @@ from pyomo.environ import (
     ConcreteModel,
     value,
     TransformationFactory,
+    Param,
     Var,
     Constraint,
     Objective,
@@ -18,7 +19,7 @@ from idaes.core.util.scaling import (
     calculate_scaling_factors,
     set_scaling_factor,
 )
-from idaes.models.unit_models import StateJunction
+from idaes.models.unit_models import StateJunction, Feed
 from idaes.core.util.model_statistics import *
 
 from watertap.core.solvers import get_solver
@@ -31,8 +32,12 @@ def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
+    m.fs.feed = Feed(property_package=m.fs.ro_properties)
     m.fs.uv_aop_system = FlowsheetBlock(dynamic=False)
     build_uv_aop(m.fs.uv_aop_system, prop_package=m.fs.ro_properties, **kwargs)
+    m.fs.feed_to_unit = Arc(
+        source=m.fs.feed.outlet, destination=m.fs.uv_aop_system.feed.inlet
+    )
     return m
 
 
@@ -41,53 +46,68 @@ def build_uv_aop(blk, prop_package):
     blk.product = StateJunction(property_package=prop_package)
     blk.unit = StateJunction(property_package=prop_package)
 
-    blk.unit.power_consumption = Var(
-        initialize=0,
-        domain=NonNegativeReals,
-        units=pyunits.kW,
-        doc="Power consumption of UV_aop",
-    )
-
-    blk.feed_to_UV = Arc(source=blk.feed.inlet, destination=blk.unit.inlet)
-    blk.UV_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
-    TransformationFactory("network.expand_arcs").apply_to(blk)
-
-
-def set_uv_aop_op_conditions(blk):
     # Look to RO_rework or UV_Surrogate for loading and incorperating the surrogate model here
 
     # Using all Feb 2021 data
     # UV1: a = 14.78, b = 8.71. If b = 0, best a = 15.86
-    # UV2: a = 14.78, b = 7.39. If b = 0, best a = 15.98
-    a = 15.9 * pyunits.kW / (pyunits.Mgallons / pyunits.day)
-    b = 0 * pyunits.kW
+    # UV2: a = 14.78, b = 7.39. If b = 0, best a = 15.9
+
+    blk.unit.power_eq_slope = Param(
+        initialize=15.9,
+        mutable=True,
+        units=pyunits.kW / (pyunits.Mgallons / pyunits.day),
+        doc="Slope of power consumption equation",
+    )
+    blk.unit.power_eq_intercept = Param(
+        initialize=0,
+        mutable=True,
+        units=pyunits.kW,
+        doc="Intercept of power consumption equation",
+    )
+
+    blk.unit.power_consumption = Var(
+        initialize=0,
+        domain=NonNegativeReals,
+        bounds=(0, None),
+        units=pyunits.kW,
+        doc="Power consumption of UV/AOP unit",
+    )
 
     blk.unit.eq_power = Constraint(
         expr=blk.unit.power_consumption
-        == a * blk.feed.properties[0].flow_vol_phase["Liq"] + b,
+        == pyunits.convert(
+            blk.unit.power_eq_slope * blk.feed.properties[0].flow_vol_phase["Liq"],
+            to_units=pyunits.kW,
+        )
+        + blk.unit.power_eq_intercept,
         doc="Linear fit to data",
     )
 
+    blk.feed_to_unit = Arc(source=blk.feed.inlet, destination=blk.unit.inlet)
+    blk.unit_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
 
-def set_inlet_conditions(blk, Qin=0.27, Cin=0, P_in=10.6):
+
+def set_uv_aop_op_conditions(blk):
+    pass
+
+
+def set_inlet_conditions(m, Qin=0.27, Cin=0, P_in=1):
     """
-    Set the operation conditions for the UV.
+    Set the inlet conditions for the UV/AOP system.
     """
-    Qin = (
-        (Qin) * pyunits.m**3 / pyunits.s
-    )  # Feed flow rate in m3/s # Flow into one UV unit, near max flow
+
+    # Feed flow rate in m3/s
+    # Flow into one UV unit, near max flow
+    Qin = Qin * pyunits.m**3 / pyunits.s
     Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
 
-    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
-    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
-    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed.properties[0].pressure.fix(P_in * pyunits.bar)
-    blk.feed.properties[0].flow_vol  # Touching
-
-    m = blk.model()
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
+    m.fs.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
+    m.fs.feed.properties[0].pressure.fix(P_in * pyunits.bar)
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
     )
@@ -96,11 +116,17 @@ def set_inlet_conditions(blk, Qin=0.27, Cin=0, P_in=10.6):
     )
 
 
+def initialize_system(m):
+    m.fs.feed.initialize()
+    propagate_state(m.fs.feed_to_unit)
+    initialize_uv_aop(m.fs.uv_aop_system)
+
+
 def initialize_uv_aop(blk):
     blk.feed.initialize()
-    propagate_state(blk.feed_to_UV)
+    propagate_state(blk.feed_to_unit)
     blk.unit.initialize()
-    propagate_state(blk.UV_to_product)
+    propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
 
@@ -134,17 +160,21 @@ def report_uv(blk, w=30):
     )
 
 
-if __name__ == "__main__":
+def main():
+
     m = build_system()
-    set_inlet_conditions(m.fs.uv_aop_system)
+    set_inlet_conditions(m)
     set_uv_aop_op_conditions(m.fs.uv_aop_system)
     add_uv_aop_scaling(m.fs.uv_aop_system)
+    TransformationFactory("network.expand_arcs").apply_to(m)
+    initialize_system(m)
     calculate_scaling_factors(m)
-    initialize_uv_aop(m.fs.uv_aop_system)
-    m.fs.obj = Objective(
-        expr=m.fs.uv_aop_system.feed.properties[0].flow_vol_phase["Liq"]
-    )
+
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
     report_uv(m.fs.uv_aop_system, w=40)
+
+
+if __name__ == "__main__":
+    main()
