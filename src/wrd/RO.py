@@ -40,7 +40,7 @@ solver = get_solver()
 
 
 def build_inlet_stream(m):
-    '''Build the inlet stream for the RO system'''
+    """Build the inlet stream for the RO system"""
 
     feed_conc = 2 * pyunits.g / pyunits.liter
     recovery = 0.15
@@ -48,25 +48,29 @@ def build_inlet_stream(m):
 
     perm_vol_flow = 9.1 * pyunits.m**3 / pyunits.day
     feed_vol_flow = pyunits.convert(
-    perm_vol_flow / recovery, to_units=pyunits.m**3 / pyunits.s
+        perm_vol_flow / recovery, to_units=pyunits.m**3 / pyunits.s
     )
-    perm_mass_flow = pyunits.convert(rho * perm_vol_flow, to_units=pyunits.kg / pyunits.s)
-    
+    perm_mass_flow = pyunits.convert(
+        rho * perm_vol_flow, to_units=pyunits.kg / pyunits.s
+    )
+
     feed_mass_flow_water = value(perm_mass_flow / recovery)
     feed_mass_flow_salt = value(
-    pyunits.convert(feed_vol_flow * feed_conc, to_units=pyunits.kg / pyunits.s)
+        pyunits.convert(feed_vol_flow * feed_conc, to_units=pyunits.kg / pyunits.s)
     )
-    
+
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)  # 2 g/m^3 for NaCl
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
+        feed_mass_flow_salt
+    )  # 2 g/m^3 for NaCl
     m.fs.feed.properties[0].temperature.fix(298.15)  # 25 degrees Celsius
     m.fs.feed.properties[0].pressure.fix(101325)  # 1 atm
- 
+
 
 def set_operating_conditions(m):
-    '''Set the operating conditions for the RO system.'''
+    """Set the operating conditions for the RO system."""
 
-    pressure = 225*pyunits.psi
+    pressure = 225 * pyunits.psi
     # Pump 1 operating conditions
     m.fs.pump1.efficiency_pump.fix(0.8)
     m.fs.pump1.control_volume.properties_out[0].pressure.fix(pressure)
@@ -74,13 +78,13 @@ def set_operating_conditions(m):
     mem_length = (1.016 - 2 * 0.0267) * pyunits.m
     mem_area = 7.2 * pyunits.m**2
 
-    spacer_thickness = 34 # mil
-    channel_height = spacer_thickness * 2.54e-5 # mil to m
+    spacer_thickness = 34  # mil
+    channel_height = spacer_thickness * 2.54e-5  # mil to m
     pressure_loss = -15 * pyunits.psi
 
-    water_perm=4.2e-12
-    salt_perm=3.5e-8
-    porosity=0.95
+    water_perm = 4.2e-12
+    salt_perm = 3.5e-8
+    porosity = 0.95
 
     m.fs.RO_stage_1.A_comp.fix(water_perm)
     m.fs.RO_stage_1.B_comp.fix(salt_perm)
@@ -104,7 +108,7 @@ def set_operating_conditions(m):
 
 
 def add_connection(m):
-    '''Add connections between unit models in the RO system.'''
+    """Add connections between unit models in the RO system."""
 
     m.fs.feed_to_pump1 = Arc(
         source=m.fs.feed.outlet,
@@ -125,7 +129,7 @@ def add_connection(m):
 
 
 def initialize_system(m):
-    '''Initialize the RO system.'''
+    """Initialize the RO system."""
 
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_pump1)
@@ -139,7 +143,7 @@ def initialize_system(m):
 
 
 def build_system():
-    '''Build the system model.'''
+    """Build the system model."""
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -198,12 +202,13 @@ def build_system():
 
     return m
 
+
 def build_ro_stage(stage_number, m):
-    '''Build a single stage of the RO system.'''
+    """Build a single stage of the RO system."""
 
     # Set the stage number
     stage_name = f"stage_{stage_number}"
-    
+
     # Create the RO stage
     ro_stage = ReverseOsmosis1D(
         property_package=m.fs.properties,
@@ -217,19 +222,19 @@ def build_ro_stage(stage_number, m):
         finite_elements=10,
         has_full_reporting=True,
     )
-    
+
     # Set stage configuration
     # Get configuration from the config file
     (A_comp, B_comp) = (
         m.fs.config_data["reverse_osmosis_1d"]["stages"][stage_name]["A_comp"],
         m.fs.config_data["reverse_osmosis_1d"]["stages"][stage_name]["B_comp"],
-
     )
 
     return ro_stage
 
+
 def build_wrd():
-    '''Build the WRD model with RO stages and pumps.'''
+    """Build the WRD model with RO stages and pumps."""
 
     # Build system
     m = ConcreteModel()
@@ -258,22 +263,24 @@ def build_wrd():
     )
 
     m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(0.7)
-    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(0.0014)  # 2 g/m^3 for NaCl
+    m.fs.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
+        0.0014
+    )  # 2 g/m^3 for NaCl
     m.fs.feed.properties[0].temperature.fix(298.15)  # 25 degrees Celsius
-    m.fs.feed.properties[0].pressure.fix(101325) 
+    m.fs.feed.properties[0].pressure.fix(101325)
 
-    pressure = 225*pyunits.psi #50e5
+    pressure = 225 * pyunits.psi  # 50e5
 
     m.fs.pump1.efficiency_pump.fix(0.8)
     m.fs.pump1.control_volume.properties_out[0].pressure.fix(pressure)
 
-    water_perm=4.2e-12
-    salt_perm=3.5e-8
-    porosity=0.95
+    water_perm = 4.2e-12
+    salt_perm = 3.5e-8
+    porosity = 0.95
     number_of_elements = 7
     mem_length = (1.016 - 2 * 0.0267) * pyunits.m
-    spacer_thickness = 34 # mil
-    channel_height = spacer_thickness * 2.54e-5 # mil to m
+    spacer_thickness = 34  # mil
+    channel_height = spacer_thickness * 2.54e-5  # mil to m
 
     m.fs.RO_stage_1.A_comp.fix(water_perm)
     m.fs.RO_stage_1.B_comp.fix(salt_perm)
@@ -319,19 +326,20 @@ def build_wrd():
     m.fs.permeate.initialize()
 
     iscale.calculate_scaling_factors(m.fs.RO_stage_1)
-   
+
     print("Degrees of freedom before initialization:", degrees_of_freedom(m))
 
     print("Degrees of freedom:", degrees_of_freedom(m))
     results = solver.solve(m, tee=False)
 
-
     return m
+
 
 def load_config(config):
     with open(config, "r") as file:
         return yaml.safe_load(file)
-    
+
+
 if __name__ == "__main__":
 
     m = build_wrd()
