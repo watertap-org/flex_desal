@@ -480,7 +480,6 @@ def add_ro_scaling(blk):
     Add scaling to the units in the RO system
     """
 
-
     for t in range(1, blk.number_trains + 1):
         train = blk.find_component(f"train_{t}")
         for s in range(1, train.number_stages + 1):
@@ -506,7 +505,6 @@ def add_ro_scaling(blk):
             for i, c in ro_stage.feed_side.eq_K.items():
                 set_scaling_factor(c, 1e4)
             # constraint_scaling_transform(ro_stage.feed_side.eq_K, 1e4
-
 
 
 def initialize_ro_system(blk):

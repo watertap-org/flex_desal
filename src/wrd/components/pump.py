@@ -16,11 +16,8 @@ from idaes.models.unit_models import StateJunction
 from idaes.core.util.model_statistics import degrees_of_freedom
 import idaes.core.util.scaling as iscale
 from idaes.core.util.scaling import (
-    constraint_scaling_transform,
     calculate_scaling_factors,
     set_scaling_factor,
-    list_badly_scaled_variables,
-    extreme_jacobian_rows,
 )
 
 from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
@@ -83,7 +80,7 @@ def get_config_value(
         raise KeyError(f"Section '{section}' not found in the configuration.")
 
 
-def build_system(**kwargs):  # For testing
+def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
@@ -101,16 +98,15 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     blk.feed_in = StateJunction(property_package=prop_package)
     blk.feed_out = StateJunction(property_package=prop_package)
 
-    # Get the absolute path of the current script       # Consider moving config to the ro_system, then passing as input
+    # Get the absolute path of the current script
     current_script_path = os.path.abspath(__file__)
     # Get the directory containing the current script
     current_directory = os.path.dirname(current_script_path)
     # Get the parent directory of the current directory (one folder prior)
     parent_directory = os.path.dirname(current_directory)
 
-    config = (
-        parent_directory + "\\meta_data\\wrd_ro_inputs.yaml"
-    )  # Should change ro back and delete the other yaml file (ro_inputs)
+    config = os.path.join(parent_directory, "meta_data", "wrd_ro_inputs.yaml")
+
     blk.config_data = load_config(config)
     blk.pump = Pump(property_package=prop_package)
 
@@ -209,6 +205,21 @@ def report_pump(blk, w=30):
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
 
+def main():
+    m = build_system()  # optional input of stage_num
+    set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, P_in=1)
+    set_pump_op_conditions(m.fs.pump_system)
+    add_pump_scaling(m.fs.pump_system)
+    calculate_scaling_factors(m)
+    initialize_pump(m.fs.pump_system)
+    m.fs.obj = Objective(
+        expr=m.fs.pump_system.feed_out.properties[0].flow_vol_phase["Liq"]
+    )
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    
+    
 
 if __name__ == "__main__":
     m = build_system()  # optional input of stage_num
