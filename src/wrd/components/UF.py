@@ -20,7 +20,7 @@ from pyomo.network import Arc, SequentialDecomposition
 from pyomo.util.check_units import assert_units_consistent
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock, MaterialFlowBasis
 from idaes.core.solvers import get_solver
-from idaes.core.util.initialization import propagate_state 
+from idaes.core.util.initialization import propagate_state
 import idaes.core.util.scaling as iscale
 from idaes.core.util.scaling import (
     constraint_scaling_transform,
@@ -42,18 +42,17 @@ from watertap.unit_models.pressure_changer import Pump
 from watertap.core import Database
 
 
-#TODO:
-#1. Unfix the variable energy_electric_flow_vol_inlet
+# TODO:
+# 1. Unfix the variable energy_electric_flow_vol_inlet
+
 
 def build_system():
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
-    m.db = Database(dbpath='watertap/flowsheets/flex_desal/wrd/meta_data')
-    m.fs.properties = WaterParameterBlock(
-            solute_list=["tds","tss"]
-        )
-    
+    m.db = Database(dbpath="watertap/flowsheets/flex_desal/wrd/meta_data")
+    m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
+
     m.fs.UF = FlowsheetBlock(dynamic=False)
     build_UF(m.fs.UF, m.fs.properties)
 
@@ -74,9 +73,7 @@ def build_UF(blk, prop_package) -> None:
     blk.product = StateJunction(property_package=prop_package)
     blk.disposal = StateJunction(property_package=prop_package)
 
-    blk.unit = UltraFiltrationZO(
-        property_package=prop_package, database=m.db
-    )
+    blk.unit = UltraFiltrationZO(property_package=prop_package, database=m.db)
 
     blk.feed_to_unit = Arc(
         source=blk.feed.outlet,
@@ -98,7 +95,7 @@ def set_inlet_conditions(blk):
     blk.feed.properties[0.0].flow_mass_comp["H2O"].fix(171.37)
     blk.feed.properties[0.0].flow_mass_comp["tds"].fix(600)
     blk.feed.properties[0.0].flow_mass_comp["tss"].fix(5.22e-6)
-    
+
 
 def set_UF_op_conditions(blk):
     # print(f"UF Degrees of Freedom: {degrees_of_freedom(blk)}")
@@ -139,7 +136,7 @@ def add_UF_costing(m, blk, costing_blk=None):
         costing_blk = m.fs.costing
 
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_blk)
-   
+
 
 def add_UF_scaling(blk):
     set_scaling_factor(blk.disposal.properties[0.0].flow_mass_comp["tds"], 1e3)
@@ -185,7 +182,6 @@ def print_UF_costing_breakdown(blk, debug=False):
         print(blk.unit.costing.display())
 
 
-
 if __name__ == "__main__":
     file_dir = os.path.dirname(os.path.abspath(__file__))
     m = build_system()
@@ -204,5 +200,3 @@ if __name__ == "__main__":
     solve(m)
 
     print("Degrees of Freedom: ", degrees_of_freedom(m))
-
-
