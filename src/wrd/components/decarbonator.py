@@ -39,7 +39,8 @@ from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.costing.zero_order_costing import ZeroOrderCosting
 from watertap.core.util.initialization import *
 
-#test 
+
+# test
 def build_decarbonator(blk, prop_package):
 
     blk.feed = Feed(property_package=prop_package)
