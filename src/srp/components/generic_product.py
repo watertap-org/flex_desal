@@ -110,12 +110,14 @@ def init_product(blk):
     propagate_state(blk.feed_to_product)
     blk.product.initialize()
 
+def main():
 
-if __name__ == "__main__":
     m = build_system()
     set_system_scaling(m)
     set_system_op_conditions(m)
     print(f"dof = {degrees_of_freedom(m)}")
     init_product(m.fs.product)
-    solver = get_solver()
-    results = solver.solve(m, tee=True)
+    results = solver.solve(m)
+
+if __name__ == "__main__":
+    main()

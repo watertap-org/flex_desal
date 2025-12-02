@@ -22,6 +22,7 @@ from watertap.core.solvers import get_solver
 
 from srp.utils.utils import touch_flow_and_conc
 
+solver = get_solver()
 
 __all__ = [
     "build_mixer",
@@ -142,7 +143,7 @@ def set_system_op_conditions(m):
         feed_unit = m.fs.find_component(f"{inlet}")
         feed_unit.properties.calculate_state(
             var_args={
-                ("flow_vol_phase", ("Liq")): m.Qin,
+                ("flow_vol_phase", ("Liq")): m.Qin / len(m.inlet_list),
                 ("conc_mass_phase_comp", ("Liq", "TDS")): m.Cin,
                 ("pressure", None): 101325,
                 ("temperature", None): 273.15 + m.feed_temp,
@@ -179,15 +180,15 @@ def init_mixer(blk):
     propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
+def main():
 
-if __name__ == "__main__":
     m = build_system()
     set_system_scaling(m)
     set_system_op_conditions(m)
-
     init_system(m)
-
-    solver = get_solver()
-    results = solver.solve(m, tee=True)
+    assert degrees_of_freedom(m) == 0
+    results = solver.solve(m)
     assert_optimal_termination(results)
-    print(f"dof = {degrees_of_freedom(m)}")
+
+if __name__ == "__main__":
+    main()
