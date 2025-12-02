@@ -110,6 +110,7 @@ def init_product(blk):
     propagate_state(blk.feed_to_product)
     blk.product.initialize()
 
+
 def main():
 
     m = build_system()
@@ -118,6 +119,7 @@ def main():
     print(f"dof = {degrees_of_freedom(m)}")
     init_product(m.fs.product)
     results = solver.solve(m)
+
 
 if __name__ == "__main__":
     main()

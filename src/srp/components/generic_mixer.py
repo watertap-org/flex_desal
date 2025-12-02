@@ -180,6 +180,7 @@ def init_mixer(blk):
     propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
+
 def main():
 
     m = build_system()
@@ -189,6 +190,7 @@ def main():
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
+
 
 if __name__ == "__main__":
     main()
