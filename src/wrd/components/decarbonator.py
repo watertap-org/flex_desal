@@ -145,4 +145,3 @@ if __name__ == "__main__":
     # solver = get_solver()
     # results = solver.solve(m)
     # assert_optimal_termination(results)
-    
