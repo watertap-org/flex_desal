@@ -205,6 +205,7 @@ def report_pump(blk, w=30):
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
 
+
 def main():
     m = build_system()  # optional input of stage_num
     set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, P_in=1)
@@ -218,8 +219,7 @@ def main():
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    
-    
+
 
 if __name__ == "__main__":
     m = build_system()  # optional input of stage_num
