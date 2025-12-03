@@ -29,8 +29,10 @@ __all__ = [
     "init_pump",
 ]
 
+solver = get_solver()
 
-def build_system(Qin=11343, Cin=1467, split=0.5, feed_temp=27):
+
+def build_system(Qin=11343, Cin=1467, feed_temp=27):
 
     m = ConcreteModel()
 
@@ -122,6 +124,10 @@ def build_pump(blk, name=None, prop_package=None):
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
+def set_pump_scaling(blk):
+    iscale.set_scaling_factor(blk.unit.work_mechanical, 1e-3)
+
+
 def set_system_scaling(m):
 
     m.fs.properties.set_default_scaling(
@@ -134,6 +140,8 @@ def set_system_scaling(m):
         1 / value(pyunits.convert(m.Qin, to_units=pyunits.m**3 / pyunits.s)),
         index=("Liq", "TDS"),
     )
+
+    set_pump_scaling(m.fs.pump)
 
     iscale.calculate_scaling_factors(m)
 
@@ -153,11 +161,11 @@ def set_system_op_conditions(m):
     iscale.calculate_scaling_factors(m)
 
 
-def set_pump_op_conditions(blk, pressure=350):
+def set_pump_op_conditions(blk, pressure=350, efficiency=0.8):
 
     pressure = pressure * pyunits.psi
 
-    blk.unit.efficiency_pump.fix(0.8)
+    blk.unit.efficiency_pump.fix(efficiency)
     blk.unit.control_volume.properties_out[0].pressure.fix(pressure)
 
 
@@ -183,14 +191,17 @@ def init_system(m):
     m.fs.product.initialize()
 
 
-if __name__ == "__main__":
+def main():
     m = build_system()
     set_system_scaling(m)
     set_system_op_conditions(m)
     set_pump_op_conditions(m.fs.pump, pressure=350)
     init_system(m)
 
-    solver = get_solver()
-    results = solver.solve(m, tee=True)
+    assert degrees_of_freedom(m) == 0
+    results = solver.solve(m)
     assert_optimal_termination(results)
-    print(degrees_of_freedom(m))
+
+
+if __name__ == "__main__":
+    main()
