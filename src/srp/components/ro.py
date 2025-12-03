@@ -27,6 +27,8 @@ __all__ = [
     "init_ro",
 ]
 
+solver = get_solver()
+
 
 def build_system(
     Qin=11343,
@@ -215,14 +217,16 @@ def init_ro(blk):
         pb.initialize()
 
 
-if __name__ == "__main__":
+def main():
     m = build_system()
     set_system_scaling(m)
     set_system_op_conditions(m)
     split_fractions = {"to_ro_permeate": {"H2O": 0.5, "TDS": 0.5}}
     set_ro_op_conditions(m.fs.ro, split_fractions=split_fractions)
     init_system(m)
-    solver = get_solver()
-    results = solver.solve(m, tee=True)
-    print(f"dof = {degrees_of_freedom(m)}")
-    # m.fs.ro.display()
+    assert degrees_of_freedom(m) == 0
+    results = solver.solve(m)
+
+
+if __name__ == "__main__":
+    main()
