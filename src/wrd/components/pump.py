@@ -3,6 +3,10 @@ import yaml
 from pyomo.environ import (
     ConcreteModel,
     Objective,
+    Var,
+    Param,
+    Constraint,
+    NonNegativeReals,
     TransformationFactory,
     assert_optimal_termination,
     value,
@@ -110,22 +114,56 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     blk.config_data = load_config(config)
     blk.pump = Pump(property_package=prop_package)
 
+    #Create Variables for simple "surrogate"
+     
+    blk.pump.efficiency_eq_constant = Param(
+        initialize=0.389,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Constant term of Efficiency equation",
+    )
+
+    blk.pump.efficiency_eq_linear = Param(
+        initialize= -0.535,
+        mutable=True,
+        units= (pyunits.m**3 / pyunits.s)**-1,
+        doc="Linear term of Efficiency equation",
+    )
+
+    blk.pump.efficiency_eq_squared = Param(
+            initialize= 41.373,
+            mutable=True,
+            units= (pyunits.m**3 / pyunits.s)**-2,
+            doc="Squared term of Efficiency equation",
+        )
+    
+    blk.pump.efficiency_eq_cubed = Param(
+            initialize= -138.82,
+            mutable=True,
+            units=(pyunits.m**3 / pyunits.s)**-3,
+            doc="Cubed term of Efficiency equation",
+        )
+    flow = blk.feed_in.properties[0].flow_vol_phase["Liq"]
+    blk.pump.efficiency_surr_eq = Constraint(
+        expr = blk.pump.efficiency_pump[0] ==
+        blk.pump.efficiency_eq_cubed * flow**3 + blk.pump.efficiency_eq_squared * flow**2
+        + blk.pump.efficiency_eq_linear * flow + blk.pump.efficiency_eq_constant,
+        doc = "Efficiency surrogate equation"
+    )
+
     # Add Arcs
     blk.feed_in_to_pump = Arc(source=blk.feed_in.outlet, destination=blk.pump.inlet)
     blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-# print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
-
-
 def set_pump_op_conditions(blk, stage_num=1):
     # Configure with input values
-    blk.pump.efficiency_pump.fix(
-        get_config_value(
-            blk.config_data, "pump_efficiency", "pumps", f"pump_{stage_num}"
-        )
-    )
+    # blk.pump.efficiency_pump.fix(
+    #     get_config_value(
+    #         blk.config_data, "pump_efficiency", "pumps", f"pump_{stage_num}"
+    #     )
+    # )
     blk.pump.control_volume.properties_out[0].pressure.fix(
         get_config_value(
             blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
