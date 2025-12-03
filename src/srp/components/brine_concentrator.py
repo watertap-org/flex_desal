@@ -24,14 +24,11 @@ from idaes.models.unit_models import (
     Mixer,
     StateJunction,
     Separator,
-    Heater,
-)
-from idaes.models.unit_models.separator import SplittingType
-from idaes.models.unit_models.heat_exchanger import (
     HeatExchanger,
+    SplittingType,
     HeatExchangerFlowPattern,
+    MomentumMixingType,
 )
-from idaes.models.unit_models.mixer import MomentumMixingType
 from idaes.core.util.model_statistics import *
 
 from watertap.core.solvers import get_solver
@@ -48,23 +45,22 @@ from watertap.property_models.water_prop_pack import (
 from watertap.costing import WaterTAPCosting
 
 from srp.components.translator_sw_to_water import TranslatorSWtoWater
+from srp.utils.utils import touch_flow_and_conc
 
 __author__ = "Kurban Sitterley"
 
 __all__ = [
-    "build_mvc",
-    "build_and_run_mvc",
-    "set_mvc_operating_conditions",
-    "set_mvc_scaling",
-    "init_mvc",
-    "add_mvc_costing",
-    "scale_mvc_costs",
+    "build_bc",
+    "set_bc_operating_conditions",
+    "set_bc_scaling",
+    "init_bc",
+    "add_bc_costing",
+    "scale_bc_costs",
     "run_sequential_decomposition",
-    "solve_mvc",
-    "display_MVC_flow_table",
-    "scale_mvc_costs",
+    "solve_bc",
+    "display_bc_flow_table",
     "report_pump",
-    "report_MVC",
+    "report_bc",
 ]
 
 solver = get_solver()
@@ -72,99 +68,31 @@ solver = get_solver()
 _log = idaeslog.getLogger("SRP")
 
 
-def build_and_run_mvc(
-    recovery=0.5,
-    Qin=728 / 30,  # gpm
-    Cin=11.408,
-    **kwargs,
-):
-    Qin = Qin * pyunits.gallons / pyunits.minute
-    # Cin_wells = 11408 * pyunits.mg / pyunits.L
-    Cin = Cin * pyunits.g / pyunits.liter
-    feed_temp = 27  # degrees C
-    m = ConcreteModel()
-    m.fs = FlowsheetBlock(dynamic=False)
-    m.fs.costing = WaterTAPCosting()
-    m.fs.properties_feed = SeawaterParameterBlock()
-    m.fs.properties_vapor = SteamParameterBlock()
-    m.fs.feed = Feed(property_package=m.fs.properties_feed)
-    m.fs.properties_feed.set_default_scaling(
-        "flow_mass_phase_comp",
-        1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)() * 1000),
-        index=("Liq", "H2O"),
-    )
-    m.fs.properties_feed.set_default_scaling(
-        "flow_mass_phase_comp",
-        1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)()),
-        index=("Liq", "TDS"),
-    )
-
-    m.fs.feed.properties[0].conc_mass_phase_comp
-    m.fs.feed.properties[0].flow_vol_phase
-    iscale.calculate_scaling_factors(m)
-    m.fs.feed.properties.calculate_state(
-        var_args={
-            ("flow_vol_phase", ("Liq")): Qin,
-            ("conc_mass_phase_comp", ("Liq", "TDS")): Cin_wells,
-            ("pressure", None): 101325,
-            ("temperature", None): 273.15 + feed_temp,
-        },
-        hold_state=True,
-    )
-    m.fs.BC = FlowsheetBlock()
-    build_mvc(m, m.fs.BC)
-    add_mvc_costing(m, m.fs.BC)
-    m.fs.costing.cost_process()
-    set_mvc_operating_conditions(m, m.fs.BC)
-    set_mvc_scaling(m, m.fs.BC)
-    init_mvc(m, m.fs.BC)
-
-    m.fs.feed_to_BC = Arc(source=m.fs.feed.outlet, destination=m.fs.BC.feed.inlet)
-    propagate_state(m.fs.feed_to_BC)
-    TransformationFactory("network.expand_arcs").apply_to(m)
-    iscale.calculate_scaling_factors(m)
-
-    print(f"dof = {degrees_of_freedom(m)}")
-    m.fs.feed.initialize()
-    m.fs.BC.recovery_vol.fix(0.9)
-    m.fs.BC.recovery_mass.unfix()
-    m.fs.BC.feed.properties[0].flow_vol_phase
-    m.fs.BC.feed.properties[0].conc_mass_phase_comp
-    m.fs.BC.feed.initialize()
-    m.fs.BC.product.properties[0].flow_vol_phase
-    m.fs.BC.product.properties[0].conc_mass_phase_comp
-    m.fs.BC.product.initialize()
-    m.fs.BC.disposal.properties[0].flow_vol_phase
-    m.fs.BC.disposal.properties[0].conc_mass_phase_comp
-    m.fs.BC.disposal.initialize()
-    results = solve_mvc(m)
-    print_infeasible_constraints(m)
-
-    report_MVC(m.fs.BC)
-    print(f"dof = {degrees_of_freedom(m)}")
-
-    return m
-
-
-def solve_mvc(blk):
+def solve_bc(blk, tee=False):
     solver = get_solver()
     try:
-        results = solver.solve(blk, tee=False)
+        results = solver.solve(blk, tee=tee)
         print(f"termination MVC {results.solver.termination_condition}")
         assert_optimal_termination(results)
     except:
-        results = solver.solve(blk, tee=False)
+        results = solver.solve(blk, tee=tee)
         print(f"termination MVC {results.solver.termination_condition}")
         assert_optimal_termination(results)
 
     return results
 
 
-def build_mvc_system(recovery=0.5, **kwargs):
+def build_system(recovery=0.5, Qin=350, Cin=11408, feed_temp=27, **kwargs):
+
+    Qin = Qin * pyunits.gallons / pyunits.minute
+    Cin = Cin * pyunits.mg / pyunits.liter
 
     m = ConcreteModel()
     m.recovery_mass = recovery
     m.recovery_vol = recovery
+    m.Qin = Qin
+    m.Cin = Cin
+    m.feed_temp = feed_temp
 
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.costing = WaterTAPCosting()
@@ -173,29 +101,34 @@ def build_mvc_system(recovery=0.5, **kwargs):
     m.fs.properties_vapor = SteamParameterBlock()
 
     m.fs.feed = Feed(property_package=m.fs.properties_feed)
+    touch_flow_and_conc(m.fs.feed)
     m.fs.product = Product(property_package=m.fs.properties_feed)
+    touch_flow_and_conc(m.fs.product)
     m.fs.disposal = Product(property_package=m.fs.properties_feed)
+    touch_flow_and_conc(m.fs.disposal)
 
-    m.fs.MVC = mvc = FlowsheetBlock(dynamic=False)
+    m.fs.bc = bc = FlowsheetBlock(dynamic=False)
 
-    build_mvc(m, mvc, **kwargs)
+    build_bc(m, bc, **kwargs)
 
-    m.fs.feed_to_mvc = Arc(source=m.fs.feed.outlet, destination=mvc.feed.inlet)
+    m.fs.feed_to_mvc = Arc(source=m.fs.feed.outlet, destination=bc.feed.inlet)
 
-    m.fs.mvc_to_product = Arc(source=mvc.product.outlet, destination=m.fs.product.inlet)
+    m.fs.mvc_to_product = Arc(source=bc.product.outlet, destination=m.fs.product.inlet)
 
     m.fs.mvc_to_disposal = Arc(
-        source=mvc.disposal.outlet, destination=m.fs.disposal.inlet
+        source=bc.disposal.outlet, destination=m.fs.disposal.inlet
     )
 
-    add_mvc_costing(m, mvc)
-    # print(pyunits.get_units(mvc.evaporator.costing.capital_cost))
-    # assert False
+    add_bc_costing(bc)
+
+    m.fs.costing.base_currency = pyunits.USD_2023
     m.fs.costing.cost_process()
-    m.fs.costing.add_annual_water_production(mvc.product.properties[0].flow_vol)
-    m.fs.costing.add_LCOW(mvc.product.properties[0].flow_vol)
+    m.fs.costing.add_annual_water_production(
+        m.fs.product.properties[0].flow_vol_phase["Liq"]
+    )
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
     m.fs.costing.add_specific_energy_consumption(
-        mvc.product.properties[0].flow_vol, name="SEC"
+        m.fs.product.properties[0].flow_vol_phase["Liq"], name="SEC"
     )
 
     m.fs.costing.heat_exchanger.material_factor_cost.fix(5)
@@ -207,13 +140,16 @@ def build_mvc_system(recovery=0.5, **kwargs):
     return m
 
 
-def build_mvc(m, blk, external_heating=True):
+def build_bc(m, blk, external_heating=True):
 
     print(f'\n{"=======> BUILDING MVC SYSTEM <=======":^60}\n')
 
     blk.feed = StateJunction(property_package=m.fs.properties_feed)
+    touch_flow_and_conc(blk.feed)
     blk.product = StateJunction(property_package=m.fs.properties_feed)
+    touch_flow_and_conc(blk.product)
     blk.disposal = StateJunction(property_package=m.fs.properties_feed)
+    touch_flow_and_conc(blk.disposal)
 
     blk.recovery_mass = Var(
         initialize=0.5, bounds=(0, 1), units=pyunits.dimensionless, doc="MVC recovery"
@@ -360,17 +296,18 @@ def build_mvc(m, blk, external_heating=True):
         expr=blk.separator.split_fraction[0, "hx_distillate_cold"] == blk.recovery_mass
     )
 
-    if external_heating:
-        add_external_heating(m, blk)
+    # blk.hx_area_constr = Constraint(expr=blk.hx_distillate.area >= blk.hx_brine.area)
 
-    TransformationFactory("network.expand_arcs").apply_to(m)
+    if external_heating:
+        add_external_heating(blk)
+
+    TransformationFactory("network.expand_arcs").apply_to(blk)
 
     blk.evaporator.connect_to_condenser(blk.condenser)
     _log.info("MVC flowsheet built")
 
 
-def set_mvc_operating_conditions(
-    m,
+def set_bc_operating_conditions(
     blk,
     recovery=0.5,
     inlet_brine_temp_guess=50,  # degC
@@ -446,60 +383,52 @@ def set_mvc_operating_conditions(
     blk.tb_sw_to_water.properties_out[0].flow_mass_phase_comp["Liq", "TDS"].fix(
         flow_mass_tds_dist
     )
-    print("DOF after setting operating conditions: ", degrees_of_freedom(blk))
+
+    print("BC DOF after setting operating conditions: ", degrees_of_freedom(blk))
 
 
-def set_system_operating_conditions(m, Qin=1, tds=130, feed_temp=25):
-
-    global flow_in
-
-    Qin = Qin * pyunits.Mgallons / pyunits.day
-    tds = tds * pyunits.g / pyunits.liter
-    flow_in = pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)
+def set_system_operating_conditions(m):
 
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): flow_in,
-            ("conc_mass_phase_comp", ("Liq", "TDS")): tds,
+            ("flow_vol_phase", ("Liq")): m.Qin,
+            ("conc_mass_phase_comp", ("Liq", "TDS")): m.Cin,
             ("pressure", None): 101325,
-            ("temperature", None): 273.15 + feed_temp,
+            ("temperature", None): 273.15 + m.feed_temp,
         },
         hold_state=True,
     )
 
 
-def set_mvc_scaling(
-    m,
-    blk,
-    properties_feed=None,
-    properties_vapor=None,
-    calc_blk_scaling_factors=True,
-):
+def set_system_scaling(m):
 
-    if properties_feed is None:
-        properties_feed = m.fs.properties_feed
-
-    if properties_vapor is None:
-        properties_vapor = m.fs.properties_vapor
-
-    properties_feed.set_default_scaling("flow_mass_phase_comp", 1, index=("Liq", "H2O"))
-    properties_feed.set_default_scaling(
-        "flow_mass_phase_comp", 1e2, index=("Liq", "TDS")
+    m.fs.properties_feed.set_default_scaling(
+        "flow_mass_phase_comp",
+        1 / (value(pyunits.convert(m.Qin, to_units=pyunits.m**3 / pyunits.s)) * 1000),
+        index=("Liq", "H2O"),
     )
-    properties_vapor.set_default_scaling(
+    m.fs.properties_feed.set_default_scaling(
+        "flow_mass_phase_comp",
+        1 / (value(pyunits.convert(m.Qin, to_units=pyunits.m**3 / pyunits.s))),
+        index=("Liq", "TDS"),
+    )
+    m.fs.properties_vapor.set_default_scaling(
         "flow_mass_phase_comp", 1, index=("Vap", "H2O")
     )
-    properties_vapor.set_default_scaling(
+    m.fs.properties_vapor.set_default_scaling(
         "flow_mass_phase_comp", 1, index=("Liq", "H2O")
     )
+
+    set_bc_scaling(m.fs.bc)
+
+    iscale.calculate_scaling_factors(m)
+
+
+def set_bc_scaling(blk):
 
     iscale.set_scaling_factor(blk.external_heating, 1e-6)
 
     # MVC FEED
-    # set_scaling_factor(
-    #     blk.feed.properties[0.0].conc_mass_phase_comp["Liq", "TDS"], 1e-2
-    # )
-    # set_scaling_factor(blk.hx_distillate.hot_side.properties_in[0].mass_frac_phase_comp["Liq", "TDS"], 1e2)
 
     # MVC PRODUCT
 
@@ -534,31 +463,19 @@ def set_mvc_scaling(
     iscale.constraint_scaling_transform(blk.hx_brine.hot_side.pressure_balance[0], 1e-5)
 
     # EVAPORATOR
-    # set_scaling_factor(blk.evaporator.properties_brine[0].pressure, 1e-4)
     iscale.set_scaling_factor(blk.evaporator.area, 1e-3)
     iscale.set_scaling_factor(blk.evaporator.U, 1e-3)
     iscale.set_scaling_factor(blk.evaporator.delta_temperature_in, 1e-1)
     iscale.set_scaling_factor(blk.evaporator.delta_temperature_out, 1e-1)
     iscale.set_scaling_factor(blk.evaporator.lmtd, 1e-1)
-    # set_scaling_factor(blk.evaporator.heat_transfer, 1e-7)
 
     # COMPRESSOR
     iscale.set_scaling_factor(blk.compressor.control_volume.work, 1e-6)
-    # set_scaling_factor(
-    #     blk.compressor.control_volume.properties_in[0].enth_flow_phase["Liq"], 1
-    # )
 
     # CONDENSER
     iscale.set_scaling_factor(blk.condenser.control_volume.heat, 1e-5)
 
-    # if hasattr(blk.evaporator, "costing"):
-    #     scale_mvc_costs(m, blk)
-
-    if calc_blk_scaling_factors:
-        iscale.calculate_scaling_factors(blk)
-
-    else:
-        iscale.calculate_scaling_factors(m)
+    iscale.calculate_scaling_factors(blk)
 
 
 def init_system(m, blk, **kwargs):
@@ -566,7 +483,7 @@ def init_system(m, blk, **kwargs):
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_mvc)
 
-    init_mvc(m, blk, **kwargs)
+    init_bc(m, blk, **kwargs)
 
     m.fs.product.initialize()
     propagate_state(m.fs.mvc_to_product)
@@ -575,7 +492,7 @@ def init_system(m, blk, **kwargs):
     propagate_state(m.fs.mvc_to_disposal)
 
 
-def init_mvc(
+def init_bc(
     m,
     blk,
     feed_props=None,
@@ -585,14 +502,13 @@ def init_mvc(
     **kwargs,
 ):
     """
-    Initialization routine for generic MVC setup.
+    Initialization routine for generic BC setup.
     To be used with external heating.
     """
 
     if solver is None:
         solver = get_solver()
     solver.options["halt_on_ampl_error"] = "yes"
-    # solver.options["tee"] = True
     optarg = solver.options
 
     if feed_props is None:
@@ -637,7 +553,9 @@ def init_mvc(
 
     # Initialize feed pump
     propagate_state(blk.feed_to_pump)
-    blk.pump_feed.initialize(optarg=optarg, solver="ipopt-watertap")
+    blk.pump_feed.initialize(
+        optarg=optarg,
+    )
     _log.info(f"{blk.name} feed pump initialization complete.")
 
     # Initialize separator
@@ -645,12 +563,16 @@ def init_mvc(
     # Touch property for initialization
     blk.separator.mixed_state[0].mass_frac_phase_comp["Liq", "TDS"]
     blk.separator.split_fraction[0, "hx_distillate_cold"].fix(blk.recovery_mass.value)
-    blk.separator.mixed_state.initialize(optarg=optarg, solver="ipopt-watertap")
+    blk.separator.mixed_state.initialize(
+        optarg=optarg,
+    )
 
     # Touch properties for initialization
     blk.separator.hx_brine_cold_state[0].mass_frac_phase_comp["Liq", "TDS"]
     blk.separator.hx_distillate_cold_state[0].mass_frac_phase_comp["Liq", "TDS"]
-    blk.separator.initialize(optarg=optarg, solver="ipopt-watertap")
+    blk.separator.initialize(
+        optarg=optarg,
+    )
     blk.separator.split_fraction[0, "hx_distillate_cold"].unfix()
     _log.info(f"{blk.name} separator initialization complete.")
 
@@ -670,7 +592,7 @@ def init_mvc(
         blk.evaporator.outlet_brine.temperature[0].value
     )
     blk.hx_distillate.hot_inlet.pressure[0] = 101325
-    blk.hx_distillate.initialize(solver="ipopt-watertap")
+    blk.hx_distillate.initialize()
     _log.info(f"{blk.name} Distillate HX initialization complete.")
 
     # Initialize brine heat exchanger
@@ -689,41 +611,38 @@ def init_mvc(
         0
     ].value
     blk.hx_brine.hot_inlet.pressure[0] = 101325
-    blk.hx_brine.initialize(solver="ipopt-watertap")
+    blk.hx_brine.initialize()
     _log.info(f"{blk.name} Brine HX initialization complete.")
 
     # Initialize mixer
     propagate_state(blk.hx_dist_cold_to_mixer)
     propagate_state(blk.hx_brine_cold_to_mixer)
-    blk.mixer_feed.initialize(solver="ipopt-watertap")
+    blk.mixer_feed.initialize()
     blk.mixer_feed.pressure_equality_constraints[0, 2].deactivate()
     _log.info(f"{blk.name} Mixer initialization complete.")
-    # print(f"\ndof @ 1 = {degrees_of_freedom(blk)}\n")
 
     # Initialize evaporator
     propagate_state(blk.mixer_feed_to_evaporator)
     blk.external_heating.fix()
     blk.evaporator.properties_vapor[0].flow_mass_phase_comp["Vap", "H2O"].fix()
     # fixes and unfixes those values
-
     blk.evaporator.initialize(
         delta_temperature_in=delta_temperature_in,
         delta_temperature_out=delta_temperature_out,
-        solver="ipopt-watertap",
     )
     blk.external_heating.unfix()
     blk.evaporator.properties_vapor[0].flow_mass_phase_comp["Vap", "H2O"].unfix()
 
     # Initialize compressor
     propagate_state(blk.evaporator_to_compressor)
-    blk.compressor.initialize(solver="ipopt-watertap")
+    blk.compressor.initialize()
     _log.info(f"{blk.name} Compressor initialization complete.")
 
     # Initialize condenser
     try:
         propagate_state(blk.compressor_to_condenser)
         blk.condenser.initialize(
-            heat=-blk.evaporator.heat_transfer.value, solver="ipopt-watertap"
+            heat=-blk.evaporator.heat_transfer.value,
         )
         _log.info(f"{blk.name} Condenser initialization complete.")
     except:
@@ -732,7 +651,9 @@ def init_mvc(
 
     # Initialize brine pump
     propagate_state(blk.evaporator_to_brine_pump)
-    blk.pump_brine.initialize(optarg=optarg, solver="ipopt-watertap")
+    blk.pump_brine.initialize(
+        optarg=optarg,
+    )
     _log.info(f"{blk.name} Brine Pump initialization complete.")
     # propagate_state(blk.brine_pump_to_hx_brine_hot)
 
@@ -745,7 +666,9 @@ def init_mvc(
     blk.pump_distillate.control_volume.properties_in[0].pressure = (
         blk.condenser.control_volume.properties_out[0].pressure.value
     )
-    blk.pump_distillate.initialize(optarg=optarg, solver="ipopt-watertap")
+    blk.pump_distillate.initialize(
+        optarg=optarg,
+    )
     _log.info(f"{blk.name} Distillate Pump initialization complete.")
     # propagate_state(blk.dist_pump_to_hx_dist_hot)
 
@@ -753,10 +676,7 @@ def init_mvc(
     propagate_state(blk.hx_brine_hot_to_disposal)
     propagate_state(blk.hx_dist_hot_to_product)
 
-    # print(f"\ndof @ 2 = {degrees_of_freedom(blk)}\n")
-
     run_sequential_decomposition(
-        m,
         blk,
         delta_temperature_in=delta_temperature_in,
         delta_temperature_out=delta_temperature_out,
@@ -769,43 +689,34 @@ def init_mvc(
     _log.info(f"{blk.name} Disposal initialization complete.")
 
     m.fs.costing.initialize()
-    results = solver.solve(blk, tee=False)
-    print(f"MVC solve termination {results.solver.termination_condition}")
+    results = solver.solve(blk)
     _log.info(f"MVC solve termination {results.solver.termination_condition}")
     assert_optimal_termination(results)
-
-    print(f"blk dof at end of init = {degrees_of_freedom(blk)}")
 
     blk.pump_brine.control_volume.deltaP[0].unfix()
     blk.disposal.properties[0].pressure.fix(101325)
     blk.disposal.properties[0].temperature.setub(360)
 
-    print(f"\n~~~~~FIRST SOLVE~~~~")
+    print(f"\n~~~~~BC FIRST SOLVE~~~~")
     blk.obj = Objective(expr=blk.external_heating)
-    print(f"blk dof = {degrees_of_freedom(blk)}")
-    print(f"model dof = {degrees_of_freedom(m)}")
-    results = solver.solve(blk, tee=False)
+    results = solver.solve(blk)
     assert_optimal_termination(results)
-    print(f"MVC FIRST solve termination {results.solver.termination_condition}")
-    _log.info(f"MVC FIRST solve termination {results.solver.termination_condition}")
+    _log.info(f"BC FIRST solve termination {results.solver.termination_condition}")
 
     blk.external_heating.fix(0)
-    del blk.obj
-    blk.external_heating.fix(0)
+    blk.del_component(blk.obj)
     blk.evaporator.area.unfix()
     blk.evaporator.outlet_brine.temperature[0].unfix()
     blk.compressor.pressure_ratio.unfix()
     blk.hx_distillate.area.unfix()
     blk.hx_brine.area.unfix()
 
-    print(f"\n~~~~~SECOND SOLVE~~~~")
-
-    print(f"blk dof = {degrees_of_freedom(blk)}")
+    print(f"BC dof = {degrees_of_freedom(blk)}")
     print(f"model dof = {degrees_of_freedom(m)}")
-    results = solver.solve(blk, tee=False)
+    results = solver.solve(blk)
     assert_optimal_termination(results)
-    print(f"MVC SECOND solve termination {results.solver.termination_condition}")
-    _log.info(f"MVC SECOND solve termination {results.solver.termination_condition}")
+    print(f"BC SECOND solve termination {results.solver.termination_condition}")
+    _log.info(f"BC SECOND solve termination {results.solver.termination_condition}")
 
     mvc_feed_state_vars = blk.feed.properties[0].define_port_members()
     feed_state_vars = feed_props.define_port_members()
@@ -817,18 +728,16 @@ def init_mvc(
         else:
             v.fix(value(feed_state_vars[k]))
     try:
-        print(f"\n~~~~~THIRD SOLVE~~~~")
-        print(f"blk dof = {degrees_of_freedom(blk)}")
+        print(f"\n~~~~~BC THIRD SOLVE~~~~")
+        print(f"BC dof = {degrees_of_freedom(blk)}")
         print(f"model dof = {degrees_of_freedom(m)}")
         blk.feed.initialize()
         m.fs.costing.initialize()
-        results = solver.solve(blk, tee=False)
-        # results = solve_mvc(blk)
+        results = solver.solve(blk)
         assert_optimal_termination(results)
-        print(f"MVC THIRD solve termination {results.solver.termination_condition}")
-        _log.info(f"MVC THIRD solve termination {results.solver.termination_condition}")
+        _log.info(f"BC THIRD solve termination {results.solver.termination_condition}")
     except:
-        print(f"MVC THIRD SOLVE FAILED!!\n")
+        print(f"BC THIRD SOLVE FAILED!!\n")
         pass
 
     mvc_feed_state_vars = blk.feed.properties[0].define_port_members()
@@ -842,12 +751,11 @@ def init_mvc(
 
     blk.feed.initialize()
 
-    print(f"Initialization done, blk dof = {degrees_of_freedom(blk)}")
+    print(f"Initialization done, BC dof = {degrees_of_freedom(blk)}")
     print(f"Initialization done, model dof = {degrees_of_freedom(m)}")
 
 
 def run_sequential_decomposition(
-    m,
     blk,
     delta_temperature_in=60,
     delta_temperature_out=None,
@@ -856,16 +764,12 @@ def run_sequential_decomposition(
 ):
 
     def func_initialize(unit):
-        # print(unit.local_name)
-        # print(f"dof = {degrees_of_freedom(unit)}\n")
-        # if unit.local_name == "feed":
         if unit.local_name in ["feed", "product", "disposal"]:
             pass
         elif unit.local_name == "condenser":
             unit.initialize(
                 heat=-unit.flowsheet().evaporator.heat_transfer.value,
                 optarg=solver.options,
-                solver="ipopt-watertap",
             )
         elif unit.local_name == "evaporator":
             unit.flowsheet().external_heating.fix()
@@ -873,7 +777,6 @@ def run_sequential_decomposition(
             unit.initialize(
                 delta_temperature_in=delta_temperature_in,
                 delta_temperature_out=delta_temperature_out,
-                solver="ipopt-watertap",
             )
             unit.flowsheet().external_heating.unfix()
             unit.properties_vapor[0].flow_mass_phase_comp["Vap", "H2O"].unfix()
@@ -881,29 +784,13 @@ def run_sequential_decomposition(
             unit.split_fraction[0, "hx_distillate_cold"].fix(
                 unit.flowsheet().recovery_mass.value
             )
-            unit.initialize(solver="ipopt-watertap")
+            unit.initialize()
             unit.split_fraction[0, "hx_distillate_cold"].unfix()
         elif unit.local_name == "mixer_feed":
-            unit.initialize(solver="ipopt-watertap")
+            unit.initialize()
             unit.pressure_equality_constraints[0, 2].deactivate()
-        # elif unit.local_name == "hx_distillate":
-        #     unit.cold_outlet.temperature[0] = blk.evaporator.inlet_feed.temperature[
-        #         0
-        #     ].value
-        #     unit.cold_outlet.pressure[0] = blk.evaporator.inlet_feed.pressure[0].value
-        #     unit.hot_inlet.flow_mass_phase_comp[0, "Liq", "H2O"] = (
-        #         blk.evaporator.properties_vapor[0]
-        #         .flow_mass_phase_comp["Vap", "H2O"]
-        #         .value
-        #     )
-        #     unit.hot_inlet.flow_mass_phase_comp[0, "Liq", "TDS"] = 1e-4
-        #     unit.hot_inlet.temperature[0] = blk.evaporator.outlet_brine.temperature[
-        #         0
-        #     ].value
-        #     unit.hot_inlet.pressure[0] = 101325
-        #     unit.initialize(solver="ipopt-watertap")
         else:
-            unit.initialize(solver="ipopt-watertap")
+            unit.initialize()
 
     seq = SequentialDecomposition(tear_solver=tear_solver)
     seq.options.log_info = True
@@ -911,7 +798,7 @@ def run_sequential_decomposition(
     seq.run(blk, func_initialize)
 
 
-def add_external_heating(m, blk):
+def add_external_heating(blk):
     """
     Add additional heat source so infeasible designs can be used
     as initial guess prior to optimization
@@ -935,12 +822,11 @@ def add_external_heating(m, blk):
     iscale.set_scaling_factor(blk.external_heating, 1e-6)
 
 
-def add_mvc_costing(m, blk, flowsheet_costing_block=None):
+def add_bc_costing(blk, flowsheet_costing_block=None):
 
     if flowsheet_costing_block is None:
+        m = blk.model()
         flowsheet_costing_block = m.fs.costing
-
-    flowsheet_costing_block.base_currency = pyunits.USD_2023
 
     blk.evaporator.costing = UnitModelCostingBlock(
         flowsheet_costing_block=flowsheet_costing_block
@@ -971,7 +857,7 @@ def add_mvc_costing(m, blk, flowsheet_costing_block=None):
     blk.costing = Block()
     blk.costing.capital_cost = Expression(
         expr=sum(
-            pyunits.convert(cap, to_units=pyunits.USD_2023)
+            pyunits.convert(cap, to_units=flowsheet_costing_block.base_currency)
             for cap in [
                 blk.evaporator.costing.capital_cost
                 + blk.compressor.costing.capital_cost
@@ -1007,7 +893,7 @@ def set_up_optimization(m, blk):
     blk.hx_brine.area.unfix()
 
 
-def display_MVC_flow_table(blk, w=25):
+def display_bc_flow_table(blk, w=25):
     title = "MVC System Flow Table"
     side = int(((5 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -1017,13 +903,13 @@ def display_MVC_flow_table(blk, w=25):
     )
     print(f"{'-' * (5 * w)}")
     print(
-        f'{"Feed":<{w}s}{blk.feed.properties[0.0].flow_mass_phase_comp["Liq", "H2O"].value:<{w}.3f}{value(pyunits.convert(blk.feed.properties[0.0].pressure, to_units=pyunits.bar)):<{w}.1f}{blk.feed.properties[0.0].flow_mass_phase_comp["Liq", "NaCl"].value:<{w}.3e}{blk.feed.properties[0].conc_mass_phase_comp["Liq", "NaCl"].value:<{w}.3f}'
+        f'{"Feed":<{w}s}{blk.feed.properties[0.0].flow_mass_phase_comp["Liq", "H2O"].value:<{w}.3f}{value(pyunits.convert(blk.feed.properties[0.0].pressure, to_units=pyunits.bar)):<{w}.2f}{blk.feed.properties[0.0].flow_mass_phase_comp["Liq", "NaCl"].value:<{w}.3e}{blk.feed.properties[0].conc_mass_phase_comp["Liq", "NaCl"].value:<{w}.3f}'
     )
     print(
-        f'{"Product":<{w}s}{blk.product.properties[0].flow_mass_phase_comp["Liq", "H2O"].value:<{w}.3f}{pyunits.convert(blk.product.properties[0].pressure, to_units=pyunits.bar)():<{w}.1f}{blk.product.properties[0].flow_mass_phase_comp["Liq", "NaCl"].value:<{w}.3e}{blk.product.properties[0].conc_mass_phase_comp["Liq", "NaCl"].value:<{w}.3f}'
+        f'{"Product":<{w}s}{blk.product.properties[0].flow_mass_phase_comp["Liq", "H2O"].value:<{w}.3f}{pyunits.convert(blk.product.properties[0].pressure, to_units=pyunits.bar)():<{w}.2f}{blk.product.properties[0].flow_mass_phase_comp["Liq", "NaCl"].value:<{w}.3e}{blk.product.properties[0].conc_mass_phase_comp["Liq", "NaCl"].value:<{w}.3f}'
     )
     print(
-        f'{"Disposal":<{w}s}{blk.disposal.properties[0].flow_mass_phase_comp["Liq", "H2O"].value:<{w}.3f}{pyunits.convert(blk.disposal.properties[0].pressure, to_units=pyunits.bar)():<{w}.1f}{blk.disposal.properties[0].flow_mass_phase_comp["Liq", "NaCl"].value:<{w}.3e}{blk.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"].value:<{w}.3f}'
+        f'{"Disposal":<{w}s}{blk.disposal.properties[0].flow_mass_phase_comp["Liq", "H2O"].value:<{w}.3f}{pyunits.convert(blk.disposal.properties[0].pressure, to_units=pyunits.bar)():<{w}.2f}{blk.disposal.properties[0].flow_mass_phase_comp["Liq", "NaCl"].value:<{w}.3e}{blk.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"].value:<{w}.3f}'
     )
 
     print("\n\n")
@@ -1038,7 +924,7 @@ def calculate_cost_sf(cost):
     iscale.set_scaling_factor(cost, sf)
 
 
-def scale_mvc_costs(m, blk):
+def scale_bc_costs(m, blk):
     calculate_cost_sf(blk.hx_distillate.costing.capital_cost)
     calculate_cost_sf(blk.hx_brine.costing.capital_cost)
     calculate_cost_sf(blk.mixer_feed.costing.capital_cost)
@@ -1055,9 +941,7 @@ def scale_mvc_costs(m, blk):
 
 
 def print_MVC_stream_flows(blk, w=30):
-    # sb_in = model.fs.BCs.find_component(f"to_{blk.name}_state")
-    # conc_in = sb_in[0].conc_mass_phase_comp["Liq", "TDS"]
-    # print(f"{'Flow in ':<{w}s}{value(pyunits.convert(flow_in, to_units=pyunits.gallon / pyunits.min)):<{w}.3f}{'gpm':<{w}s}")
+
     flow_in = pyunits.convert(
         blk.feed.properties[0.0].flow_vol_phase["Liq"],
         to_units=pyunits.gallon / pyunits.min,
@@ -1107,35 +991,35 @@ def report_pump(blk, w=35):
     pressure_out = pyunits.convert(
         blk.control_volume.properties_out[0].pressure, to_units=pyunits.psi
     )
-    # print(f'{"Pump Inlet Flow":<{w}s}{value(pump_flow_in):<{w}.1f}{"gpm":<{w}s}')
-    print(f'{"Pump Flow":<{w}s}{value(pump_flow_out):<{w}.1f}{"gpm":<{w}s}')
+    # print(f'{"Pump Inlet Flow":<{w}s}{value(pump_flow_in):<{w}.2f}{"gpm":<{w}s}')
+    print(f'{"Pump Flow":<{w}s}{value(pump_flow_out):<{w}.2f}{"gpm":<{w}s}')
 
-    print(f'{"Pump Power":<{w}s}{value(pump_power_watt):<{w}.1f}{"W":<{w}s}')
+    print(f'{"Pump Power":<{w}s}{value(pump_power_watt):<{w}.2f}{"W":<{w}s}')
     print(
-        f'{"DeltaP":<{w}s}{value(blk.deltaP[0]):<{w}.1f}{f"{pyunits.get_units(blk.deltaP[0])}":<{w}s}'
+        f'{"DeltaP":<{w}s}{value(blk.deltaP[0]):<{w}.2f}{f"{pyunits.get_units(blk.deltaP[0])}":<{w}s}'
     )
     print(
-        f'{"Pressure In":<{w}s}{value(pressure_in):<{w}.1f}{f"{pyunits.get_units(pressure_in)}":<{w}s}'
+        f'{"Pressure In":<{w}s}{value(pressure_in):<{w}.2f}{f"{pyunits.get_units(pressure_in)}":<{w}s}'
     )
     print(
-        f'{"Pressure Out":<{w}s}{value(pressure_out):<{w}.1f}{f"{pyunits.get_units(pressure_out)}":<{w}s}'
+        f'{"Pressure Out":<{w}s}{value(pressure_out):<{w}.2f}{f"{pyunits.get_units(pressure_out)}":<{w}s}'
     )
     print(
-        f'{"Temp. In":<{w}s}{value(blk.control_volume.properties_out[0].temperature):<{w}.1f}{f"{pyunits.get_units(blk.control_volume.properties_out[0].temperature)}":<{w}s}'
+        f'{"Temp. In":<{w}s}{value(blk.control_volume.properties_out[0].temperature):<{w}.2f}{f"{pyunits.get_units(blk.control_volume.properties_out[0].temperature)}":<{w}s}'
     )
     print(
-        f'{"Temp. Out":<{w}s}{value(blk.control_volume.properties_out[0].temperature):<{w}.1f}{f"{pyunits.get_units(blk.control_volume.properties_out[0].temperature)}":<{w}s}'
+        f'{"Temp. Out":<{w}s}{value(blk.control_volume.properties_out[0].temperature):<{w}.2f}{f"{pyunits.get_units(blk.control_volume.properties_out[0].temperature)}":<{w}s}'
     )
     temp_out_F = (
         blk.control_volume.properties_out[0].temperature.value - 273.15
     ) * 9 / 5 + 32
-    print(f'{"Temp. Out (F)":<{w}s}{temp_out_F:<{w}.1f}{"F":<{w}s}')
+    print(f'{"Temp. Out (F)":<{w}s}{temp_out_F:<{w}.2f}{"F":<{w}s}')
     print(
-        f'{"Pressure Ratio":<{w}s}{value(blk.ratioP[0]):<{w}.1f}{f"{pyunits.get_units(blk.ratioP[0])}":<{w}s}'
+        f'{"Pressure Ratio":<{w}s}{value(blk.ratioP[0]):<{w}.2f}{f"{pyunits.get_units(blk.ratioP[0])}":<{w}s}'
     )
 
 
-def report_MVC(blk, w=35):
+def report_bc(blk, w=35):
     title = "MVC System Flow Table"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -1217,67 +1101,67 @@ def report_MVC(blk, w=35):
     if hasattr(blk, "evaporator"):
         print(f"\nEvaporator {'.' * w}")
         print(
-            f'{"Preheated Feed Temp.":<{w}s}{blk.evaporator.properties_feed[0].temperature.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.properties_feed[0].temperature)}":<{w}s}'
+            f'{"Preheated Feed Temp.":<{w}s}{blk.evaporator.properties_feed[0].temperature.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.properties_feed[0].temperature)}":<{w}s}'
         )
         print(
-            f'{"Brine Pressure":<{w}s}{blk.evaporator.properties_brine[0].pressure.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.properties_brine[0].pressure)}":<{w}s}'
+            f'{"Brine Pressure":<{w}s}{blk.evaporator.properties_brine[0].pressure.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.properties_brine[0].pressure)}":<{w}s}'
         )
         print(
-            f'{"Brine/Vapor Temp.":<{w}s}{blk.evaporator.properties_brine[0].temperature.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.properties_brine[0].temperature)}":<{w}s}'
+            f'{"Brine/Vapor Temp.":<{w}s}{blk.evaporator.properties_brine[0].temperature.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.properties_brine[0].temperature)}":<{w}s}'
         )
         # print(
-        #     f'{"Vapor Temp.":<{w}s}{blk.evaporator.properties_vapor[0].temperature.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.properties_vapor[0].temperature)}":<{w}s}'
+        #     f'{"Vapor Temp.":<{w}s}{blk.evaporator.properties_vapor[0].temperature.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.properties_vapor[0].temperature)}":<{w}s}'
         # )
         print(
-            f'{"Evaporator Area":<{w}s}{blk.evaporator.area.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.area)}":<{w}s}'
+            f'{"Evaporator Area":<{w}s}{blk.evaporator.area.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.area)}":<{w}s}'
         )
         print(
-            f'{"LMTD":<{w}s}{blk.evaporator.lmtd.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.lmtd)}":<{w}s}'
+            f'{"LMTD":<{w}s}{blk.evaporator.lmtd.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.lmtd)}":<{w}s}'
         )
         print(
-            f'{"Delta T_in":<{w}s}{blk.evaporator.delta_temperature_in.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.delta_temperature_in)}":<{w}s}'
+            f'{"Delta T_in":<{w}s}{blk.evaporator.delta_temperature_in.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.delta_temperature_in)}":<{w}s}'
         )
         print(
-            f'{"Delta T_out":<{w}s}{blk.evaporator.delta_temperature_out.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.delta_temperature_out)}":<{w}s}'
+            f'{"Delta T_out":<{w}s}{blk.evaporator.delta_temperature_out.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.delta_temperature_out)}":<{w}s}'
         )
         U2 = pyunits.convert(
             blk.evaporator.U,
             to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR),
         )
         print(
-            f'{"U":<{w}s}{blk.evaporator.U.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.U)}":<{w}s}'
+            f'{"U":<{w}s}{blk.evaporator.U.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.U)}":<{w}s}'
         )
-        print(f'{"U (BTU/hr-ft2-R)":<{w}s}{value(U2):<{w}.1f}{"BTU/hr-ft2-R":<{w}s}')
+        print(f'{"U (BTU/hr-ft2-R)":<{w}s}{value(U2):<{w}.2f}{"BTU/hr-ft2-R":<{w}s}')
         # print(
-        #     f'{"Duty":<{w}s}{blk.evaporator.heat_transfer.value:<{w}.1f}{f"{pyunits.get_units(blk.evaporator.heat_transfer)}":<{w}s}'
+        #     f'{"Duty":<{w}s}{blk.evaporator.heat_transfer.value:<{w}.2f}{f"{pyunits.get_units(blk.evaporator.heat_transfer)}":<{w}s}'
         # )
     if hasattr(blk, "hx_brine"):
         print(f"\nBrine Heat Exchanger {'.' * w}")
         print(
-            f'{"Overall HX Coeff":<{w}s}{blk.hx_brine.overall_heat_transfer_coefficient[0].value:<{w}.1f}{f"{pyunits.get_units(blk.hx_brine.overall_heat_transfer_coefficient[0])}":<{w}s}'
+            f'{"Overall HX Coeff":<{w}s}{blk.hx_brine.overall_heat_transfer_coefficient[0].value:<{w}.2f}{f"{pyunits.get_units(blk.hx_brine.overall_heat_transfer_coefficient[0])}":<{w}s}'
         )
         print(
-            f'{"HX Brine Area":<{w}s}{blk.hx_brine.area.value:<{w}.1f}{f"{pyunits.get_units(blk.hx_brine.area)}":<{w}s}'
+            f'{"HX Brine Area":<{w}s}{blk.hx_brine.area.value:<{w}.2f}{f"{pyunits.get_units(blk.hx_brine.area)}":<{w}s}'
         )
         print(
-            f'{"Delta T_in":<{w}s}{blk.hx_brine.delta_temperature_in[0].value:<{w}.1f}{f"{pyunits.get_units(blk.hx_brine.delta_temperature_in[0])}":<{w}s}'
+            f'{"Delta T_in":<{w}s}{blk.hx_brine.delta_temperature_in[0].value:<{w}.2f}{f"{pyunits.get_units(blk.hx_brine.delta_temperature_in[0])}":<{w}s}'
         )
         print(
-            f'{"Delta T_out":<{w}s}{blk.hx_brine.delta_temperature_out[0].value:<{w}.1f}{f"{pyunits.get_units(blk.hx_brine.delta_temperature_out[0])}":<{w}s}'
+            f'{"Delta T_out":<{w}s}{blk.hx_brine.delta_temperature_out[0].value:<{w}.2f}{f"{pyunits.get_units(blk.hx_brine.delta_temperature_out[0])}":<{w}s}'
         )
     if hasattr(blk, "hx_distillate"):
         print(f"\nDistillate Heat Exchanger {'.' * w}")
         print(
-            f'{"Overall HX Coeff":<{w}s}{blk.hx_distillate.overall_heat_transfer_coefficient[0].value:<{w}.1f}{f"{pyunits.get_units(blk.hx_distillate.overall_heat_transfer_coefficient[0])}":<{w}s}'
+            f'{"Overall HX Coeff":<{w}s}{blk.hx_distillate.overall_heat_transfer_coefficient[0].value:<{w}.2f}{f"{pyunits.get_units(blk.hx_distillate.overall_heat_transfer_coefficient[0])}":<{w}s}'
         )
         print(
-            f'{"HX Distillate Area":<{w}s}{blk.hx_distillate.area.value:<{w}.1f}{f"{pyunits.get_units(blk.hx_distillate.area)}":<{w}s}'
+            f'{"HX Distillate Area":<{w}s}{blk.hx_distillate.area.value:<{w}.2f}{f"{pyunits.get_units(blk.hx_distillate.area)}":<{w}s}'
         )
         print(
-            f'{"Delta T_in":<{w}s}{blk.hx_distillate.delta_temperature_in[0].value:<{w}.1f}{f"{pyunits.get_units(blk.hx_distillate.delta_temperature_in[0])}":<{w}s}'
+            f'{"Delta T_in":<{w}s}{blk.hx_distillate.delta_temperature_in[0].value:<{w}.2f}{f"{pyunits.get_units(blk.hx_distillate.delta_temperature_in[0])}":<{w}s}'
         )
         print(
-            f'{"Delta T_out":<{w}s}{blk.hx_distillate.delta_temperature_out[0].value:<{w}.1f}{f"{pyunits.get_units(blk.hx_distillate.delta_temperature_out[0])}":<{w}s}'
+            f'{"Delta T_out":<{w}s}{blk.hx_distillate.delta_temperature_out[0].value:<{w}.2f}{f"{pyunits.get_units(blk.hx_distillate.delta_temperature_out[0])}":<{w}s}'
         )
     if hasattr(blk, "pump_brine"):
         print(f"\nBrine Pump {'.' * w}")
@@ -1289,480 +1173,31 @@ def report_MVC(blk, w=35):
     print("\n\n")
 
 
-if __name__ == "__main__":
-    Qin = 350 * pyunits.gallons / pyunits.minute
-    Cin_wells = 11408 * pyunits.mg / pyunits.L
-    feed_temp = 27  # degrees C
-    m = ConcreteModel()
-    m.fs = FlowsheetBlock(dynamic=False)
-    m.fs.costing = WaterTAPCosting()
-    m.fs.properties_feed = SeawaterParameterBlock()
-    m.fs.properties_vapor = SteamParameterBlock()
-    m.fs.feed = Feed(property_package=m.fs.properties_feed)
-    m.fs.properties_feed.set_default_scaling(
-        "flow_mass_phase_comp",
-        1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)() * 1000),
-        index=("Liq", "H2O"),
-    )
-    m.fs.properties_feed.set_default_scaling(
-        "flow_mass_phase_comp",
-        1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)()),
-        index=("Liq", "TDS"),
-    )
+def main(recovery_vol=0.95):
 
-    m.fs.feed.properties[0].conc_mass_phase_comp
-    m.fs.feed.properties[0].flow_vol_phase
-    iscale.calculate_scaling_factors(m)
-    m.fs.feed.properties.calculate_state(
-        var_args={
-            ("flow_vol_phase", ("Liq")): Qin,
-            ("conc_mass_phase_comp", ("Liq", "TDS")): Cin_wells,
-            ("pressure", None): 101325,
-            ("temperature", None): 273.15 + feed_temp,
-        },
-        hold_state=True,
-    )
-    m.fs.BC = FlowsheetBlock()
-    build_mvc(m, m.fs.BC)
-    add_mvc_costing(m, m.fs.BC)
-    m.fs.costing.cost_process()
-    set_mvc_operating_conditions(m, m.fs.BC)
-    set_mvc_scaling(m, m.fs.BC)
-    init_mvc(m, m.fs.BC)
-
-    m.fs.feed_to_BC = Arc(source=m.fs.feed.outlet, destination=m.fs.BC.feed.inlet)
-    propagate_state(m.fs.feed_to_BC)
-    TransformationFactory("network.expand_arcs").apply_to(m)
-    iscale.calculate_scaling_factors(m)
-
-    print(f"dof = {degrees_of_freedom(m)}")
-    m.fs.feed.initialize()
-    m.fs.BC.recovery_vol.fix(0.95)
-    m.fs.BC.recovery_mass.unfix()
-    m.fs.BC.feed.properties[0].flow_vol_phase
-    m.fs.BC.feed.properties[0].conc_mass_phase_comp
-    m.fs.BC.feed.initialize()
-    m.fs.BC.product.properties[0].flow_vol_phase
-    m.fs.BC.product.properties[0].conc_mass_phase_comp
-    m.fs.BC.product.initialize()
-    m.fs.BC.disposal.properties[0].flow_vol_phase
-    m.fs.BC.disposal.properties[0].conc_mass_phase_comp
-    m.fs.BC.disposal.initialize()
-    m.fs.BC.hx_area_constr = Constraint(
-        expr=m.fs.BC.hx_distillate.area <= m.fs.BC.hx_brine.area
-    )
-    results = solve_mvc(m)
-    print_infeasible_constraints(m)
-
-    report_MVC(m.fs.BC)
-    print(f"dof = {degrees_of_freedom(m)}")
-
-    # m.fs.BC.compressor.pressure_ratio.fix(1.6)
-    # results = solve_mvc(m)
-    # print_infeasible_constraints(m)
-
-    # report_MVC(m.fs.BC)
-    # print(f'dof = {degrees_of_freedom(m)}')
-
-    # m.fs.BC.hx_distillate.area.fix()
-    # results = solve_mvc(m)
-    # print_infeasible_constraints(m)
-
-    # report_MVC(m.fs.BC)
-    # print(f'dof = {degrees_of_freedom(m)}')
-
-    # m.fs.BC.hx_brine.area.fix()
-    # results = solve_mvc(m)
-    # print_infeasible_constraints(m)
-
-    # report_MVC(m.fs.BC)
-    # print(f'dof = {degrees_of_freedom(m)}')
-
-    # m.fs.BC.evaporator.area.fix()
-    # results = solve_mvc(m)
-    # print_infeasible_constraints(m)
-
-    # report_MVC(m.fs.BC)
-    # print(f'dof = {degrees_of_freedom(m)}')
-
-    m.fs.costing.add_LCOW(m.fs.BC.product.properties[0].flow_vol_phase["Liq"])
-    m.fs.costing.add_specific_energy_consumption(
-        m.fs.BC.product.properties[0].flow_vol_phase["Liq"], name="SEC"
-    )
+    m = build_system()
+    set_system_scaling(m)
+    set_system_operating_conditions(m)
+    set_bc_operating_conditions(m.fs.bc)
+    init_system(m, m.fs.bc)
+    m.fs.bc.recovery_vol.fix(recovery_vol)
+    m.fs.bc.recovery_mass.unfix()
     m.fs.obj = Objective(expr=m.fs.costing.LCOW)
-    results = solve_mvc(m)
-    print_infeasible_constraints(m)
-
-    report_MVC(m.fs.BC)
     print(f"dof = {degrees_of_freedom(m)}")
-    m.fs.costing.SEC.display()
+    _ = solve_bc(m)
+    propagate_state(m.fs.bc.dist_pump_to_hx_dist_hot)
+    propagate_state(m.fs.bc.brine_pump_to_hx_brine_hot)
+    m.fs.bc.mixer_feed.pressure_equality_constraints.activate()
+    print(f"dof = {degrees_of_freedom(m)}")
+    _ = solve_bc(m)
+    print(f"dof = {degrees_of_freedom(m)}")
+    report_bc(m.fs.bc)
     m.fs.costing.LCOW.display()
+    m.fs.costing.SEC.display()
 
-    # m.fs.BC.evaporator.outlet_brine.temperature[0].unfix()
-    # m.fs.BC.compressor.pressure_ratio.unfix()
-    # print(f'dof = {degrees_of_freedom(m)}')
-    # for x in [0.91, 0.92, 0.93, 0.94, 0.95,]:
-    #     m.fs.BC.recovery_vol.fix(x)
-    #     run_sequential_decomposition(m, m.fs.BC, iterlim=25)
-    #     try:
-    #         results = solve_mvc(m)
-    #     except:
-    #         print_infeasible_constraints(m)
-
-    #     # report_MVC(m.fs.BC)
-    #     print(f'dof = {degrees_of_freedom(m)}')
-    # m.fs.BC.recovery_vol.fix(0.91)
-    # try:
-    #     results = solve_mvc(m)
-    # except:
-    #     print_infeasible_constraints(m)
-
-    # report_MVC(m.fs.BC)
-
-    # print(f"LCOW = {value(m.fs.costing.LCOW):.3f} $/m3")
-
-    # m.fs.BC.pump_brine.display()
-    # # m = build_and_run_mvc(recovery=0.48, Qin=4.9, tds=117.416)
-    # U2 = pyunits.convert(m.fs.BC.evaporator.U, to_units=pyunits.BTU / (pyunits.hr * pyunits.ft**2 * pyunits.degR))
-    # hx2 = pyunits.convert(m.fs.BC.evaporator.heat_transfer, to_units=pyunits.BTU / pyunits.hr)
-    # print(f"U = {U2():.1f} BTU/(hr*ft^2*degR)")
-    # print(f"HX = {hx2():.1f} BTU/hr")
-    # m.fs.BC.compressor.control_volume.properties_out[0].display()
-
-    # m = build_and_run_mvc(recovery=0.9, Qin=0.424920699462, tds=11.408)
-    # blk = m.fs.MVC
-    # recov = value(blk.product.properties[0].flow_vol_phase["Liq"])
-    # m.fs.feed.properties[0].flow_vol_phase.display()
-    # m.fs.feed.properties[0].conc_mass_phase_comp.display()
-    # m.fs.product.properties[0].conc_mass_phase_comp.display()
-    # m.fs.disposal.properties[0].conc_mass_phase_comp.display()
-    # blk.recovery_vol.display()
-    # blk.evaporator.costing.display()
-    # blk.compressor.costing.display()
-
-    # blk.pump_feed.costing.display()
-    # blk.pump_distillate.costing.display()
-    # blk.pump_brine.costing.display()
-    # blk.hx_distillate.costing.display()
-    # blk.hx_brine.costing.display()
-    # blk.mixer_feed.costing.display()
-    # blk.costing.capital_cost.display()
-    # m.fs.MVC.recovery_vol.display()
-    # m.fs.costing.total_capital_cost.display()
-    # m.fs.costing.total_operating_cost.display()
-    # m.fs.product.properties[0].flow_vol_phase.display()
-    # m.fs.MVC.product.properties[0].flow_vol_phase.display()
-    # m.fs.costing.LCOW.display()
+    return m
 
 
-## USED TO RE-INIT MVC @ THIRD SOLVE
-# blk.condenser.initialize(heat=-blk.evaporator.heat_transfer.value)
-
-# blk.external_heating.fix()
-# blk.evaporator.properties_vapor[0].flow_mass_phase_comp["Vap", "H2O"].fix()
-# blk.evaporator.initialize(
-#     delta_temperature_in=delta_temperature_in,
-#     delta_temperature_out=delta_temperature_out,
-#     solver="ipopt-watertap",
-# )
-# blk.external_heating.unfix()
-# blk.evaporator.properties_vapor[0].flow_mass_phase_comp["Vap", "H2O"].unfix()
-
-# blk.separator.split_fraction[0, "hx_distillate_cold"].fix(
-#     blk.recovery_mass.value
-# )
-# blk.separator.initialize(solver="ipopt-watertap")
-# blk.separator.split_fraction[0, "hx_distillate_cold"].unfix()
-
-# blk.mixer_feed.initialize(solver="ipopt-watertap")
-# blk.mixer_feed.pressure_equality_constraints[0, 2].deactivate()
-
-
-# m = ConcreteModel()
-# m.fs = FlowsheetBlock()
-
-# m.fs.properties_feed = SeawaterParameterBlock()
-# m.fs.properties_vapor = SteamParameterBlock()
-
-# m.fs.wells = Feed(property_package=m.fs.properties_feed)
-
-# m.fs.raw_water_tank = Separator(
-#     property_package=m.fs.properties_feed,
-#     outlet_list=["to_cooling_tower", "to_service_and_fire", "to_uf"],
-#     split_basis=SplittingType.componentFlow,
-# )
-# m.fs.raw_water_tank.split_fraction[0, "to_uf", "H2O"].fix(114.2 / 11343)
-# m.fs.raw_water_tank.split_fraction[0, "to_uf", "TDS"].fix(114.2 / 11343)
-# m.fs.raw_water_tank.split_fraction[0, "to_service_and_fire", "H2O"].fix(17 / 11343)
-# m.fs.raw_water_tank.split_fraction[0, "to_service_and_fire", "TDS"].fix(17 / 11343)
-# # m.fs.raw_water_tank.to_service_and_fire_state[0].conc_mass_phase_comp
-# # m.fs.raw_water_tank.to_uf_state[0].conc_mass_phase_comp
-
-# m.fs.service_and_fire = Product(property_package=m.fs.properties_feed)
-
-# m.fs.uf = Separator(
-#     property_package=m.fs.properties_feed,
-#     outlet_list=["to_ro", "to_ro_containment"],
-#     split_basis=SplittingType.componentFlow,
-# )
-# m.fs.uf.split_fraction[0, "to_ro", "H2O"].fix(91.3 / 114.2)
-# m.fs.uf.split_fraction[0, "to_ro", "TDS"].fix(91.3 / 114.2)
-
-# m.fs.ro = Separator(
-#     property_package=m.fs.properties_feed,
-#     outlet_list=["to_ro_containment", "to_ro_permeate"],
-#     split_basis=SplittingType.componentFlow,
-# )
-# m.fs.ro.split_fraction[0, "to_ro_permeate", "H2O"].fix(56.2 / 91.3)
-# m.fs.ro.split_fraction[0, "to_ro_permeate", "TDS"].fix(0.01)
-# m.fs.ro.to_ro_permeate_state[0].conc_mass_phase_comp
-# m.fs.ro.to_ro_containment_state[0].conc_mass_phase_comp
-
-# m.fs.permeate = Product(property_package=m.fs.properties_feed)
-
-# m.fs.cooling_tower = Separator(
-#     property_package=m.fs.properties_feed,
-#     outlet_list=["to_evaporation", "to_ww_surge_tank"],
-#     split_basis=SplittingType.componentFlow,
-# )
-# m.fs.cooling_tower.split_fraction[0, "to_evaporation", "H2O"].fix(9178.9 / 10522.4)
-# m.fs.cooling_tower.split_fraction[0, "to_evaporation", "TDS"].fix(0)
-# m.fs.cooling_tower.to_ww_surge_tank_state[0].conc_mass_phase_comp
-
-# m.fs.evaporation = Product(property_package=m.fs.properties_feed)
-
-# m.fs.ww_surge_tank = Separator(
-#     property_package=m.fs.properties_feed,
-#     outlet_list=["to_ro_reject_tank", "to_bc_feed_tank"],
-#     split_basis=SplittingType.componentFlow,
-# )
-# m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "H2O"].fix(544.5 / 1353.1)
-# m.fs.ww_surge_tank.split_fraction[0, "to_bc_feed_tank", "TDS"].fix(544.5 / 1353.1)
-
-# m.fs.bc_feed_tank = Mixer(
-#     property_package=m.fs.properties_feed,
-#     momentum_mixing_type=MomentumMixingType.none,
-#     inlet_list=["from_ro_reject_tank", "from_ww_surge_tank"],
-# )
-# m.fs.bc_feed_tank.outlet.pressure[0].fix(101325)
-
-# m.fs.ro_reject_tank = Separator(
-#     property_package=m.fs.properties_feed,
-#     outlet_list=["to_bc_feed_tank", "to_ro_containment", "to_conc_waste"],
-#     split_basis=SplittingType.componentFlow,
-# )
-# m.fs.ro_reject_tank.split_fraction[0, "to_ro_containment", "H2O"].fix(115.2 / 305.1)
-# m.fs.ro_reject_tank.split_fraction[0, "to_ro_containment", "TDS"].fix(115.2 / 305.1)
-# m.fs.ro_reject_tank.split_fraction[0, "to_conc_waste", "H2O"].fix(6.4 / 305.1)
-# m.fs.ro_reject_tank.split_fraction[0, "to_conc_waste", "TDS"].fix(6.4 / 305.1)
-# m.fs.ro_reject_tank.to_ro_containment_state[0].conc_mass_phase_comp
-# m.fs.ro_reject_tank.to_conc_waste_state[0].conc_mass_phase_comp
-# m.fs.ro_reject_tank.to_bc_feed_tank_state[0].conc_mass_phase_comp
-# m.fs.ro_reject_tank.mixed_state[0].conc_mass_phase_comp
-
-# m.fs.ro_containment = Mixer(
-#     property_package=m.fs.properties_feed,
-#     momentum_mixing_type=MomentumMixingType.none,
-#     inlet_list=["from_uf", "from_ro_reject_tank", "from_ro"],
-# )
-# m.fs.ro_containment.outlet.pressure[0].fix(101325)
-
-# # m.fs.ro_reject_tank.to_conc_waste_state[0].conc_mass_phase_comp
-# # m.fs.ro_reject_tank.to_ro_containment_state[0].conc_mass_phase_comp
-
-# # m.fs.conc_waste = Mixer(
-# #     property_package=m.fs.properties_feed,
-# #     momentum_mixing_type=MomentumMixingType.equality,
-# #     # inlet_list=["from_bc", "from_ro_reject_tank"],
-# #     inlet_list=["from_ro_reject_tank"],
-# # )
-# m.fs.conc_waste = StateJunction(property_package=m.fs.properties_feed)
-
-# m.fs.bc = Product(property_package=m.fs.properties_feed)
-
-# m.fs.evaporation_ponds = Mixer(
-#     property_package=m.fs.properties_feed,
-#     momentum_mixing_type=MomentumMixingType.none,
-#     inlet_list=["from_conc_waste", "from_ro_containment"],
-# )
-# m.fs.evaporation_ponds.outlet.pressure[0].fix(101325)
-
-
-# m.fs.evaporation_2 = Product(property_package=m.fs.properties_feed)
-# # =======================================================================
-# # Connections
-# # =======================================================================
-# m.fs.wells_to_raw_water_tank = Arc(
-#     source=m.fs.wells.outlet, destination=m.fs.raw_water_tank.inlet
-# )
-
-# m.fs.raw_water_tank_to_cooling_tower = Arc(
-#     source=m.fs.raw_water_tank.to_cooling_tower, destination=m.fs.cooling_tower.inlet
-# )
-# m.fs.raw_water_tank_to_service_and_fire = Arc(
-#     source=m.fs.raw_water_tank.to_service_and_fire,
-#     destination=m.fs.service_and_fire.inlet,
-# )
-# m.fs.raw_water_tank_to_uf = Arc(
-#     source=m.fs.raw_water_tank.to_uf, destination=m.fs.uf.inlet
-# )
-
-# m.fs.cooling_tower_to_evaporation = Arc(
-#     source=m.fs.cooling_tower.to_evaporation, destination=m.fs.evaporation.inlet
-# )
-# m.fs.cooling_tower_to_ww_surge_tank = Arc(
-#     source=m.fs.cooling_tower.to_ww_surge_tank, destination=m.fs.ww_surge_tank.inlet
-# )
-
-# m.fs.ww_surge_tank_to_ro_reject_tank = Arc(
-#     source=m.fs.ww_surge_tank.to_ro_reject_tank, destination=m.fs.ro_reject_tank.inlet
-# )
-# m.fs.ww_surge_tank_to_bc_feed_tank = Arc(
-#     source=m.fs.ww_surge_tank.to_bc_feed_tank,
-#     destination=m.fs.bc_feed_tank.from_ww_surge_tank,
-# )
-
-# m.fs.ro_reject_tank_to_bc_feed_tank = Arc(
-#     source=m.fs.ro_reject_tank.to_bc_feed_tank,
-#     destination=m.fs.bc_feed_tank.from_ro_reject_tank,
-# )
-# m.fs.ro_reject_tank_to_ro_containment = Arc(
-#     source=m.fs.ro_reject_tank.to_ro_containment,
-#     destination=m.fs.ro_containment.from_ro_reject_tank,
-# )
-# m.fs.ro_reject_tank_to_conc_waste = Arc(
-#     source=m.fs.ro_reject_tank.to_conc_waste,
-#     # destination=m.fs.conc_waste.from_ro_reject_tank,
-#     destination=m.fs.conc_waste.inlet,
-# )
-
-# m.fs.uf_to_ro_containment = Arc(
-#     source=m.fs.uf.to_ro_containment, destination=m.fs.ro_containment.from_uf
-# )
-# m.fs.uf_to_ro = Arc(source=m.fs.uf.to_ro, destination=m.fs.ro.inlet)
-
-# m.fs.ro_to_ro_containment = Arc(
-#     source=m.fs.ro.to_ro_containment, destination=m.fs.ro_containment.from_ro
-# )
-# m.fs.ro_to_ro_permeate = Arc(
-#     source=m.fs.ro.to_ro_permeate, destination=m.fs.permeate.inlet
-# )
-
-# m.fs.conc_waste_to_evaporation_ponds = Arc(
-#     source=m.fs.conc_waste.outlet, destination=m.fs.evaporation_ponds.from_conc_waste
-# )
-
-# m.fs.ro_containment_to_evaporation_ponds = Arc(
-#     source=m.fs.ro_containment.outlet, destination=m.fs.evaporation_ponds.from_ro_containment
-# )
-
-# m.fs.evaporation_ponds_to_evaporation_2 = Arc(
-#     source=m.fs.evaporation_ponds.outlet, destination=m.fs.evaporation_2.inlet
-# )
-
-# m.fs.bc_feed_tank_to_bc = Arc(
-#     source=m.fs.bc_feed_tank.outlet, destination=m.fs.bc.inlet
-# )
-# TransformationFactory("network.expand_arcs").apply_to(m)
-# # =======================================================================
-# # Initialization
-# # =======================================================================
-
-# Qin = 11343 * pyunits.gallons / pyunits.minute
-# Cin_wells = 1467 * pyunits.mg / pyunits.L
-# feed_temp = 27  # degrees C
-
-# # =======================================================================
-# # Scaling
-# # =======================================================================
-
-# m.fs.properties_feed.set_default_scaling(
-#     "flow_mass_phase_comp",
-#     1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)() * 1000),
-#     index=("Liq", "H2O"),
-# )
-# m.fs.properties_feed.set_default_scaling(
-#     "flow_mass_phase_comp",
-#     1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)() * 1000),
-#     index=("Liq", "TDS"),
-# )
-# m.fs.properties_feed.set_default_scaling(
-#     "flow_mass_phase_comp",
-#     1 / (pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)() * 1000),
-#     index=("Liq", "H2O"),
-# )
-# m.fs.properties_feed.set_default_scaling(
-#     "flow_vol_phase",
-#     1 / pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)(),
-#     index=("Liq",),
-# )
-# m.fs.wells.properties[0].conc_mass_phase_comp
-# m.fs.wells.properties[0].flow_vol_phase
-# iscale.calculate_scaling_factors(m)
-
-# m.fs.wells.properties.calculate_state(
-#     var_args={
-#         ("flow_vol_phase", ("Liq")): Qin,
-#         ("conc_mass_phase_comp", ("Liq", "TDS")): Cin_wells,
-#         ("pressure", None): 101325,
-#         ("temperature", None): 273.15 + feed_temp,
-#     },
-#     hold_state=True,
-# )
-
-# print(f"dof = {degrees_of_freedom(m)}")
-# m.fs.wells.initialize()
-# propagate_state(m.fs.wells_to_raw_water_tank)
-
-# m.fs.raw_water_tank.initialize()
-# propagate_state(m.fs.raw_water_tank_to_cooling_tower)
-# propagate_state(m.fs.raw_water_tank_to_service_and_fire)
-# propagate_state(m.fs.raw_water_tank_to_uf)
-
-# m.fs.cooling_tower.initialize()
-# propagate_state(m.fs.cooling_tower_to_evaporation)
-# propagate_state(m.fs.cooling_tower_to_ww_surge_tank)
-# m.fs.evaporation.initialize()
-
-# m.fs.service_and_fire.initialize()
-
-# m.fs.uf.initialize()
-# propagate_state(m.fs.uf_to_ro_containment)
-# propagate_state(m.fs.uf_to_ro)
-
-# m.fs.ro.initialize()
-# propagate_state(m.fs.ro_to_ro_containment)
-# propagate_state(m.fs.ro_to_ro_permeate)
-
-# m.fs.permeate.initialize()
-
-# m.fs.ww_surge_tank.initialize()
-# propagate_state(m.fs.ww_surge_tank_to_ro_reject_tank)
-# propagate_state(m.fs.ww_surge_tank_to_bc_feed_tank)
-
-# m.fs.ro_reject_tank.initialize()
-# propagate_state(m.fs.ro_reject_tank_to_ro_containment)
-# propagate_state(m.fs.ro_reject_tank_to_bc_feed_tank)
-# propagate_state(m.fs.ro_reject_tank_to_conc_waste)
-
-# m.fs.bc_feed_tank.mixed_state[0].flow_vol_phase
-# m.fs.bc_feed_tank.mixed_state[0].conc_mass_phase_comp
-# m.fs.bc_feed_tank.initialize()
-# propagate_state(m.fs.bc_feed_tank_to_bc)
-
-# m.fs.bc.initialize()
-
-# m.fs.conc_waste.initialize()
-# propagate_state(m.fs.conc_waste_to_evaporation_ponds)
-# m.fs.ro_containment.initialize()
-# propagate_state(m.fs.conc_waste_to_evaporation_ponds)
-# propagate_state(m.fs.ro_containment_to_evaporation_ponds)
-
-# m.fs.evaporation_ponds.initialize()
-# propagate_state(m.fs.evaporation_ponds_to_evaporation_2)
-
-# m.fs.evaporation_2.initialize()
-
-# print(f"dof = {degrees_of_freedom(m)}")
-
-# # results = solver.solve(m, tee=True)
+if __name__ == "__main__":
+    m = main()
+    # m = main(recovery_vol=0.5)
