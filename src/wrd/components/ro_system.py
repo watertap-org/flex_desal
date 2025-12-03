@@ -200,7 +200,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     # Get the parent directory of the current directory (one folder prior)
     parent_directory = os.path.dirname(current_directory)
 
-    config = parent_directory + "\\meta_data\\wrd_ro_inputs.yaml"
+    config = os.path.join(parent_directory, "meta_data", "wrd_ro_inputs.yaml")
     blk.config_data = load_config(config)
 
     total_power_consumption = 0
@@ -620,10 +620,12 @@ def main():
     set_inlet_conditions(m.fs.ro_system, Qin=4 * 0.154, Cin=0.542)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
+    calculate_scaling_factors(m)
     initialize_ro_system(m.fs.ro_system)
     m.fs.obj = Objective(
         expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
     )
+    solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
 
