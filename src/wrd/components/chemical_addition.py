@@ -189,7 +189,7 @@ def main():
     m.fs.costing.initialize()
 
     solve(m)
-    #m.fs.costing.display()
+    # m.fs.costing.display()
 
 
 if __name__ == "__main__":
