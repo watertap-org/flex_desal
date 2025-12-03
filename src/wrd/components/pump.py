@@ -98,7 +98,6 @@ def build_system(**kwargs):
 
 def build_wrd_pump(blk, stage_num=1, prop_package=None):
     m = blk.model()
-
     if prop_package is None:
         prop_package = m.fs.ro_properties
 
@@ -117,31 +116,42 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     blk.config_data = load_config(config)
     blk.pump = Pump(property_package=prop_package)
 
+    # Load Values for surrogate model
+    if stage_num == 1:
+        a_0 = 0.389
+        a_1 = -0.535
+        a_2 = 41.373
+        a_3 = -138.82
+    elif stage_num == 2:
+        pass
+    elif stage_num == 3:
+        pass
+    else:
+        print("Please pass valid stage number")
     # Create Variables for simple "surrogate"
-
     blk.pump.efficiency_eq_constant = Param(
-        initialize=0.389,
+        initialize=a_0,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Constant term of Efficiency equation",
     )
 
     blk.pump.efficiency_eq_linear = Param(
-        initialize=-0.535,
+        initialize= a_1,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -1,
         doc="Linear term of Efficiency equation",
     )
 
     blk.pump.efficiency_eq_squared = Param(
-        initialize=41.373,
+        initialize= a_2,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -2,
         doc="Squared term of Efficiency equation",
     )
 
     blk.pump.efficiency_eq_cubed = Param(
-        initialize=-138.82,
+        initialize= a_3,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -3,
         doc="Cubed term of Efficiency equation",
