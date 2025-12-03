@@ -4,6 +4,7 @@ from pyomo.environ import value, units as pyunits
 
 import srp.components.brine_concentrator as bc
 
+
 @pytest.mark.component
 def test_brine_concentrator_95_recov():
     m = bc.main(recovery_vol=0.95)
@@ -15,6 +16,7 @@ def test_brine_concentrator_95_recov():
     assert pytest.approx(value(m.fs.bc.evaporator.lmtd), rel=1e-3) == 25.53
     assert pytest.approx(value(m.fs.bc.hx_brine.area), rel=1e-3) == 6.162
     assert pytest.approx(value(m.fs.bc.hx_distillate.area), rel=1e-3) == 80.92
+
 
 @pytest.mark.component
 def test_brine_concentrator_50_recov():
