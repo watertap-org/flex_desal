@@ -114,8 +114,8 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     blk.config_data = load_config(config)
     blk.pump = Pump(property_package=prop_package)
 
-    #Create Variables for simple "surrogate"
-     
+    # Create Variables for simple "surrogate"
+
     blk.pump.efficiency_eq_constant = Param(
         initialize=0.389,
         mutable=True,
@@ -124,31 +124,33 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     )
 
     blk.pump.efficiency_eq_linear = Param(
-        initialize= -0.535,
+        initialize=-0.535,
         mutable=True,
-        units= (pyunits.m**3 / pyunits.s)**-1,
+        units=(pyunits.m**3 / pyunits.s) ** -1,
         doc="Linear term of Efficiency equation",
     )
 
     blk.pump.efficiency_eq_squared = Param(
-            initialize= 41.373,
-            mutable=True,
-            units= (pyunits.m**3 / pyunits.s)**-2,
-            doc="Squared term of Efficiency equation",
-        )
-    
+        initialize=41.373,
+        mutable=True,
+        units=(pyunits.m**3 / pyunits.s) ** -2,
+        doc="Squared term of Efficiency equation",
+    )
+
     blk.pump.efficiency_eq_cubed = Param(
-            initialize= -138.82,
-            mutable=True,
-            units=(pyunits.m**3 / pyunits.s)**-3,
-            doc="Cubed term of Efficiency equation",
-        )
+        initialize=-138.82,
+        mutable=True,
+        units=(pyunits.m**3 / pyunits.s) ** -3,
+        doc="Cubed term of Efficiency equation",
+    )
     flow = blk.feed_in.properties[0].flow_vol_phase["Liq"]
     blk.pump.efficiency_surr_eq = Constraint(
-        expr = blk.pump.efficiency_pump[0] ==
-        blk.pump.efficiency_eq_cubed * flow**3 + blk.pump.efficiency_eq_squared * flow**2
-        + blk.pump.efficiency_eq_linear * flow + blk.pump.efficiency_eq_constant,
-        doc = "Efficiency surrogate equation"
+        expr=blk.pump.efficiency_pump[0]
+        == blk.pump.efficiency_eq_cubed * flow**3
+        + blk.pump.efficiency_eq_squared * flow**2
+        + blk.pump.efficiency_eq_linear * flow
+        + blk.pump.efficiency_eq_constant,
+        doc="Efficiency surrogate equation",
     )
 
     # Add Arcs
