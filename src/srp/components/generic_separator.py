@@ -251,7 +251,7 @@ def report_separator(blk, w=25):
         )
 
 
-if __name__ == "__main__":
+def main():
 
     m = build_system(outlet_list=["cats", "dogs"])
     set_system_scaling(m)
@@ -269,6 +269,7 @@ if __name__ == "__main__":
     assert_optimal_termination(results)
     print(f"dof = {degrees_of_freedom(m)}")
     report_separator(m.fs.separator.unit)
-    # m.fs.separator.unit.display()
 
-    # split_fractions = {"outlet1": {"H2O": 0.5, "TDS": None}, "outlet2": {"H2O": 0.5, "TDS": None}}
+
+if __name__ == "__main__":
+    main()
