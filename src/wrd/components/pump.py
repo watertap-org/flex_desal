@@ -181,7 +181,7 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk, Pout=10, stage_num=1):
+def set_pump_op_conditions(blk, stage_num=1):
     # These values may be loaded from config files instead of passed as Pout and Pin
     # blk.pump.efficiency_pump.fix(
     #     get_config_value(
@@ -193,7 +193,9 @@ def set_pump_op_conditions(blk, Pout=10, stage_num=1):
     #         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
     #     )
     # )
-    Pout = Pout * pyunits.bar
+    Pout = get_config_value(
+        blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
+    )
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
 
 

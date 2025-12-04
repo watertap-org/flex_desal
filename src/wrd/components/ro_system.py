@@ -46,9 +46,15 @@ from idaes.core.util.scaling import (
     extreme_jacobian_rows,
 )
 
-from wrd.components.pump import build_wrd_pump, initialize_pump
+from wrd.components.pump import (
+    build_wrd_pump,
+    initialize_pump,
+    set_pump_op_conditions,
+    add_pump_scaling,
+)
 
 
+# These config fx could be in their own folder
 def load_config(config):
     with open(config, "r") as file:
         return yaml.safe_load(file)
@@ -335,18 +341,18 @@ def set_ro_system_op_conditions(blk):
         train = blk.find_component(f"train_{t}")
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
+            set_pump_op_conditions(pump, stage_num=s)
+            # pump.pump.control_volume.properties_out[0].pressure.fix(
+            #     get_config_value(
+            #         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{s}"
+            #     )
+            # )
 
-            pump.pump.control_volume.properties_out[0].pressure.fix(
-                get_config_value(
-                    blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{s}"
-                )
-            )
-
-            pump.pump.efficiency_pump.fix(
-                get_config_value(
-                    blk.config_data, "pump_efficiency", "pumps", f"pump_{s}"
-                )
-            )
+            # pump.pump.efficiency_pump.fix(
+            #     get_config_value(
+            #         blk.config_data, "pump_efficiency", "pumps", f"pump_{s}"
+            #     )
+            # )
 
             # Set RO configuration for each stage
             ro_stage = train.find_component(f"ro_stage_{s}")
@@ -508,7 +514,9 @@ def add_ro_scaling(blk):
 
 
 def initialize_ro_system(blk):
-
+    # Touch any properties needed later
+    blk.permeate_mixer.train_1_permeate_state[0].flow_vol_phase["Liq"]
+    # Initialize
     blk.feed.initialize()
     propagate_state(blk.feed_to_feed_splitter)
 
@@ -558,19 +566,24 @@ def report_ro_system(blk, w=30):
 
     total_flow = 0
     total_power = 0
+    total_perm_flow = 0
     total_recovery = blk.recovery
     for t in range(1, blk.number_trains + 1):
         train = blk.find_component(f"train_{t}")
+        total_perm_flow += blk.permeate_mixer.find_component(
+            f"train_{t}_permeate_state[0]"
+        ).flow_vol_phase["Liq"]
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
             title = f"Train {t}, Stage {s}"
             side = int(((3 * w) - len(title)) / 2) - 1
             header = "." * side + f" {title} " + "." * side
             if s == 1:
-                total_flow += pump.feed_out.properties[0].flow_vol
+                total_flow += pump.feed_out.properties[0].flow_vol_phase["Liq"]
             total_power += pyunits.convert(
                 pump.pump.work_mechanical[0], to_units=pyunits.kW
             )
+
             print(f"\n{header}\n")
             print(
                 f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol, to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
@@ -613,11 +626,16 @@ def report_ro_system(blk, w=30):
         f'{f"Total Power Consumption":<{w}s}{value(pyunits.convert(total_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
     print(f'{f"Total Recovery":<{w}s}{value(total_recovery):<{w}.3f}{"-"}')
+    print(
+        f'{f"Total Perm Flow (gpm)":<{w}s}{value(pyunits.convert(total_perm_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+    )
+
+    return total_power, total_perm_flow
 
 
-def main():
-    m = build_system(number_trains=4, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=4 * 0.154, Cin=0.542)
+def main(number_trains, Qin, Cin):
+    m = build_system(number_trains=number_trains, number_stages=3)
+    set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     calculate_scaling_factors(m)
@@ -628,12 +646,20 @@ def main():
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
+    power, perm_flow = report_ro_system(m.fs.ro_system)
+    power_kW = value(pyunits.convert(power, to_units=pyunits.kW))
+    perm_flow_gpm = value(
+        pyunits.convert(perm_flow, to_units=pyunits.gallons / pyunits.minute)
+    )
+    return power_kW, perm_flow_gpm
 
 
 if __name__ == "__main__":
     num_trains = 1
+    Qin = 2637 / 264.2 / 60  # gpm to m3/s
+    Cin = 1055 * 0.5 / 1000  # us/cm to g/
     m = build_system(number_trains=num_trains, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=num_trains * 0.154, Cin=0.542)
+    set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     calculate_scaling_factors(m)
