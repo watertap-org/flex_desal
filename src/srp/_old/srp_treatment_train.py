@@ -597,31 +597,31 @@ def add_MVCs(m, recovery_vol=0.92):
         bc_fs = FlowsheetBlock()
         m.fs.add_component(bc_label, bc_fs)
         bc_fs = m.fs.find_component(bc_label)
-        bc.build_mvc(m, bc_fs)
-        bc.add_mvc_costing(m, bc_fs)
+        bc.build_bc(m, bc_fs)
+        bc.add_bc_costing(bc_fs)
 
     m.fs.costing.cost_process()
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
         print(f"dof {bc_label} = {degrees_of_freedom(bc_fs)}")
-        bc.set_mvc_operating_conditions(m, bc_fs)
-        bc.set_mvc_scaling(m, bc_fs)
+        bc.set_bc_operating_conditions(bc_fs)
+        bc.set_bc_scaling(bc_fs)
         if len(m.BCs) > 1:
             feed_props = m.fs.BCs.find_component(f"to_{bc_label}_state")
             upstream = m.fs.BCs.find_component(f"to_{bc_label}")
         else:
             feed_props = m.fs.BCs.find_component("properties")
             upstream = m.fs.BCs.find_component("outlet")
-        upstream_to_mvc = Arc(source=upstream, destination=bc_fs.feed.inlet)
-        bc.init_mvc(m, bc_fs, feed_props=feed_props[0])
-        bc_fs.add_component(f"upstream_to_{bc_label}", upstream_to_mvc)
-        propagate_state(upstream_to_mvc)
+        upstream_to_bc = Arc(source=upstream, destination=bc_fs.feed.inlet)
+        bc.init_bc(bc_fs, feed_props=feed_props[0])
+        bc_fs.add_component(f"upstream_to_{bc_label}", upstream_to_bc)
+        propagate_state(upstream_to_bc)
         TransformationFactory("network.expand_arcs").apply_to(m)
         bc_fs.feed.initialize()
         bc_fs.recovery_mass.unfix()
         bc_fs.recovery_vol.fix(recovery_vol)
-        results = bc.solve_mvc(bc_fs)
+        results = bc.solve_bc(bc_fs)
         bc_fs.feed.properties[0].flow_vol_phase
         bc_fs.feed.properties[0].conc_mass_phase_comp
         bc_fs.feed.initialize()
@@ -631,9 +631,9 @@ def add_MVCs(m, recovery_vol=0.92):
         bc_fs.product.properties[0].flow_vol_phase
         bc_fs.product.properties[0].conc_mass_phase_comp
         bc_fs.product.initialize()
-        # results = bc.solve_m÷vc(bc_fs)
+        # results = bc.solve_bc(bc_fs)
 
-    results = bc.solve_mvc(m)
+    results = bc.solve_bc(m)
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
@@ -643,7 +643,7 @@ def add_MVCs(m, recovery_vol=0.92):
     # m.fs.obj = Objective(expr=m.fs.costing.SEC)
     print(f"dof = {degrees_of_freedom(m)}")
 
-    results = bc.solve_mvc(m)
+    results = bc.solve_bc(m)
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
