@@ -501,6 +501,8 @@ def report_ro_system(blk, w=30):
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
 
+    powers_kW = {}
+    perm_flows_gpm = {}
     total_flow = 0
     total_power = 0
     total_perm_flow = 0
@@ -520,7 +522,10 @@ def report_ro_system(blk, w=30):
             total_power += pyunits.convert(
                 pump.pump.work_mechanical[0], to_units=pyunits.kW
             )
-
+            stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[0,"Liq"]
+            stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
+            powers_kW[f"train_{t}_stage_{s}"] =  value(pyunits.convert(pump.pump.work_mechanical[0] / pump.pump.efficiency_pump[0], to_units=pyunits.kW))
+            perm_flows_gpm[f"train_{t}_stage_{s}"] = value(pyunits.convert(stage_perm,to_units=pyunits.gallons / pyunits.minute))
             print(f"\n{header}\n")
             print(
                 f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol, to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
@@ -549,6 +554,12 @@ def report_ro_system(blk, w=30):
             print(
                 f'{f"Stage {s} Pump Work Mech.":<{w}s}{value(pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
             )
+            print(
+                f'{f"Stage {s} Recovery":<{w}s}{value(pyunits.convert(stage_rr, to_units=pyunits.dimensionless)):<{w}.3f}{"-"}'
+            )
+            print(
+                f'{f"Stage {s} Permeate (gpm)":<{w}s}{value(pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+            )
 
     print(f"{'.' * (3 * w)}")
     print(f"{'.' * (3 * w)}")
@@ -566,12 +577,12 @@ def report_ro_system(blk, w=30):
     print(
         f'{f"Total Perm Flow (gpm)":<{w}s}{value(pyunits.convert(total_perm_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
     )
-
-    return total_power, total_perm_flow
+    return powers_kW, perm_flows_gpm
 
 
 def main(number_trains, Qin, Cin):
-    m = build_system(number_trains=number_trains, number_stages=3)
+    number_stages = 3 # For wrd, we'll always be using 3 stages
+    m = build_system(number_trains=number_trains, number_stages=number_stages)
     set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
@@ -583,12 +594,8 @@ def main(number_trains, Qin, Cin):
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    power, perm_flow = report_ro_system(m.fs.ro_system)
-    power_kW = value(pyunits.convert(power, to_units=pyunits.kW))
-    perm_flow_gpm = value(
-        pyunits.convert(perm_flow, to_units=pyunits.gallons / pyunits.minute)
-    )
-    return power_kW, perm_flow_gpm
+    powers_kW, perm_flows_gpm = report_ro_system(m.fs.ro_system)
+    return powers_kW, perm_flows_gpm
 
 
 if __name__ == "__main__":

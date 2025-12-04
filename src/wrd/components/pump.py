@@ -139,6 +139,7 @@ def set_pump_op_conditions(blk, stage_num=1, Pout=None):
     else:
         Pout = Pout * pyunits.bar
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
+    
 
 
 def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
@@ -181,7 +182,10 @@ def add_pump_scaling(blk):
 
 
 def initialize_pump(blk):
-    # print(get_scaling_factor(blk.pump.control_volume.properties_in[0].pressure))
+    #Touch Properties that are needed for later
+    blk.feed_in.properties[0].flow_vol_phase["Liq"]
+    blk.feed_out.properties[0].flow_vol_phase["Liq"]
+ 
     blk.feed_in.initialize()
     propagate_state(blk.feed_in_to_pump)
 
