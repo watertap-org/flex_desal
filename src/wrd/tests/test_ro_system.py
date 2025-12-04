@@ -16,6 +16,7 @@ from wrd.components.ro_system import main
 # # Is this one needed?
 # #    assert perm_salinity
 
+
 @pytest.mark.component
 def test_ro_system_8_19():
     number_trains = 1
@@ -25,10 +26,18 @@ def test_ro_system_8_19():
     expected_power = [196.25, 22.71, 29.3]
     expected_perm_flow_gpm = [1608, 635, 198]
     powers_kW, perm_flows_gpm = main(number_trains, Qin, Cin)
-    for t in range(1,1+number_trains):
-        for s in range(1,number_stages): #CURRENTLY AVOIDING THIRD STAGE BECAUSE IT DOESN'T MATCH
-            assert powers_kW[f"train_{t}_stage_{s}"] == pytest.approx(expected_power[s-1], rel=0.2)
-            assert perm_flows_gpm[f"train_{t}_stage_{s}"] == pytest.approx(expected_perm_flow_gpm[s-1], rel=0.2)
+    for t in range(1, 1 + number_trains):
+        for s in range(
+            1, number_stages
+        ):  # CURRENTLY AVOIDING THIRD STAGE BECAUSE IT DOESN'T MATCH
+            assert powers_kW[f"train_{t}_stage_{s}"] == pytest.approx(
+                expected_power[s - 1], rel=0.2
+            )
+            assert perm_flows_gpm[f"train_{t}_stage_{s}"] == pytest.approx(
+                expected_perm_flow_gpm[s - 1], rel=0.2
+            )
+
+
 # Is this one needed?
 #    assert perm_salinity
 

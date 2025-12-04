@@ -522,10 +522,19 @@ def report_ro_system(blk, w=30):
             total_power += pyunits.convert(
                 pump.pump.work_mechanical[0], to_units=pyunits.kW
             )
-            stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[0,"Liq"]
+            stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[
+                0, "Liq"
+            ]
             stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
-            powers_kW[f"train_{t}_stage_{s}"] =  value(pyunits.convert(pump.pump.work_mechanical[0] / pump.pump.efficiency_pump[0], to_units=pyunits.kW))
-            perm_flows_gpm[f"train_{t}_stage_{s}"] = value(pyunits.convert(stage_perm,to_units=pyunits.gallons / pyunits.minute))
+            powers_kW[f"train_{t}_stage_{s}"] = value(
+                pyunits.convert(
+                    pump.pump.work_mechanical[0] / pump.pump.efficiency_pump[0],
+                    to_units=pyunits.kW,
+                )
+            )
+            perm_flows_gpm[f"train_{t}_stage_{s}"] = value(
+                pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)
+            )
             print(f"\n{header}\n")
             print(
                 f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol, to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
@@ -581,7 +590,7 @@ def report_ro_system(blk, w=30):
 
 
 def main(number_trains, Qin, Cin):
-    number_stages = 3 # For wrd, we'll always be using 3 stages
+    number_stages = 3  # For wrd, we'll always be using 3 stages
     m = build_system(number_trains=number_trains, number_stages=number_stages)
     set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
     set_ro_system_op_conditions(m.fs.ro_system)
