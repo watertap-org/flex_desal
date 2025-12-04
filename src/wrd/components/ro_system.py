@@ -1,5 +1,3 @@
-import yaml
-import os
 from pyomo.environ import (
     ConcreteModel,
     Objective,
@@ -26,8 +24,6 @@ from idaes.models.unit_models import (
 from pyomo.network import Arc
 import idaes.core.util.scaling as iscale
 
-from watertap.unit_models.pressure_changer import Pump, EnergyRecoveryDevice
-
 from watertap.unit_models.reverse_osmosis_1D import (
     ReverseOsmosis1D,
     PressureChangeType,
@@ -42,8 +38,6 @@ from idaes.core.util.scaling import (
     constraint_scaling_transform,
     calculate_scaling_factors,
     set_scaling_factor,
-    list_badly_scaled_variables,
-    extreme_jacobian_rows,
 )
 
 from wrd.components.pump import (
@@ -279,21 +273,8 @@ def set_ro_system_op_conditions(blk):
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
             set_pump_op_conditions(pump, stage_num=s)
-            # pump.pump.control_volume.properties_out[0].pressure.fix(
-            #     get_config_value(
-            #         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{s}"
-            #     )
-            # )
-
-            # pump.pump.efficiency_pump.fix(
-            #     get_config_value(
-            #         blk.config_data, "pump_efficiency", "pumps", f"pump_{s}"
-            #     )
-            # )
-
             # Set RO configuration for each stage
             ro_stage = train.find_component(f"ro_stage_{s}")
-
             ro_stage.A_comp.fix(
                 get_config_value(
                     blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}"
@@ -426,10 +407,7 @@ def add_ro_scaling(blk):
     for t in range(1, blk.number_trains + 1):
         train = blk.find_component(f"train_{t}")
         for s in range(1, train.number_stages + 1):
-            set_scaling_factor(
-                train.find_component(f"pump{s}").pump.control_volume.work, 1e-3
-            )
-
+            add_pump_scaling(train.find_component(f"pump{s}"))
             # Calculate RO scaling factors
             ro_stage = train.find_component(f"ro_stage_{s}")
             set_scaling_factor(ro_stage.feed_side.length, 1e-1)
@@ -453,6 +431,7 @@ def add_ro_scaling(blk):
 def initialize_ro_system(blk):
     # Touch any properties needed later
     blk.permeate_mixer.train_1_permeate_state[0].flow_vol_phase["Liq"]
+
     # Initialize
     blk.feed.initialize()
     propagate_state(blk.feed_to_feed_splitter)
@@ -537,13 +516,13 @@ def report_ro_system(blk, w=30):
             )
             print(f"\n{header}\n")
             print(
-                f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol, to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
+                f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol_phase["Liq"], to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
             )
             print(
-                f'{f"Stage {s} Flow In (m3/s)":<{w}s}{value(pump.feed_out.properties[0].flow_vol):<{w}.3e}{"m3/s"}'
+                f'{f"Stage {s} Flow In (m3/s)":<{w}s}{value(pump.feed_out.properties[0].flow_vol_phase["Liq"]):<{w}.3e}{"m3/s"}'
             )
             print(
-                f'{f"Stage {s} Flow In (gpm)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+                f'{f"Stage {s} Flow In (gpm)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
             )
             print(
                 f'{f"Stage {s} Pump Pressure In":<{w}s}{value(pyunits.convert(pump.feed_in.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
@@ -626,39 +605,3 @@ if __name__ == "__main__":
 
     print(f"{iscale.jacobian_cond(m.fs.ro_system):.2e}")
     report_ro_system(m.fs.ro_system, w=40)
-
-"""
-Leaving below, but did not write it
-"""
-# for t in range(1, m.fs.ro_system.number_trains + 1):
-#     train = m.fs.ro_system.find_component(f"train_{t}")
-#     # print(f"\n--- Train {t} ---")
-#     # train.feed.display()
-#     # train.permeate.display()
-#     # train.brine.display()
-#     for s in range(1, (train.number_stages + 1)):
-# #         if s == train.number_stages:
-#         pump = train.find_component(f"pump{s}")
-#         print(f"\n--- Train {t}, Stage {s} ---")
-#         print(f"Pump {s}- Pressure In: {value(pyunits.convert(pump.control_volume.properties_in[0].pressure, to_units=pyunits.psi))} psi")
-#         print(f"Pump {s}- Pressure Out: {value(pyunits.convert(pump.control_volume.properties_out[0].pressure , to_units=pyunits.psi))} psi")
-#         print(f"Pump {s}- Power: {value(pump.work_mechanical[0] * 1e-3)} kW")
-#             p = pump.control_volume.properties_out[0].pressure.value
-#             pump.control_volume.properties_out[0].pressure.unfix()
-#             pump.control_volume.properties_out[0].pressure.set_value(p * 0.5/0.93)
-
-#         # stage = train.find_component(f"ro_stage_{s}")
-#         # print(f"\n Stage {s}")
-#         # stage.display()
-# # m.fs.del_component(m.fs.obj
-# m.fs.obj.deactivate()
-# m.fs.obj2 = Objective(
-#     expr=m.fs.ro_system.recovery
-# )
-# print(f"dof = {degrees_of_freedom(m.fs.ro_system)}")
-# m.fs.ro_system.recovery.fix(0.8)
-# print(f"dof = {degrees_of_freedom(m.fs.ro_system)}")
-# results = solver.solve(m)
-# assert_optimal_termination(results)
-
-# # m.fs.ro_system.display()

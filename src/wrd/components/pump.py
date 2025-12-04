@@ -1,12 +1,9 @@
-import os
-
 from pyomo.environ import (
     ConcreteModel,
     Objective,
     Var,
     Param,
     Constraint,
-    NonNegativeReals,
     TransformationFactory,
     assert_optimal_termination,
     value,
@@ -19,7 +16,6 @@ from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
 from idaes.models.unit_models import StateJunction
 from idaes.core.util.model_statistics import degrees_of_freedom
-import idaes.core.util.scaling as iscale
 from idaes.core.util.scaling import (
     calculate_scaling_factors,
     set_scaling_factor,
@@ -29,7 +25,6 @@ from idaes.core.util.scaling import (
 from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
-from idaes.core.util.model_diagnostics import DiagnosticsToolbox
 from wrd.utilities import load_config, get_config_value, get_config_file
 
 
@@ -122,16 +117,6 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
 
 def set_pump_op_conditions(blk, stage_num=1, Pout=None):
     # These values may be loaded from config files instead of passed as Pout and Pin
-    # blk.pump.efficiency_pump.fix(
-    #     get_config_value(
-    #         blk.config_data, "pump_efficiency", "pumps", f"pump_{stage_num}"
-    #     )
-    # )
-    # blk.pump.control_volume.properties_out[0].pressure.fix(
-    #     get_config_value(
-    #         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
-    #     )
-    # )
     if Pout is None:
         Pout = get_config_value(
             blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
