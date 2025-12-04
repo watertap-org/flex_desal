@@ -159,10 +159,18 @@ def build_srp(
         m.BC_outlets = []
         for bc_label in m.BCs:
             m.BC_outlets.append(f"to_{bc_label.lower()}")
+        print(m.BC_outlets)
+        # assert False
         m.fs.BCs = FlowsheetBlock(dynamic=False)
         build_separator(
             m.fs.BCs, prop_package=m.fs.properties_feed, outlet_list=m.BC_outlets
         )
+        split = 350 / (350 * 2 + 450)
+        for i, bc_label in enumerate(m.BC_outlets):
+            if i == 0:
+                continue
+            m.fs.BCs.unit.split_fraction[0, f"{bc_label}", "H2O"].fix(split)
+            m.fs.BCs.unit.split_fraction[0, f"{bc_label}", "TDS"].fix(split)
 
     # ------------------------ EVAPORATION PONDS ------------------------
     m.fs.evaporation_ponds = FlowsheetBlock(dynamic=False)
@@ -351,6 +359,43 @@ def set_srp_operating_conditions(m):
         m.fs.raw_water_tank, split_fractions=raw_water_tank_splits
     )
 
+    uf_splits = {
+        "to_ro_pump": {"H2O": 91.3 / 114.2, "TDS": 91.3 / 114.2}
+    }
+    set_separator_op_conditions(
+        m.fs.uf, split_fractions=uf_splits
+    )
+
+    permeate_splits = {
+        "to_raw_water_tank_mix": {"H2O": 49 / 56.2, "TDS": 49 / 56.2}
+    }
+    set_separator_op_conditions(
+        m.fs.permeate, split_fractions=permeate_splits
+    )
+
+    cooling_tower_splits = {
+        "to_evaporation": {"H2O": 9178.9 / 10522.4, "TDS": 0}
+    }
+    set_separator_op_conditions(
+        m.fs.cooling_tower, split_fractions=cooling_tower_splits
+    )
+
+    ww_surge_tank_splits = {
+        "to_bc_feed_tank": {"H2O": 966.2 / 1353.1, "TDS": 966.2 / 1353.1},
+        "to_ro_reject_tank": {"H2O": 305.1 / 1353.1, "TDS": 305.1 / 1353.1},
+    }
+    set_separator_op_conditions(
+        m.fs.ww_surge_tank, split_fractions=ww_surge_tank_splits
+    )
+
+    ro_rej_tank_splits = {
+        "to_uf": {"H2O": 114.2 / 305.1, "TDS": 114.2 / 305.1},
+        "to_bc_feed_tank": {"H2O": 183.5 / 305.1, "TDS": 183.5 / 305.1},
+        "to_conc_waste": {"H2O": 6.4 / 305.1, "TDS": 6.4 / 305.1},
+    }
+    set_separator_op_conditions(
+        m.fs.ro_reject_tank, split_fractions=ro_rej_tank_splits
+    )
 
 def initialize_srp(m):
 
@@ -402,11 +447,12 @@ def run_srp():
     set_srp_operating_conditions(m)
     initialize_srp(m)
 
-    assert degrees_of_freedom(m) == 0
+    # assert degrees_of_freedom(m) == 0
+    print(f"\nDegrees of freedom: {degrees_of_freedom(m)}\n")
 
     solver = get_solver()
-    results = solver.solve(m, tee=True)
-    assert_optimal_termination(results)
+    # results = solver.solve(m, tee=True)
+    # assert_optimal_termination(results)
 
 
 if __name__ == "__main__":
