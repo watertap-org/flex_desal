@@ -588,8 +588,9 @@ def main(number_trains, Qin, Cin):
 
 if __name__ == "__main__":
     num_trains = 1
+    number_stages = 3
     Qin = 2637 / 264.2 / 60  # gpm to m3/s
-    Cin = 1055 * 0.5 / 1000  # us/cm to g/
+    Cin = 1055 * 0.5 / 1000  # us/cm to g/L
     m = build_system(number_trains=num_trains, number_stages=3)
     set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
     set_ro_system_op_conditions(m.fs.ro_system)

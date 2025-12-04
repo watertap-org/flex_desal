@@ -61,13 +61,12 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         a_1 = 21.112
         a_2 = -133.157
         a_3 = -234.386
-    elif stage_num == 3:
+    else:
         a_0 = 0.7
         a_1 = 0
         a_2 = 0
         a_3 = 0
-    else:
-        print("Please pass valid stage number")
+    
     # Create Variables for simple "surrogate"
     blk.pump.efficiency_eq_constant = Param(
         initialize=a_0,
@@ -121,8 +120,8 @@ def set_pump_op_conditions(blk, stage_num=1, Pout=None):
         Pout = get_config_value(
             blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
         )
-    else:
-        Pout = Pout * pyunits.bar
+    # else:
+        # Pout = Pout * pyunits.bar # Unit consistiency in main
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
 
 
@@ -231,7 +230,7 @@ if __name__ == "__main__":
     Qin = 1029 / 264.2 / 60  # gpm to m3/s
     Cin = 2496 * 0.5 / 1000  # us/cm to g/L
     Pin = (141.9 - 11.4) / 14.5  # psi to bar
-    Pout = 160.5 / 14.5  # psi to bar
+    Pout = 160.5 / 14.5 * pyunits.bar # psi to bar
     stage_num = 2
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
