@@ -483,7 +483,7 @@ def init_system(m, blk, **kwargs):
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_mvc)
 
-    init_bc(m, blk, **kwargs)
+    init_bc(blk, **kwargs)
 
     m.fs.product.initialize()
     propagate_state(m.fs.mvc_to_product)
@@ -493,7 +493,7 @@ def init_system(m, blk, **kwargs):
 
 
 def init_bc(
-    m,
+    # m,
     blk,
     feed_props=None,
     delta_temperature_in=10,
@@ -506,6 +506,8 @@ def init_bc(
     To be used with external heating.
     """
 
+    m = blk.model()
+    
     if solver is None:
         solver = get_solver()
     solver.options["halt_on_ampl_error"] = "yes"
