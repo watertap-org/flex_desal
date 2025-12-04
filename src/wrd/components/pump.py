@@ -123,9 +123,15 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         a_2 = 41.373
         a_3 = -138.82
     elif stage_num == 2:
-        pass
+        a_0 = 0.067
+        a_1 = 21.112
+        a_2 = -133.157
+        a_3 = -234.386
     elif stage_num == 3:
-        pass
+        a_0 = 0.7
+        a_1 = 0
+        a_2 = 0
+        a_3 = 0
     else:
         print("Please pass valid stage number")
     # Create Variables for simple "surrogate"
@@ -137,21 +143,21 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     )
 
     blk.pump.efficiency_eq_linear = Param(
-        initialize= a_1,
+        initialize=a_1,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -1,
         doc="Linear term of Efficiency equation",
     )
 
     blk.pump.efficiency_eq_squared = Param(
-        initialize= a_2,
+        initialize=a_2,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -2,
         doc="Squared term of Efficiency equation",
     )
 
     blk.pump.efficiency_eq_cubed = Param(
-        initialize= a_3,
+        initialize=a_3,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -3,
         doc="Cubed term of Efficiency equation",
@@ -248,7 +254,7 @@ def report_pump(blk, w=30):
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
 
-    total_flow = blk.feed_in.properties[0].flow_vol
+    total_flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
     deltaP = blk.pump.deltaP[0]
     work = blk.pump.work_mechanical[0]
     print(
@@ -269,9 +275,9 @@ def report_pump(blk, w=30):
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.pump.efficiency_pump[0]):<{w}.3f}{"-"}')
 
 
-def main(Qin=0.154, Cin=0.542, Pin=1, Pout=10):
-    m = build_system()  # optional input of stage_num
-    set_inlet_conditions(m.fs.pump_system, Qin, Cin, Pin)
+def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
+    m = build_system(stage_num=stage_num)  # optional input of stage_num
+    set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
     set_pump_op_conditions(m.fs.pump_system, Pout=Pout)
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
@@ -290,18 +296,23 @@ def main(Qin=0.154, Cin=0.542, Pin=1, Pout=10):
 
 
 if __name__ == "__main__":
-    m = build_system()  # optional input of stage_num
+    Qin = 383.6 / 264.2 / 60  # gpm to m3/s
+    Cin = 4847 * 0.5 / 1000  # us/cm to g/L
+    Pin = (160.5 - 7.2) / 14.5  # psi to bar
+    Pout = 164.4 / 14.5  # psi to bar
+    stage_num = 3
+    m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     # set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, Pin=1)
-    set_inlet_conditions(m.fs.pump_system)
-    set_pump_op_conditions(m.fs.pump_system, Pout=141.9 / 14.5)
+    set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
+    set_pump_op_conditions(m.fs.pump_system, Pout=Pout)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
     m.fs.obj = Objective(
-        expr=m.fs.pump_system.feed_out.properties[0].flow_vol_phase["Liq"]
+        expr=m.fs.pump_system.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
     )  # There is no D.o.f to optimize with
     solver = get_solver()
     results = solver.solve(m)
