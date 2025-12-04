@@ -35,7 +35,7 @@ from wrd.components.translator_ZO_to_NaCl import (
 )
 from wrd.components.ro_system import *
 from wrd.components.decarbonator import *
-from wrd.components.UV_aop import *
+from wrd.components.uv_aop import *
 
 
 def build_wrd_system():
@@ -62,6 +62,11 @@ def build_wrd_system():
     build_chem_addition(
         m.fs.hypochlorite_addition, "sodium_hypochlorite", m.fs.properties
     )
+
+    m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
+    build_chem_addition(m.fs.sulfuric_acid_addition,'sulfuric_acid',m.fs.properties)
+
+    
 
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)
