@@ -52,62 +52,7 @@ from wrd.components.pump import (
     set_pump_op_conditions,
     add_pump_scaling,
 )
-
-
-# These config fx could be in their own folder
-def load_config(config):
-    with open(config, "r") as file:
-        return yaml.safe_load(file)
-
-
-def get_config_value(
-    config,
-    key,
-    section,
-    subsection=None,
-):
-    """
-    Get a value from the configuration file.
-    """
-
-    if section in config:
-        if subsection:
-            if subsection in config[section]:
-                if key in config[section][subsection]:
-                    if (
-                        isinstance(config[section][subsection][key], dict)
-                        and "value" in config[section][subsection][key]
-                        and "units" in config[section][subsection][key]
-                    ):
-                        return config[section][subsection][key]["value"] * getattr(
-                            pyunits, config[section][subsection][key]["units"]
-                        )
-                    return config[section][subsection][key]
-                else:
-                    raise KeyError(
-                        f"Key '{key}' not found in subsection '{subsection}' of section '{section}' of the configuration."
-                    )
-            else:
-                raise KeyError(
-                    f"Section '{section}' or subsection '{subsection}' not found in the configuration."
-                )
-        else:
-            if key in config[section]:
-                if (
-                    isinstance(config[section][key], dict)
-                    and "value" in config[section][key]
-                    and "units" in config[section][key]
-                ):
-                    return config[section][key]["value"] * getattr(
-                        pyunits, config[section][key]["units"]
-                    )
-                return config[section][key]
-            else:
-                raise KeyError(
-                    f"Key '{key}' not found in section '{section}' of the configuration."
-                )
-    else:
-        raise KeyError(f"Section '{section}' not found in the configuration.")
+from wrd.utilities import load_config, get_config_value, get_config_file
 
 
 def relax_bounds_for_low_salinity_waters(blk):
@@ -198,16 +143,8 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
             / b.feed.properties[0].flow_vol_phase["Liq"]
         )
 
-    # WRD RO configurations input file. References to all values included in yml file
-    # Get the absolute path of the current script
-    current_script_path = os.path.abspath(__file__)
-    # Get the directory containing the current script
-    current_directory = os.path.dirname(current_script_path)
-    # Get the parent directory of the current directory (one folder prior)
-    parent_directory = os.path.dirname(current_directory)
-
-    config = os.path.join(parent_directory, "meta_data", "wrd_ro_inputs.yaml")
-    blk.config_data = load_config(config)
+    config_file_name = get_config_file("wrd_ro_inputs.yaml")
+    blk.config_data = load_config(config_file_name)
 
     total_power_consumption = 0
 

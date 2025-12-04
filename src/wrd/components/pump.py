@@ -1,5 +1,5 @@
 import os
-import yaml
+
 from pyomo.environ import (
     ConcreteModel,
     Objective,
@@ -30,61 +30,7 @@ from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 from idaes.core.util.model_diagnostics import DiagnosticsToolbox
-
-
-def load_config(config):
-    with open(config, "r") as file:
-        return yaml.safe_load(file)
-
-
-def get_config_value(
-    config,
-    key,
-    section,
-    subsection=None,
-):
-    """
-    Get a value from the configuration file.
-    """
-
-    if section in config:
-        if subsection:
-            if subsection in config[section]:
-                if key in config[section][subsection]:
-                    if (
-                        isinstance(config[section][subsection][key], dict)
-                        and "value" in config[section][subsection][key]
-                        and "units" in config[section][subsection][key]
-                    ):
-                        return config[section][subsection][key]["value"] * getattr(
-                            pyunits, config[section][subsection][key]["units"]
-                        )
-                    return config[section][subsection][key]
-                else:
-                    raise KeyError(
-                        f"Key '{key}' not found in subsection '{subsection}' of section '{section}' of the configuration."
-                    )
-            else:
-                raise KeyError(
-                    f"Section '{section}' or subsection '{subsection}' not found in the configuration."
-                )
-        else:
-            if key in config[section]:
-                if (
-                    isinstance(config[section][key], dict)
-                    and "value" in config[section][key]
-                    and "units" in config[section][key]
-                ):
-                    return config[section][key]["value"] * getattr(
-                        pyunits, config[section][key]["units"]
-                    )
-                return config[section][key]
-            else:
-                raise KeyError(
-                    f"Key '{key}' not found in section '{section}' of the configuration."
-                )
-    else:
-        raise KeyError(f"Section '{section}' not found in the configuration.")
+from wrd.utilities import load_config, get_config_value, get_config_file
 
 
 def build_system(**kwargs):
@@ -104,16 +50,9 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     blk.feed_in = StateJunction(property_package=prop_package)
     blk.feed_out = StateJunction(property_package=prop_package)
 
-    # Get the absolute path of the current script
-    current_script_path = os.path.abspath(__file__)
-    # Get the directory containing the current script
-    current_directory = os.path.dirname(current_script_path)
-    # Get the parent directory of the current directory (one folder prior)
-    parent_directory = os.path.dirname(current_directory)
+    config_file_name = get_config_file("wrd_ro_inputs.yaml")
+    blk.config_data = load_config(config_file_name)
 
-    config = os.path.join(parent_directory, "meta_data", "wrd_ro_inputs.yaml")
-
-    blk.config_data = load_config(config)
     blk.pump = Pump(property_package=prop_package)
 
     # Load Values for surrogate model
@@ -181,7 +120,7 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk, stage_num=1):
+def set_pump_op_conditions(blk, stage_num=1, Pout=None):
     # These values may be loaded from config files instead of passed as Pout and Pin
     # blk.pump.efficiency_pump.fix(
     #     get_config_value(
@@ -193,9 +132,12 @@ def set_pump_op_conditions(blk, stage_num=1):
     #         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
     #     )
     # )
-    Pout = get_config_value(
-        blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
-    )
+    if Pout is None:
+        Pout = get_config_value(
+            blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
+        )
+    else:
+        Pout = Pout * pyunits.bar
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
 
 
@@ -280,7 +222,7 @@ def report_pump(blk, w=30):
 def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump_system, Pout=Pout)
+    set_pump_op_conditions(m.fs.pump_system, stage_num=stage_num, Pout=Pout)
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
@@ -298,17 +240,17 @@ def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
 
 
 if __name__ == "__main__":
-    Qin = 383.6 / 264.2 / 60  # gpm to m3/s
-    Cin = 4847 * 0.5 / 1000  # us/cm to g/L
-    Pin = (160.5 - 7.2) / 14.5  # psi to bar
-    Pout = 164.4 / 14.5  # psi to bar
-    stage_num = 3
+    Qin = 1029 / 264.2 / 60  # gpm to m3/s
+    Cin = 2496 * 0.5 / 1000  # us/cm to g/L
+    Pin = (141.9 - 11.4) / 14.5  # psi to bar
+    Pout = 160.5 / 14.5  # psi to bar
+    stage_num = 2
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     # set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, Pin=1)
     set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump_system, Pout=Pout)
+    set_pump_op_conditions(m.fs.pump_system, stage_num=stage_num)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
