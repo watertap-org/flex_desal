@@ -134,7 +134,10 @@ def set_inlet_conditions(blk):
     )
 
     Cin = get_config_value(
-        blk.config_data, "feed_conductivity", "feed_stream"
+        blk.config_data,
+        "feed_conductivity",
+        "pumps",
+        f"pump_{blk.stage_num}",
     ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
 
     Pin = get_config_value(

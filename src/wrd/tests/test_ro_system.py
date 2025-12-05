@@ -12,17 +12,17 @@ def test_ro_system_2_20():
     expected_perm_flow_gpm = [1467, 648.1, 250.7]
     powers_kW, perm_flows_gpm = main(number_trains, number_stages, date="2_20")
     for t in range(1, number_trains + 1):
-        for s in range(1, number_stages + 1):  
+        for s in range(1, number_stages + 1):
             # CURRENTLY AVOIDING THIRD STAGE BECAUSE IT DOESN'T MATCH
             modeled_power = powers_kW[f"train_{t}_stage_{s}"]
             assert modeled_power == pytest.approx(
-                expected_power[s - 1], rel = 0.15
+                expected_power[s - 1], rel=0.15
             ), f"Train{t}, Stage {s}: Expected {expected_power[s - 1]} kW, but got {modeled_power} kW"
             modeled_flow = perm_flows_gpm[f"train_{t}_stage_{s}"]
-            assert  modeled_flow == pytest.approx(
+            assert modeled_flow == pytest.approx(
                 expected_perm_flow_gpm[s - 1], rel=0.15
             ), f"Train{t}, Stage {s}: Expected {expected_perm_flow_gpm[s - 1]} gpm, but got {modeled_flow} gpm"
-            
+
 
 # @pytest.mark.component
 # def test_ro_system_8_19():
