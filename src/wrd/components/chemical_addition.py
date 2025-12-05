@@ -1,4 +1,4 @@
-import pathlib
+import os
 from pyomo.environ import (
     ConcreteModel,
     value,
@@ -41,14 +41,15 @@ from watertap.core.util.initialization import *
 
 
 def build_system():
-    
+
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-
-    m.db = Database(dbpath='watertap/flowsheets/flex_desal/wrd/meta_data')
-    m.fs.properties = WaterParameterBlock(
-            solute_list=["tds","tss"]
-        )
+    current_script_path = os.path.abspath(__file__)
+    current_directory = os.path.dirname(current_script_path)
+    parent_directory = os.path.dirname(current_directory)
+    dbpath = os.path.join(parent_directory, "meta_data")
+    m.db = Database(dbpath=dbpath)
+    m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
 
     m.fs.chem_addition = FlowsheetBlock(dynamic=False)
 
@@ -110,8 +111,11 @@ def set_chem_addition_op_conditions(blk, **kwargs):
     m.db.get_unit_operation_parameters("chemical_addition")
     blk.unit.load_parameters_from_database()
 
+
 def add_costing(m):
-    m.fs.costing = ZeroOrderCosting(case_study_definition = pathlib.Path('watertap/flowsheets/flex_desal/wrd/meta_data/wrd_case_study.yaml'))
+    m.fs.costing = ZeroOrderCosting(
+        case_study_definition="src/wrd/meta_data/wrd_case_study.yaml"
+    )
 
 
 def add_chem_addition_costing(m, blk, flowsheet_costing_block=None):
@@ -170,14 +174,14 @@ def solve(m, solver=None, tee=True, raise_on_failure=True):
         return results
 
 
-if __name__ == "__main__":
+def main():
     m = build_system()
     set_system_conditions(m.fs.chem_addition)
     set_chem_addition_op_conditions(m.fs.chem_addition)
     set_chem_addition_scaling(m.fs.chem_addition, calc_blk_scaling_factors=True)
     init_chem_addition(m.fs.chem_addition)
     solve(m)
-    
+
     add_costing(m)
     add_chem_addition_costing(m, m.fs.chem_addition)
 
@@ -185,5 +189,8 @@ if __name__ == "__main__":
     m.fs.costing.initialize()
 
     solve(m)
+    # m.fs.costing.display()
 
-    m.fs.costing.display()
+
+if __name__ == "__main__":
+    main()
