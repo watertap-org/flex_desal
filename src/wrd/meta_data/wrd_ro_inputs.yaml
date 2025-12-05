@@ -81,7 +81,6 @@ reverse_osmosis_1d:
       value: -6.54
       units: psi
     
-
   stage_3:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s

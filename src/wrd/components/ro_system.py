@@ -88,7 +88,7 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3):
+def build_wrd_ro_system(blk, prop_package=None, number_stages=3):
     """
     Build reverse osmosis system for WRD
     """
@@ -96,20 +96,23 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3
     if prop_package is None:
         prop_package = m.fs.ro_properties
 
-    blk.number_trains = number_trains
+    config_file_name = get_config_file("wrd_ro_inputs.yaml")
+    blk.config_data = load_config(config_file_name)
+
+    blk.number_trains = get_config_value(blk.config_data,"number_of_trains","reverse_osmosis_1d")
     blk.number_stages = number_stages
 
     # Feed stream to first pump and system permeate
     blk.feed = StateJunction(property_package=prop_package)
     blk.feed_splitter = Separator(
         property_package=prop_package,
-        outlet_list=[f"train_{i+1}_feed" for i in range(number_trains)],
+        outlet_list=[f"train_{i+1}_feed" for i in range(blk.number_trains)],
     )
 
     blk.permeate = StateJunction(property_package=prop_package)
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
-        inlet_list=[f"train_{i+1}_permeate" for i in range(number_trains)],
+        inlet_list=[f"train_{i+1}_permeate" for i in range(blk.number_trains)],
         energy_mixing_type=MixingType.extensive,
         momentum_mixing_type=MomentumMixingType.minimize,
     )
@@ -117,7 +120,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3
     blk.brine = StateJunction(property_package=prop_package)
     blk.brine_mixer = Mixer(
         property_package=prop_package,
-        inlet_list=[f"train_{i+1}_brine" for i in range(number_trains)],
+        inlet_list=[f"train_{i+1}_brine" for i in range(blk.number_trains)],
         energy_mixing_type=MixingType.extensive,
         momentum_mixing_type=MomentumMixingType.minimize,
     )
@@ -137,18 +140,15 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3
             / b.feed.properties[0].flow_vol_phase["Liq"]
         )
 
-    config_file_name = get_config_file("wrd_ro_inputs.yaml")
-    blk.config_data = load_config(config_file_name)
-
     total_power_consumption = 0
 
-    for i, n in enumerate(range(number_trains)):
+    for i, n in enumerate(range(blk.number_trains)):
         blk.add_component(f"train_{n+1}", FlowsheetBlock(dynamic=False))
         train = blk.find_component(f"train_{n+1}")
         train.number_stages = number_stages
 
         blk.feed_splitter.split_fraction[0, f"train_{i+1}_feed"].set_value(
-            1 / number_trains
+            1 / blk.number_trains
         )
         if i != 0:
             blk.feed_splitter.split_fraction[0, f"train_{i+1}_feed"].fix()
@@ -585,7 +585,7 @@ def main(number_trains, Qin, Cin):
 
 
 if __name__ == "__main__":
-    num_trains = 1
+    num_trains = 2
     number_stages = 3
     Qin = 2637 * (pyunits.gal / pyunits.min)  # gpm to m3/s
     Cin = 1055 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L

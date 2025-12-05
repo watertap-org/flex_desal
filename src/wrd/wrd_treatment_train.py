@@ -81,16 +81,12 @@ def build_wrd_system(**kwargs):
 
     # RO unit
     m.fs.ro_system = FlowsheetBlock(dynamic=False)
-    number_trains = 1
     number_stages = 3
-    if "number_trains" in kwargs:
-        number_trains = kwargs["number_trains"]
     if "number_stages" in kwargs:
         number_stage = kwargs["number_stages"]
     build_wrd_ro_system(
         m.fs.ro_system,
         prop_package=m.fs.ro_properties,
-        number_trains=number_trains,
         number_stages=3,
     )
 
@@ -172,7 +168,8 @@ def set_wrd_inlet_conditions(m):
     # Inlet conditions
     # m.fs.feed.properties[0].pressure.fix(101325)  # Fix feed pressure to 1 atm
     # m.fs.feed.properties[0].temperature.fix(298.15)  # Fix feed temperature to 25 C
-    m.fs.feed.properties[0].flow_mass_comp["H2O"].fix(174)  # Fix feed water flow rate
+    number_trains = m.fs.ro_system.number_trains
+    m.fs.feed.properties[0].flow_mass_comp["H2O"].fix(number_trains*174)  # Fix feed water flow rate
     m.fs.feed.properties[0].flow_mass_comp["tds"].fix(0.05)  # Fix feed salt flow rate
     m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0.1)  # Fix feed salt flow rate
 
@@ -258,7 +255,7 @@ def solve(model, solver=None, tee=True, raise_on_failure=True):
 
 
 if __name__ == "__main__":
-    m = build_wrd_system(number_trains=1)
+    m = build_wrd_system()
     add_connections(m)
     set_wrd_inlet_conditions(m)
     set_wrd_operating_conditions(m)
