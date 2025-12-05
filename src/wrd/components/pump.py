@@ -37,16 +37,17 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_pump(blk, stage_num=1, prop_package=None):
+def build_wrd_pump(blk, stage_num=1, date="8_19", prop_package=None):
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
 
     blk.feed_in = StateJunction(property_package=prop_package)
     blk.feed_out = StateJunction(property_package=prop_package)
-
-    config_file_name = get_config_file("wrd_ro_inputs.yaml")
+    # CHANGE THIS FILE NAME TO BE AN INPUT
+    config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
     blk.config_data = load_config(config_file_name)
+    blk.stage_num = stage_num
 
     blk.pump = Pump(property_package=prop_package)
 
@@ -114,23 +115,34 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk, stage_num=1, Pout=None):
-    # These values may be loaded from config files instead of passed as Pout and Pin
-    if Pout is None:
-        Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
-        )
-    # else:
-    # Pout = Pout * pyunits.bar # Unit consistiency in main
+def set_pump_op_conditions(blk):
+    Pout = get_config_value(
+        blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
+    )
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
 
 
-def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
+def set_inlet_conditions(blk):
     """
-    Set the operation conditions for the Pump
+    Set the inlet conditions for the Pump
     """
-    # Qin = Qin * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
-    # Cin  # Feed concentration in g/L
+    Qin = get_config_value(
+        blk.config_data,
+        "pump_flowrate",
+        "pumps",
+        f"pump_{blk.stage_num}",
+    )
+
+    Cin = get_config_value(
+        blk.config_data, "feed_conductivity", "feed_stream"
+    ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
+
+    Pin = get_config_value(
+        blk.config_data,
+        "pump_suction_pressure",
+        "pumps",
+        f"pump_{blk.stage_num}",
+    )
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
@@ -206,10 +218,10 @@ def report_pump(blk, w=30):
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.pump.efficiency_pump[0]):<{w}.3f}{"-"}')
 
 
-def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
-    m = build_system(stage_num=stage_num)  # optional input of stage_num
-    set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump_system, stage_num=stage_num, Pout=Pout)
+def main(stage_num=1, date="8_19"):
+    m = build_system(stage_num=stage_num, date=date)  # optional input of stage_num
+    set_inlet_conditions(m.fs.pump_system)
+    set_pump_op_conditions(m.fs.pump_system)
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
@@ -227,17 +239,17 @@ def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
 
 
 if __name__ == "__main__":
-    Qin = 1029 * (pyunits.gal / pyunits.min)  # gpm to m3/s
-    Cin = 2496 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
-    Pin = (141.9 - 11.4) / 14.5 * pyunits.bar  # psi to bar
-    Pout = 160.5 / 14.5 * pyunits.bar  # psi to bar
+    # Qin = 1029 * (pyunits.gal / pyunits.min)  # gpm to m3/s
+    # Cin = 2496 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
+    # Pin = (141.9 - 11.4) / 14.5 * pyunits.bar  # psi to bar
+    # Pout = 160.5 / 14.5 * pyunits.bar  # psi to bar
     stage_num = 2
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     # set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, Pin=1)
-    set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump_system, stage_num=stage_num)
+    set_inlet_conditions(m.fs.pump_system)
+    set_pump_op_conditions(m.fs.pump_system)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)

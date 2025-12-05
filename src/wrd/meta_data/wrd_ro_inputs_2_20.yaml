@@ -1,13 +1,13 @@
-# Feed stream for Train 1 data on 8/19/21
+# Feed stream for Train 2 data on 2/20/21
 feed_stream:
   feed_flow_water: 
-    value: 0.166
-    units: m**3/s
+    value: 2449.8 
+    units: gal / min
   feed_density_water: 
     value: 1000
     units: kg/m**3
   feed_conductivity: 
-    value: 1055
+    value: 1082.1
     units: uS/cm
   feed_conductivity_conversion: 
     value: 0.5
@@ -19,46 +19,46 @@ feed_stream:
     value: 2.4
     units: bar
 
-# Pump pressure for Train 1 data on 8/19/21.  
+# Pump pressure for Train 2 data on 2/20/21.  
 pumps:
   pump_1:
     pump_flowrate: # Currently only used for pump tests
-      value: 2637.1
+      value: 2449.8
       units: gal / min
     feed_conductivity: 
-      value: 1054.9
+      value: 1082.1
       units: uS/cm
     pump_suction_pressure:
-      value: 35.4
+      value: 35.2
       units: psi
     pump_outlet_pressure: 
-      value: 141.9 
+      value: 153.5 
       units: psi 
   pump_2:
     pump_flowrate: # Currently only used for pump tests
-      value: 1028.9
+      value: 983.2
       units: gal /min
     feed_conductivity: 
-      value: 2495.8
+      value: 3054.5
       units: uS/cm
     pump_suction_pressure:
-      value: 131.2
+      value: 143.3
       units: psi
     pump_outlet_pressure: 
-      value: 160.5 
+      value: 157.8 
       units: psi  
   pump_3:
     pump_flowrate: # Currently only used for pump tests
-      value: 383.6
+      value: 493.1
       units: gal / min
     feed_conductivity: 
-      value: 4847
+      value: 6346.2
       units: uS/cm
     pump_suction_pressure:
-      value: 112.6
+      value: 107.6
       units: psi
     pump_outlet_pressure: 
-      value: 164.38 
+      value: 156.8 
       units: psi
 
 # PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
@@ -83,7 +83,7 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.6  # unitless
     pressure_drop: 
-      value: -11.4
+      value: -8.84
       units: psi
 
   stage_2:
@@ -103,7 +103,7 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.657  # unitless
     pressure_drop: 
-      value: -7.2
+      value: -6.54
       units: psi
     
 
@@ -125,6 +125,6 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.51  # unitless
     pressure_drop: 
-      value: -7.45
+      value: -6.98
       units: psi
       
