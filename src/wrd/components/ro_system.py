@@ -88,7 +88,7 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3):
+def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3):
     """
     Build reverse osmosis system for WRD
     """
@@ -239,12 +239,10 @@ def build_ro_train(blk, prop_package=None):
     blk.brine = StateJunction(property_package=prop_package)
 
 
-def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
+def set_inlet_conditions(blk, Qin=None, Cin=None):  # Default None to avoid units error
     """
     Set the operation conditions for the RO system
     """
-    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
-    Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
@@ -589,8 +587,8 @@ def main(number_trains, Qin, Cin):
 if __name__ == "__main__":
     num_trains = 1
     number_stages = 3
-    Qin = 2637 / 264.2 / 60  # gpm to m3/s
-    Cin = 1055 * 0.5 / 1000  # us/cm to g/L
+    Qin = 2637 * (pyunits.gal / pyunits.min)  # gpm to m3/s
+    Cin = 1055 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
     m = build_system(number_trains=num_trains, number_stages=3)
     set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
     set_ro_system_op_conditions(m.fs.ro_system)
