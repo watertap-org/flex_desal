@@ -63,10 +63,9 @@ def build_wrd_system(**kwargs):
         build_chem_addition(
             m.fs.find_component(chem_name + "_addition"), chem_name, m.fs.properties
         )
+    # CHANGE TO PRE AND POST treatment based on where the chemcials are applied in the flow diagram
 
     # anti-scalant --> may be the "threshold inhibitor" listed in Cost Tracker
-    #'calcium_chloride' # Missing in the yaml
-    # sodium_hydroxide # Missing in the yaml
 
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)

@@ -53,7 +53,7 @@ def build_system():
 
     m.fs.chem_addition = FlowsheetBlock(dynamic=False)
 
-    build_chem_addition(m.fs.chem_addition, "ammonia", m.fs.properties)
+    build_chem_addition(m.fs.chem_addition, "sodium_hypochlorite", m.fs.properties)
 
     TransformationFactory("network.expand_arcs").apply_to(m)
 
@@ -115,7 +115,17 @@ def add_costing(m):
     m.fs.costing = ZeroOrderCosting(
         case_study_definition="src/wrd/meta_data/wrd_case_study.yaml"
     )
-
+    # Add custom chemical cost
+    m.fs.costing.sodium_hypochlorite_cost = Param(
+        initialize= 21,
+        units=pyunits.USD_2018 / pyunits.kg,
+        doc="Custom cleaning chemical cost"
+    )
+    # Register as a flow type
+    m.fs.costing.register_flow_type(
+        "sodium_hypochlorite",
+        m.fs.costing.sodium_hypochlorite_cost
+    )
 
 def add_chem_addition_costing(m, blk, flowsheet_costing_block=None):
     if flowsheet_costing_block is None:
@@ -188,7 +198,8 @@ def main():
     m.fs.costing.initialize()
 
     solve(m)
-    # m.fs.costing.display()
+    m.fs.costing.display()
+    m.fs.costing.sodium_hypochlorite_cost.display()
 
 
 if __name__ == "__main__":
