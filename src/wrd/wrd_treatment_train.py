@@ -38,7 +38,7 @@ from wrd.components.decarbonator import *
 from wrd.components.uv_aop import *
 
 
-def build_wrd_system():
+def build_wrd_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
@@ -63,10 +63,8 @@ def build_wrd_system():
         m.fs.hypochlorite_addition, "sodium_hypochlorite", m.fs.properties
     )
 
-    m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
-    build_chem_addition(m.fs.sulfuric_acid_addition,'sulfuric_acid',m.fs.properties)
-
-    
+    # m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
+    # build_chem_addition(m.fs.sulfuric_acid_addition,'sulfuric_acid',m.fs.properties)
 
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)
@@ -82,17 +80,28 @@ def build_wrd_system():
 
     # RO unit
     m.fs.ro_system = FlowsheetBlock(dynamic=False)
-    build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties)
+    number_trains = 1
+    number_stages = 3
+    if "number_trains" in kwargs:
+        number_trains = kwargs["number_trains"]
+    if "number_stages" in kwargs:
+        number_stage = kwargs["number_stages"]
+    build_wrd_ro_system(
+        m.fs.ro_system,
+        prop_package=m.fs.ro_properties,
+        number_trains=number_trains,
+        number_stages=3,
+    )
 
     # UV AOP - Still using ro_properties
     m.fs.UV_aop = FlowsheetBlock(dynamic=False)
-    build_UV(m.fs.UV_aop, prop_package=m.fs.ro_properties)
+    build_uv_aop(m.fs.UV_aop, prop_package=m.fs.ro_properties)
 
     # Decarbonator
     m.fs.decarbonator = FlowsheetBlock(dynamic=False)
-    build_decarbonator(m.fs.decarbonator)
+    build_decarbonator(m.fs.decarbonator, prop_package=m.fs.ro_properties)
 
-    m.fs.product = Product(property_package=m.fs.properties)
+    m.fs.product = Product(property_package=m.fs.ro_properties)
 
     return m
 
@@ -121,7 +130,7 @@ def add_connections(m):
     )
     # Connect RO to UV_aop
     m.fs.ro_to_uv = Arc(
-        source=m.fs.ro_system.product.outlet, destination=m.fs.UV_aop.feed.inlet
+        source=m.fs.ro_system.permeate.outlet, destination=m.fs.UV_aop.feed.inlet
     )
     # Connect UV_aop to Decarbonator
     m.fs.uv_to_decarbonator = Arc(
@@ -150,7 +159,7 @@ def set_wrd_operating_conditions(m):
     set_chem_addition_op_conditions(blk=m.fs.hypochlorite_addition)
     set_UF_op_conditions(m.fs.UF)
     set_ro_system_op_conditions(m.fs.ro_system)
-    set_UV_aop_op_conditions(m.fs.UV_aop)
+    set_uv_aop_op_conditions(m.fs.UV_aop)
     set_decarbonator_op_conditions(m.fs.decarbonator)
 
 
@@ -163,12 +172,12 @@ def initialize_wrd_system(m):
     init_chem_addition(m.fs.hypochlorite_addition)
     propagate_state(m.fs.hypochlorite_to_UF)
     init_UF(m.fs.UF)
-    propagate_state(m.fs.s0UF_to_translator4)
+    propagate_state(m.fs.UF_to_translator)
     m.fs.translator_ZO_to_RO.initialize()
     propagate_state(m.fs.translator_to_ro)
     initialize_ro_system(m.fs.ro_system)
     propagate_state(m.fs.ro_to_uv)
-    initialize_UV_aop(m.fs.UV_aop)
+    initialize_uv_aop(m.fs.UV_aop)
     propagate_state(m.fs.uv_to_decarbonator)
     initialize_decarbonator(m.fs.decarbonator)
     propagate_state(m.fs.decarbonator_to_product)
@@ -178,7 +187,7 @@ def initialize_wrd_system(m):
 def set_wrd_system_scaling(m):
     # Properties Scaling
     m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1, index=("Liq", "H2O")
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
     )
     m.fs.ro_properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
@@ -189,7 +198,7 @@ def set_wrd_system_scaling(m):
     set_chem_addition_scaling(blk=m.fs.hypochlorite_addition)
     add_UF_scaling(m.fs.UF)
     add_ro_scaling(m.fs.ro_system)
-    add_UV_scaling(m.fs.UV_aop)
+    add_uv_aop_scaling(m.fs.UV_aop)
     add_decarbonator_scaling(m.fs.decarbonator)
 
 
@@ -216,7 +225,7 @@ def solve(model, solver=None, tee=True, raise_on_failure=True):
 
 if __name__ == "__main__":
 
-    m = build_wrd_system()
+    m = build_wrd_system(number_trains=1)
     add_connections(m)
     set_wrd_inlet_conditions(m)
     set_wrd_operating_conditions(m)
