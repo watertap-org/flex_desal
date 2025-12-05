@@ -36,7 +36,7 @@ from wrd.components.translator_ZO_to_NaCl import (
 from wrd.components.ro_system import *
 from wrd.components.decarbonator import *
 from wrd.components.uv_aop import *
-
+from wrd.utilities import get_chem_list
 
 def build_wrd_system(**kwargs):
     m = ConcreteModel()
@@ -55,16 +55,9 @@ def build_wrd_system(**kwargs):
     m.fs.feed = Feed(property_package=m.fs.properties)
 
     # Chemical addition units
-    if "chemical_list" in kwargs:
-        chemical_list = kwargs["chemical_list"]
-    else:
-        chemical_list = ["ammonia", "sodium_hypochlorite", "sulfuric_acid"]
+    m.fs.chemical_list = get_chem_list("chemical_addition.yaml")
 
-    m.fs.chemical_list = (
-        chemical_list  # Add list to main flowsheet block so it can be accessed later
-    )
-
-    for chem_name in chemical_list:
+    for chem_name in m.fs.chemical_list:
         m.fs.add_component(chem_name + "_addition", FlowsheetBlock(dynamic=False))
         build_chem_addition(
             m.fs.find_component(chem_name + "_addition"), chem_name, m.fs.properties
@@ -265,8 +258,7 @@ def solve(model, solver=None, tee=True, raise_on_failure=True):
 
 
 if __name__ == "__main__":
-    chemical_list = ["ammonia", "sodium_hypochlorite", "sulfuric_acid"]
-    m = build_wrd_system(number_trains=1, chemical_list=chemical_list)
+    m = build_wrd_system(number_trains=1)
     add_connections(m)
     set_wrd_inlet_conditions(m)
     set_wrd_operating_conditions(m)

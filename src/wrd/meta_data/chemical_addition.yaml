@@ -28,7 +28,7 @@ ammonia:
     capital_b_parameter:
       value: 0.4219
       units: dimensionless
-anti-scalant:
+anti-scalant: # Is this the threshold inhibitor?
   # Hydrazine
   chemical_dosage:
     value: 10
@@ -47,101 +47,6 @@ anti-scalant:
       units: USD_2007
     capital_b_parameter:
       value: 0.6179
-      units: dimensionless
-caustic_soda:
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1540
-    units: kg/m^3
-  ratio_in_solution:
-    value: 0.5
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 2262.8
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.6195
-      units: dimensionless
-# coagulant:
-#   chemical_dosage:
-#     value: 10
-#     units: mg/L
-#   solution_density:
-#     value: 1360
-#     units: kg/m^3
-#   ratio_in_solution:
-#     value: 0.5
-#     units: dimensionless
-#   capital_cost:
-#     basis: chemical_flow_mass
-#     cost_factor: TPEC
-#     capital_a_parameter:
-#       value: 15408
-#       units: USD_2007
-#     capital_b_parameter:
-#       value: 0.5479
-#       units: dimensionless
-ferric_chloride:
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1460
-    units: kg/m^3
-  ratio_in_solution:
-    value: 0.42
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 34153
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.319
-      units: dimensionless
-hydrochloric_acid:
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1490
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 900.97
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.6179
-      units: dimensionless
-lime:
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1250
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 12985
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.5901
       units: dimensionless
 sodium_bisulfite:
   chemical_dosage:
@@ -182,6 +87,101 @@ sulfuric_acid:
       value: 0.6179
       units: dimensionless
 sodium_hypochlorite: #----> Update!
+  chemical_dosage:
+    value: 10
+    units: mg/L
+  solution_density:
+    value: 1781
+    units: kg/m^3
+  ratio_in_solution:
+    value: 1
+    units: dimensionless
+  capital_cost:
+    basis: chemical_flow_mass
+    cost_factor: TPEC
+    capital_a_parameter:
+      value: 900.97
+      units: USD_2007
+    capital_b_parameter:
+      value: 0.6179
+      units: dimensionless
+calcium_chloride: #----> Update!
+  chemical_dosage:
+    value: 10
+    units: mg/L
+  solution_density:
+    value: 1781
+    units: kg/m^3
+  ratio_in_solution:
+    value: 1
+    units: dimensionless
+  capital_cost:
+    basis: chemical_flow_mass
+    cost_factor: TPEC
+    capital_a_parameter:
+      value: 900.97
+      units: USD_2007
+    capital_b_parameter:
+      value: 0.6179
+      units: dimensionless
+sodium_hydroxide: #----> Update!
+  chemical_dosage:
+    value: 10
+    units: mg/L
+  solution_density:
+    value: 1781
+    units: kg/m^3
+  ratio_in_solution:
+    value: 1
+    units: dimensionless
+  capital_cost:
+    basis: chemical_flow_mass
+    cost_factor: TPEC
+    capital_a_parameter:
+      value: 900.97
+      units: USD_2007
+    capital_b_parameter:
+      value: 0.6179
+      units: dimensionless
+calcium_hydroxide: #----> Update
+  chemical_dosage:
+    value: 10
+    units: mg/L
+  solution_density:
+    value: 1781
+    units: kg/m^3
+  ratio_in_solution:
+    value: 1
+    units: dimensionless
+  capital_cost:
+    basis: chemical_flow_mass
+    cost_factor: TPEC
+    capital_a_parameter:
+      value: 900.97
+      units: USD_2007
+    capital_b_parameter:
+      value: 0.6179
+      units: dimensionless
+citric_acid: #----> Update
+  chemical_dosage:
+    value: 10
+    units: mg/L
+  solution_density:
+    value: 1781
+    units: kg/m^3
+  ratio_in_solution:
+    value: 1
+    units: dimensionless
+  capital_cost:
+    basis: chemical_flow_mass
+    cost_factor: TPEC
+    capital_a_parameter:
+      value: 900.97
+      units: USD_2007
+    capital_b_parameter:
+      value: 0.6179
+      units: dimensionless
+ro_cip: #----> MISSING DATA
   chemical_dosage:
     value: 10
     units: mg/L
