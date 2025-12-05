@@ -25,6 +25,7 @@ from srp.utils.utils import touch_flow_and_conc
 __all__ = [
     "build_ro",
     "init_ro",
+    "set_ro_op_conditions", 
 ]
 
 solver = get_solver()

@@ -27,6 +27,7 @@ __all__ = [
     "build_pump",
     "set_pump_op_conditions",
     "init_pump",
+    "set_pump_scaling"
 ]
 
 solver = get_solver()
