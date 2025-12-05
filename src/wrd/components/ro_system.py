@@ -88,7 +88,9 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3):
+def build_wrd_ro_system(
+    blk, prop_package=None, number_trains=1, number_stages=3, date="8_19"
+):
     """
     Build reverse osmosis system for WRD
     """
@@ -137,7 +139,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=1, number_stages=3
             / b.feed.properties[0].flow_vol_phase["Liq"]
         )
 
-    config_file_name = get_config_file("wrd_ro_inputs.yaml")
+    config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
     blk.config_data = load_config(config_file_name)
 
     total_power_consumption = 0
@@ -239,10 +241,20 @@ def build_ro_train(blk, prop_package=None):
     blk.brine = StateJunction(property_package=prop_package)
 
 
-def set_inlet_conditions(blk, Qin=None, Cin=None):  # Default None to avoid units error
+def set_inlet_conditions(blk):  # Default None to avoid units error
     """
-    Set the operation conditions for the RO system
+    Set the inlet conditions for the RO system. Only used for testing .
     """
+    Qin = get_config_value(
+        blk.config_data,
+        "feed_flow_water",
+        "feed_stream",
+    )
+
+    Cin = get_config_value(
+        blk.config_data, "feed_conductivity", "feed_stream"
+    ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
+
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
@@ -270,7 +282,7 @@ def set_ro_system_op_conditions(blk):
         train = blk.find_component(f"train_{t}")
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
-            set_pump_op_conditions(pump, stage_num=s)
+            set_pump_op_conditions(pump)
             # Set RO configuration for each stage
             ro_stage = train.find_component(f"ro_stage_{s}")
             ro_stage.A_comp.fix(
@@ -566,10 +578,11 @@ def report_ro_system(blk, w=30):
     return powers_kW, perm_flows_gpm
 
 
-def main(number_trains, Qin, Cin):
-    number_stages = 3  # For wrd, we'll always be using 3 stages
-    m = build_system(number_trains=number_trains, number_stages=number_stages)
-    set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
+def main(number_trains, number_stages, date="8_19"):
+    m = build_system(
+        number_trains=number_trains, number_stages=number_stages, date=date
+    )
+    set_inlet_conditions(m.fs.ro_system)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     calculate_scaling_factors(m)
@@ -585,12 +598,12 @@ def main(number_trains, Qin, Cin):
 
 
 if __name__ == "__main__":
-    num_trains = 1
-    number_stages = 3
-    Qin = 2637 * (pyunits.gal / pyunits.min)  # gpm to m3/s
-    Cin = 1055 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
-    m = build_system(number_trains=num_trains, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=Qin, Cin=Cin)
+    number_trains = 1
+    number_stages = 2
+    m = build_system(
+        number_trains=number_trains, number_stages=number_stages, date="8_19"
+    )
+    set_inlet_conditions(m.fs.ro_system)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
     calculate_scaling_factors(m)
