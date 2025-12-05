@@ -55,13 +55,26 @@ def build_wrd_system(**kwargs):
     m.fs.feed = Feed(property_package=m.fs.properties)
 
     # Chemical addition units
-    m.fs.ammonia_addition = FlowsheetBlock(dynamic=False)
-    build_chem_addition(m.fs.ammonia_addition, "ammonia", m.fs.properties)
+    chemical_list = ["ammonia","sodium_hypochlorite","sulfuric_acid"]
+    for name in chemical_list:
+        m.fs.add_component(name + "_addition", FlowsheetBlock(dynamic=False))
+        build_chem_addition(m.fs.find_component(name + "_addition"), name, m.fs.properties)
 
-    m.fs.hypochlorite_addition = FlowsheetBlock(dynamic=False)
-    build_chem_addition(
-        m.fs.hypochlorite_addition, "sodium_hypochlorite", m.fs.properties
-    )
+    # m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
+    # build_chem_addition(m.fs.sulfuric_acid_addition,'sulfuric_acid',m.fs.properties)
+
+    # Missing in the yaml
+    # m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
+    # build_chem_addition(m.fs.sulfuric_acid_addition,'calcium_chloride',m.fs.properties)    
+    #     # Missing in the yaml
+    # m.fs.sodium_hydroxide_addition = FlowsheetBlock(dynamic=False)
+    # build_chem_addition(m.fs.sulfuric_acid_addition,'sodium_hydroxide',m.fs.properties)
+    
+    # m.fs.antiscalant_addiition = FlowsheetBlock(dynamic=False) # Assuming "Threshold inhibitor is anti-scalant"
+    # build_chem_addition(m.fs.sulfuric_acid_addition,'anti-scalant',m.fs.properties)
+
+    # m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
+    # build_chem_addition(m.fs.sulfuric_acid_addition,'sulfuric_acid',m.fs.properties)
 
     # m.fs.sulfuric_acid_addition = FlowsheetBlock(dynamic=False)
     # build_chem_addition(m.fs.sulfuric_acid_addition,'sulfuric_acid',m.fs.properties)
@@ -106,20 +119,42 @@ def build_wrd_system(**kwargs):
     return m
 
 
-def add_connections(m):
-    # Connect feed to ammonia addition
-    m.fs.feed_to_chem_add = Arc(
-        source=m.fs.feed.outlet, destination=m.fs.ammonia_addition.feed.inlet
-    )
-    # Connect ammonia addition to hypochlorite addition
-    m.fs.ammonia_to_hypochlorite = Arc(
-        source=m.fs.ammonia_addition.product.outlet,
-        destination=m.fs.hypochlorite_addition.feed.inlet,
-    )
-    # Connect hypochlorite addition to UF
-    m.fs.hypochlorite_to_UF = Arc(
-        source=m.fs.hypochlorite_addition.product.outlet, destination=m.fs.UF.feed.inlet
-    )
+def add_connections(m,**kwargs):
+    if "chemical_list" in kwargs:
+        chemical_list = kwargs["chemical_list"]
+    else:
+        chemical_list = ["ammonia","sodium_hypochlorite","sulfuric_acid"]
+    
+    for i in range(len(chemical_list)):
+        name = chemical_list[i]
+        if i == 0:
+        # Connect feed to first chemical
+            m.fs.add_component("feed_to_"+ name, Arc(
+                source=m.fs.feed.outlet, destination=m.fs.find_component(name+"_addition").feed.inlet
+            ))
+
+        else:# 
+        # Connect each chemical to the next
+            m.fs.add_component(chemical_list[i-1] +"_to_" + name, Arc(
+                source = m.fs.find_component(chemical_list[i-1]+"_addition").product.outlet,
+                destination = m.fs.find_component(name + "_addition").feed.inlet, 
+            ))
+        
+    # Connect last chemical to UF
+    m.fs.add_component(chemical_list[-1] + "_to_UF", Arc(
+    source=m.fs.find_component(chemical_list[-1] + "_addition").product.outlet,
+    destination=m.fs.UF.feed.inlet,
+    ))
+        
+    # # Connect ammonia addition to hypochlorite addition
+    # m.fs.ammonia_to_hypochlorite = Arc(
+    #     source=m.fs.ammonia_addition.product.outlet,
+    #     destination=m.fs.hypochlorite_addition.feed.inlet,
+    # )
+    # # Connect hypochlorite addition to UF
+    # m.fs.hypochlorite_to_UF = Arc(
+    #     source=m.fs.hypochlorite_addition.product.outlet, destination=m.fs.UF.feed.inlet
+    # )
     # Connect UF to RO translator
     m.fs.UF_to_translator = Arc(
         source=m.fs.UF.product.outlet, destination=m.fs.translator_ZO_to_RO.inlet
@@ -155,8 +190,10 @@ def set_wrd_inlet_conditions(m):
 
 def set_wrd_operating_conditions(m):
     # Operating conditions
-    set_chem_addition_op_conditions(blk=m.fs.ammonia_addition)
-    set_chem_addition_op_conditions(blk=m.fs.hypochlorite_addition)
+    chemical_list = ["ammonia","sodium_hypochlorite","sulfuric_acid"]
+    for name in chemical_list:
+        set_chem_addition_op_conditions(blk=m.fs.find_component(name+"_addition"))
+    
     set_UF_op_conditions(m.fs.UF)
     set_ro_system_op_conditions(m.fs.ro_system)
     set_uv_aop_op_conditions(m.fs.UV_aop)
@@ -166,11 +203,18 @@ def set_wrd_operating_conditions(m):
 def initialize_wrd_system(m):
 
     m.fs.feed.initialize()
-    propagate_state(m.fs.feed_to_chem_add)
-    init_chem_addition(m.fs.ammonia_addition)
-    propagate_state(m.fs.ammonia_to_hypochlorite)
-    init_chem_addition(m.fs.hypochlorite_addition)
-    propagate_state(m.fs.hypochlorite_to_UF)
+    chemical_list = ["ammonia","sodium_hypochlorite","sulfuric_acid"]
+    
+    for i in range(len(chemical_list)):
+        name = chemical_list[i]
+        if i == 0:
+            propagate_state(m.fs.find_component("feed_to_" + name))
+        elif i < len(chemical_list): #neither first nor last
+            propagate_state(m.fs.find_component(chemical_list[i-1] +"_to_" + name))   
+    
+        init_chem_addition(m.fs.find_component(name+"_addition"))
+    
+    propagate_state(m.fs.find_component(chemical_list[-1]+"_to_UF"))
     init_UF(m.fs.UF)
     propagate_state(m.fs.UF_to_translator)
     m.fs.translator_ZO_to_RO.initialize()
@@ -193,9 +237,10 @@ def set_wrd_system_scaling(m):
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
     )
     # Does ZO property block also require scaling?
-
-    set_chem_addition_scaling(blk=m.fs.ammonia_addition)
-    set_chem_addition_scaling(blk=m.fs.hypochlorite_addition)
+    chemical_list = ["ammonia","sodium_hypochlorite","sulfuric_acid"]
+    for name in chemical_list: 
+        set_chem_addition_scaling(blk=m.fs.find_component(name+"_addition"))
+    
     add_UF_scaling(m.fs.UF)
     add_ro_scaling(m.fs.ro_system)
     add_uv_aop_scaling(m.fs.UV_aop)
