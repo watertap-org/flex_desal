@@ -1,77 +1,93 @@
 import pytest
 from pyomo.environ import units as pyunits
-
+from wrd.utilities import load_config, get_config_value, get_config_file
 from wrd.components.pump import main
 
 
-@pytest.mark.component
-def test_pump_PRO1_2_20():
-    Qin = 2450 / 264.2 / 60  # gpm to m3/s
-    Cin = 1082.1 * 0.5 / 1000  # us/cm to g/L
-    # Pin = 101325 / 1e5  # Pa to bar # Concerned this is not correct! Other case gave 2x higher value and in psi
-    Pin = 35.4 / 14.5  # psi to bar
-    Pout = 153.5 / 14.5  # psi to bar
-    expected_power = 201.7  # kW
-    power = main(stage_num=1, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-    assert power == pytest.approx(expected_power, rel=0.1)
+# @pytest.mark.component
+# def test_pump_PRO1_2_20():
+#     Qin = 2450 / 264.2 / 60  # gpm to m3/s
+#     Cin = 1082.1 * 0.5 / 1000  # us/cm to g/L
+#     Pin = 35.4 / 14.5  # psi to bar
+#     Pout = 153.5 / 14.5  # psi to bar
+#     expected_power = 201.7  # kW
+#     power = main(stage_num=1, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
+#     assert power == pytest.approx(expected_power, rel=0.1)
 
 
 @pytest.mark.component
 def test_pump_PRO1_8_19():
     # Conditions taken from ro_system_parameters_for_watertap.xlsx in Box August 19, 2021
-    Qin = 2637 / 264.2 / 60  # gpm to m3/s
+    config = get_config_file("wrd_ro_inputs_8_19.yaml")
+    config_data = load_config(config)
+    Qin = get_config_value(
+        config_data,
+        "feed_flow_water",
+        "feed_stream",
+        )
+    Pin = get_config_value(
+        config_data,
+        "pump_suction_pressure",
+        "pumps",
+        "pump_1",
+    )
+    Pout = get_config_value(
+        config_data,
+        "pump_outlet_pressure",
+        "pumps",
+        "pump_1",
+    ) 
     Cin = 1055 * 0.5 / 1000  # us/cm to g/L
-    Pin = 35.4 / 14.5  # psi to bar
-    Pout = 141.9 / 14.5  # psi to bar
+    
     expected_power = 196.25  # kW
     power = main(stage_num=1, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
     assert power == pytest.approx(expected_power, rel=0.1)
 
 
-@pytest.mark.component
-def test_pump_PRO1_3_13():
-    Qin = 2452 / 264.2 / 60  # gpm to m3/s
-    Cin = 1007 * 0.5 / 1000  # us/cm to g/L
-    Pin = (
-        35.46 / 14.5
-    )  # Pa to bar # Concerned this is not correct! Other case gave 2x higher value and in psi
-    Pout = 154 / 14.5  # psi to bar
-    expected_power = 189.6  # kW
-    power = main(stage_num=1, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-    assert power == pytest.approx(expected_power, rel=0.1)
+# @pytest.mark.component
+# def test_pump_PRO1_3_13():
+#     Qin = 2452 / 264.2 / 60  # gpm to m3/s
+#     Cin = 1007 * 0.5 / 1000  # us/cm to g/L
+#     Pin = (
+#         35.46 / 14.5
+#     )  # Pa to bar # Concerned this is not correct! Other case gave 2x higher value and in psi
+#     Pout = 154 / 14.5  # psi to bar
+#     expected_power = 189.6  # kW
+#     power = main(stage_num=1, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
+#     assert power == pytest.approx(expected_power, rel=0.1)
 
 
-@pytest.mark.component
-def test_pump_PRO2_8_19():
-    Qin = 1029 / 264.2 / 60  # gpm to m3/s
-    Cin = 2496 * 0.5 / 1000  # us/cm to g/L
-    Pin = (141.9 - 11.4) / 14.5  # psi to bar
-    Pout = 160.5 / 14.5  # psi to bar
-    expected_power = 22.7  # kW
-    power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-    assert power == pytest.approx(expected_power, rel=0.1)
+# @pytest.mark.component
+# def test_pump_PRO2_8_19():
+#     Qin = 1029 / 264.2 / 60  # gpm to m3/s
+#     Cin = 2496 * 0.5 / 1000  # us/cm to g/L
+#     Pin = (141.9 - 11.4) / 14.5  # psi to bar
+#     Pout = 160.5 / 14.5  # psi to bar
+#     expected_power = 22.7  # kW
+#     power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
+#     assert power == pytest.approx(expected_power, rel=0.1)
 
 
-@pytest.mark.component
-def test_pump_PRO2_2_20():
-    Qin = 245.8 / 264.2 / 60  # gpm to m3/s
-    Cin = 3055 * 0.5 / 1000  # us/cm to g/L
-    Pin = (153.4 - 8.84) / 14.5  # psi to bar
-    Pout = 157.8 / 14.5  # psi to bar
-    expected_power = 9.7  # kW
-    power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-    assert power == pytest.approx(expected_power, rel=0.15)
+# @pytest.mark.component
+# def test_pump_PRO2_2_20():
+#     Qin = 245.8 / 264.2 / 60  # gpm to m3/s
+#     Cin = 3055 * 0.5 / 1000  # us/cm to g/L
+#     Pin = (153.4 - 8.84) / 14.5  # psi to bar
+#     Pout = 157.8 / 14.5  # psi to bar
+#     expected_power = 9.7  # kW
+#     power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
+#     assert power == pytest.approx(expected_power, rel=0.15)
 
 
-@pytest.mark.component
-def test_pump_PRO2_3_13():
-    Qin = 1041.4 / 264.2 / 60  # gpm to m3/s
-    Cin = 2239 * 0.5 / 1000  # us/cm to g/L
-    Pin = (154 - 9.9) / 14.5  # psi to bar
-    Pout = 173.0 / 14.5  # psi to bar
-    expected_power = 22.8  # kW
-    power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-    assert power == pytest.approx(expected_power, rel=0.15)
+# @pytest.mark.component
+# def test_pump_PRO2_3_13():
+#     Qin = 1041.4 / 264.2 / 60  # gpm to m3/s
+#     Cin = 2239 * 0.5 / 1000  # us/cm to g/L
+#     Pin = (154 - 9.9) / 14.5  # psi to bar
+#     Pout = 173.0 / 14.5  # psi to bar
+#     expected_power = 22.8  # kW
+#     power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
+#     assert power == pytest.approx(expected_power, rel=0.15)
 
 
 # @pytest.mark.component

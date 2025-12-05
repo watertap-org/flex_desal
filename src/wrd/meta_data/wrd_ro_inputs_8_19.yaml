@@ -1,0 +1,112 @@
+# Feed stream for Train 2 data on 8/19/21
+feed_stream:
+  feed_flow_water: 
+    value: 0.166
+    units: m**3/s
+  feed_density_water: 
+    value: 1000
+    units: kg/m**3
+  feed_conductivity: 
+    value: 1055
+    units: uS/cm
+  feed_conductivity_conversion: 
+    value: 0.5
+    units: mg/L/(uS/cm)
+  feed_temperature: 
+    value: 298.15
+    units: K
+  feed_pressure: 
+    value: 2.4
+    units: bar
+
+# Pump pressure for Train 2 data on 8/19/21.  
+pumps:
+  pump_1:
+    pump_suction_pressure:
+      value: 35.4
+      units: psi
+    pump_outlet_pressure: 
+      value: 141.9 
+      units: psi 
+  pump_2:
+    pump_suction_pressure:
+      value: 131.2
+      units: psi
+    pump_outlet_pressure: 
+      value: 160.5 
+      units: psi  
+  pump_3:
+    pump_suction_pressure:
+      value: 112.6
+      units: psi
+    pump_outlet_pressure: 
+      value: 164.38 
+      units: psi
+
+# Values below are same for all cases
+# A and B coefficients for the RO system from Josh estimates
+reverse_osmosis_1d:
+  number_of_trains: 4  # unitless
+  stage_1:
+    A_comp: 0.66306e-11  # m/s/Pa
+    B_comp: 1.3019e-8  # m/s
+    # From Toray TMG(D) Series, low pressure brackish water RO membrane - TMG20D-400 datasheet 
+    channel_height: 
+      value: 86.36e-5 # 34 mil to m
+      units: m
+    element_membrane_area: 
+      value: 37  # m2
+      units: m**2
+    element_length: 1.0  # m
+    spacer_porosity: 0.7211  # unitless
+    # WRD design document
+    number_of_vessels: 72 # unitless
+    number_of_elements_per_vessel: 7  # unitless
+    # For Train 2 data on 2/20/21
+    water_recovery_mass_phase: 0.6  # unitless
+    pressure_drop: 
+      value: -8.84
+      units: psi
+
+  stage_2:
+    A_comp: 0.66306e-11  # m/s/Pa
+    B_comp: 1.3019e-8  # m/s
+    channel_height: 
+      value: 86.36e-5 # mil to m
+      units: m
+    element_membrane_area: 
+      value: 37  # m2
+      units: m**2
+    element_length: 1.0  # m
+    spacer_porosity: 0.7211   # unitless
+    # WRD design document
+    number_of_vessels: 30 # unitless
+    number_of_elements_per_vessel: 7  # unitless
+    # For Train 2 data on 2/20/21
+    water_recovery_mass_phase: 0.657  # unitless
+    pressure_drop: 
+      value: -6.54
+      units: psi
+    
+
+  stage_3:
+    A_comp: 0.66306e-11  # m/s/Pa
+    B_comp: 1.3019e-8  # m/s
+    # From Toray TMG(D) Series, low pressure brackish water RO membrane - TMG20D-400 datasheet 
+    channel_height: 
+      value: 86.36e-5 # mil to m
+      units: m
+    element_membrane_area: 
+      value: 37  # m2
+      units: m**2
+    element_length: 1.0  # m
+    spacer_porosity: 0.7211   # unitless
+    # WRD design document
+    number_of_vessels: 15  # unitless
+    number_of_elements_per_vessel: 7  # unitless
+    # For Train 2 data on 2/20/21
+    water_recovery_mass_phase: 0.51  # unitless
+    pressure_drop: 
+      value: -6.98
+      units: psi
+      

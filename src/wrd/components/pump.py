@@ -129,7 +129,7 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
     """
     Set the operation conditions for the Pump
     """
-    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
+   # Qin = Qin * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
     Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
@@ -142,7 +142,7 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
         feed_mass_flow_salt
     )
     blk.feed_in.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed_in.properties[0].pressure.fix(Pin * pyunits.bar)
+    blk.feed_in.properties[0].pressure.fix(Pin)
     # blk.feed_in.properties[0].flow_vol  # Touching
     blk.pump.control_volume.properties_in[0].flow_vol  # Touching
 
