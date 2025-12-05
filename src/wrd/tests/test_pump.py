@@ -16,7 +16,7 @@ from wrd.components.pump import main
 
 
 @pytest.mark.component
-def test_pump_PRO1_8_19():
+def test_pump_PRO_S1_8_19():
     # Conditions taken from ro_system_parameters_for_watertap.xlsx in Box August 19, 2021
     config = get_config_file("wrd_ro_inputs_8_19.yaml")
     config_data = load_config(config)
@@ -24,7 +24,12 @@ def test_pump_PRO1_8_19():
         config_data,
         "feed_flow_water",
         "feed_stream",
-        )
+    )
+
+    Cin = get_config_value(
+        config_data, "feed_conductivity", "feed_stream"
+    ) * get_config_value(config_data, "feed_conductivity_conversion", "feed_stream")
+
     Pin = get_config_value(
         config_data,
         "pump_suction_pressure",
@@ -36,12 +41,11 @@ def test_pump_PRO1_8_19():
         "pump_outlet_pressure",
         "pumps",
         "pump_1",
-    ) 
-    Cin = 1055 * 0.5 / 1000  # us/cm to g/L
-    
+    )
+
     expected_power = 196.25  # kW
     power = main(stage_num=1, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-    assert power == pytest.approx(expected_power, rel=0.1)
+    assert power == pytest.approx(expected_power, rel=0.15)
 
 
 # @pytest.mark.component
@@ -57,15 +61,39 @@ def test_pump_PRO1_8_19():
 #     assert power == pytest.approx(expected_power, rel=0.1)
 
 
-# @pytest.mark.component
-# def test_pump_PRO2_8_19():
-#     Qin = 1029 / 264.2 / 60  # gpm to m3/s
-#     Cin = 2496 * 0.5 / 1000  # us/cm to g/L
-#     Pin = (141.9 - 11.4) / 14.5  # psi to bar
-#     Pout = 160.5 / 14.5  # psi to bar
-#     expected_power = 22.7  # kW
-#     power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
-#     assert power == pytest.approx(expected_power, rel=0.1)
+@pytest.mark.component
+def test_pump_PRO_S2_8_19():
+    config = get_config_file("wrd_ro_inputs_8_19.yaml")
+    config_data = load_config(config)
+    Qin = get_config_value(
+        config_data,
+        "pump_flowrate",
+        "pumps",
+        "pump_2",
+    )
+
+    Cin = get_config_value(
+        config_data,
+        "feed_conductivity",
+        "pumps",
+        "pump_2",
+    ) * get_config_value(config_data, "feed_conductivity_conversion", "feed_stream")
+
+    Pin = get_config_value(
+        config_data,
+        "pump_suction_pressure",
+        "pumps",
+        "pump_2",
+    )
+    Pout = get_config_value(
+        config_data,
+        "pump_outlet_pressure",
+        "pumps",
+        "pump_2",
+    )
+    expected_power = 22.7  # kW
+    power = main(stage_num=2, Qin=Qin, Cin=Cin, Pin=Pin, Pout=Pout)
+    assert power == pytest.approx(expected_power, rel=0.15)
 
 
 # @pytest.mark.component

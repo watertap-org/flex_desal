@@ -66,7 +66,7 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         a_1 = 0
         a_2 = 0
         a_3 = 0
-    
+
     # Create Variables for simple "surrogate"
     blk.pump.efficiency_eq_constant = Param(
         initialize=a_0,
@@ -121,7 +121,7 @@ def set_pump_op_conditions(blk, stage_num=1, Pout=None):
             blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
         )
     # else:
-        # Pout = Pout * pyunits.bar # Unit consistiency in main
+    # Pout = Pout * pyunits.bar # Unit consistiency in main
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
 
 
@@ -129,8 +129,8 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
     """
     Set the operation conditions for the Pump
     """
-   # Qin = Qin * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
-    Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
+    # Qin = Qin * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
+    # Cin  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
@@ -227,10 +227,10 @@ def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
 
 
 if __name__ == "__main__":
-    Qin = 1029 / 264.2 / 60  # gpm to m3/s
-    Cin = 2496 * 0.5 / 1000  # us/cm to g/L
-    Pin = (141.9 - 11.4) / 14.5  # psi to bar
-    Pout = 160.5 / 14.5 * pyunits.bar # psi to bar
+    Qin = 1029 * (pyunits.gal / pyunits.min)  # gpm to m3/s
+    Cin = 2496 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
+    Pin = (141.9 - 11.4) / 14.5 * pyunits.bar  # psi to bar
+    Pout = 160.5 / 14.5 * pyunits.bar  # psi to bar
     stage_num = 2
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
