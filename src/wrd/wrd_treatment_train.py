@@ -38,6 +38,7 @@ from wrd.components.decarbonator import *
 from wrd.components.uv_aop import *
 from wrd.utilities import get_chem_list
 
+
 def build_wrd_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -169,7 +170,9 @@ def set_wrd_inlet_conditions(m):
     # m.fs.feed.properties[0].pressure.fix(101325)  # Fix feed pressure to 1 atm
     # m.fs.feed.properties[0].temperature.fix(298.15)  # Fix feed temperature to 25 C
     number_trains = m.fs.ro_system.number_trains
-    m.fs.feed.properties[0].flow_mass_comp["H2O"].fix(number_trains*174)  # Fix feed water flow rate
+    m.fs.feed.properties[0].flow_mass_comp["H2O"].fix(
+        number_trains * 174
+    )  # Fix feed water flow rate
     m.fs.feed.properties[0].flow_mass_comp["tds"].fix(0.05)  # Fix feed salt flow rate
     m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0.1)  # Fix feed salt flow rate
 

@@ -69,8 +69,9 @@ def get_config_file(yaml_name):
     config_file_name = os.path.join(current_directory, "meta_data", yaml_name)
     return config_file_name
 
+
 def get_chem_list(yaml_name):
-    chem_list=[]
+    chem_list = []
     config_file_name = get_config_file(yaml_name)
     config = load_config(config_file_name)
     for section in config:

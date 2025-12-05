@@ -99,7 +99,9 @@ def build_wrd_ro_system(blk, prop_package=None, number_stages=3):
     config_file_name = get_config_file("wrd_ro_inputs.yaml")
     blk.config_data = load_config(config_file_name)
 
-    blk.number_trains = get_config_value(blk.config_data,"number_of_trains","reverse_osmosis_1d")
+    blk.number_trains = get_config_value(
+        blk.config_data, "number_of_trains", "reverse_osmosis_1d"
+    )
     blk.number_stages = number_stages
 
     # Feed stream to first pump and system permeate
