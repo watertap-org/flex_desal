@@ -19,6 +19,15 @@ from watertap.unit_models import Pump
 from srp.components import *
 from srp.utils.utils import touch_flow_and_conc
 
+__all__ = [
+    "build_srp",
+    "connect_srp",
+    "set_srp_scaling",
+    "set_srp_operating_conditions",
+    "add_bcs",
+    "initialize_srp",
+    "print_stream_flows"
+]
 
 def build_srp(
     Qin=11343, Cin=1467, feed_temp=27, BCs=["BC_A", "BC_B", "BC_C"], perm_flow_guess=49
