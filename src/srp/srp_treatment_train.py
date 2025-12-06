@@ -34,7 +34,12 @@ solver = get_solver()
 
 
 def build_srp(
-    Qin=11343, Cin=1467, feed_temp=27, BCs=["BC_A", "BC_B", "BC_C"], perm_flow_guess=49
+    Qin=11343,
+    Cin=1467,
+    feed_temp=27,
+    BCs=["BC_A", "BC_B", "BC_C"],
+    perm_flow_guess=49,
+    add_basic_bcs=False,
 ):
     # BCs = []
     Qin = Qin * pyunits.gallons / pyunits.minute
@@ -47,6 +52,8 @@ def build_srp(
     m.feed_temp = feed_temp
     m.perm_flow_guess = perm_flow_guess
     m.BCs = BCs
+    m.add_basic_bcs = add_basic_bcs
+
     m.fs = FlowsheetBlock(dynamic=False)
 
     m.fs.costing = WaterTAPCosting()
@@ -212,6 +219,9 @@ def build_srp(
     # ------------------------ FINAL PRODUCT ------------------------
     m.fs.product = Product(property_package=m.fs.properties_feed)
     touch_flow_and_conc(m.fs.product)
+
+    if add_basic_bcs:
+        add_bcs_basic(m)
 
     return m
 
@@ -427,6 +437,10 @@ def set_srp_operating_conditions(m):
             bc_splits[bc_label]["TDS"] = split_ab
 
     set_separator_op_conditions(m.fs.bcs, split_fractions=bc_splits)
+
+    if m.add_basic_bcs:
+        splits = {"to_conc_waste": {"H2O": 0.05, "TDS": 0.99}}
+        set_bcs_basic_op_conditions(m, splits=splits)
 
 
 def add_bcs(m, recovery_vol=0.92):
@@ -689,6 +703,9 @@ def initialize_srp(m):
     propagate_state(m.fs.ro_permeate_to_demin)
 
     init_product(m.fs.pond_evap)
+    
+    if m.add_basic_bcs:
+        init_bcs_basic(m)
 
     m.fs.product.initialize()
 
@@ -907,38 +924,7 @@ def print_stream_flows(m, w=30):
 
 def run_srp():
 
-    # m = build_srp()
-    # connect_srp(m)
-    # set_srp_scaling(m)
-    # set_srp_operating_conditions(m)
-    # initialize_srp(m)
-    # # add_bcs(m)
-    # # m.fs.demin.unit.display()
-    # # m.fs.bcs.unit.display()
-    # solver = get_solver()
-    # results = solver.solve(m)
-    # print_stream_flows(m)
-
-    # # assert degrees_of_freedom(m) == 0
-    # print(f"\nDegrees of freedom: {degrees_of_freedom(m)}\n")
-
-    # solver = get_solver()
-    # results = solver.solve(m, tee=True)
-    # assert_optimal_termination(results)
-    # m.fs.ro_pump.unit.control_volume.properties_out.display()
-    # pin = pyunits.convert(
-    #     m.fs.ro_pump.unit.control_volume.properties_in[0].pressure, to_units=pyunits.bar
-    # )
-    # pout = pyunits.convert(
-    #     m.fs.ro_pump.unit.control_volume.properties_out[0].pressure,
-    #     to_units=pyunits.bar,
-    # )
-    # print(f"pressure in = {pin()}")
-    # print(f"pressure out = {pout()}")
-    # report_separator(m.fs.ro.unit)
-    # m.fs.ro.unit.split_fraction.display()
-
-    m = build_srp()
+    m = build_srp(add_basic_bcs=True)
     connect_srp(m)
     set_srp_scaling(m)
     set_srp_operating_conditions(m)
@@ -954,19 +940,6 @@ def run_srp():
     m.fs.obj = Objective(
         expr=m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], sense=maximize
     )
-    results = solver.solve(m, tee=False)
-    assert_optimal_termination(results)
-    print(f"dof = {degrees_of_freedom(m)}")
-    print_stream_flows(m)
-    print(f"dof = {degrees_of_freedom(m)}")
-    add_bcs_basic(m)
-    print(f"dof after adding = {degrees_of_freedom(m)}")
-    splits = {"to_conc_waste": {"H2O": 0.05, "TDS": 0.99}}
-    set_bcs_basic_op_conditions(m, splits=splits)
-    print(f"dof = {degrees_of_freedom(m)}")
-    init_bcs_basic(m)
-    TransformationFactory("network.expand_arcs").apply_to(m)
-    print(f"dof = {degrees_of_freedom(m)}")
     results = solver.solve(m, tee=False)
     assert_optimal_termination(results)
     print(f"dof = {degrees_of_freedom(m)}")

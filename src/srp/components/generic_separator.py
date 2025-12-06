@@ -11,7 +11,7 @@ from idaes.core import FlowsheetBlock
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.initialization import propagate_state
 import idaes.core.util.scaling as iscale
-from idaes.models.unit_models import Separator
+from idaes.models.unit_models import Separator, StateJunction
 from idaes.models.unit_models.separator import SplittingType
 
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
@@ -157,9 +157,6 @@ def set_separator_op_conditions(blk, split_fractions={}):
 
     if split_fractions == {}:
         raise ValueError(f"Please provide split_fractions dict for {blk.name} unit")
-
-    if len(split_fractions.keys()) >= len(blk.unit.config.outlet_list):
-        raise ValueError(f"Too many outlets are specified for {blk.name}.")
 
     for port, comp_splits in split_fractions.items():
         for comp, frac in comp_splits.items():
