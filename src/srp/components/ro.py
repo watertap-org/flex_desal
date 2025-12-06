@@ -8,6 +8,7 @@ from pyomo.environ import (
     units as pyunits,
 )
 from pyomo.network import Arc
+from pyomo.util.calc_var_value import calculate_variable_from_constraint
 
 from idaes.core import FlowsheetBlock
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -208,6 +209,11 @@ def init_ro(blk):
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
 
+    if hasattr(blk.unit, "recovery_constr"):
+        calculate_variable_from_constraint(
+            blk.unit.split_fraction[0, "to_ro_permeate", "H2O"],
+            blk.unit.recovery_constr,
+        )
     blk.unit.initialize()
 
     for outlet in blk.unit.config.outlet_list:

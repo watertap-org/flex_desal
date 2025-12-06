@@ -1,12 +1,18 @@
-from pyomo.environ import *
-from pyomo.environ import units as pyunits
+from pyomo.environ import (
+    ConcreteModel,
+    Constraint,
+    Objective,
+    Block,
+    TransformationFactory,
+    assert_optimal_termination,
+    value,
+    units as pyunits,
+)
 from pyomo.network import Arc
 from pyomo.util.calc_var_value import calculate_variable_from_constraint as cvc
 from idaes.core import FlowsheetBlock
 from idaes.core.util.initialization import propagate_state
 from idaes.models.unit_models import Feed, Separator, Mixer, Product, StateJunction
-from idaes.models.unit_models.mixer import MomentumMixingType
-from idaes.models.unit_models.separator import SplittingType
 from idaes.core.util.model_statistics import degrees_of_freedom
 import idaes.core.util.scaling as iscale
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
@@ -703,7 +709,7 @@ def initialize_srp(m):
     propagate_state(m.fs.ro_permeate_to_demin)
 
     init_product(m.fs.pond_evap)
-    
+
     if m.add_basic_bcs:
         init_bcs_basic(m)
 
@@ -922,29 +928,18 @@ def print_stream_flows(m, w=30):
             print(f'{"Outlet TDS":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
 
 
-def run_srp():
+def run_srp_basic():
 
     m = build_srp(add_basic_bcs=True)
     connect_srp(m)
     set_srp_scaling(m)
     set_srp_operating_conditions(m)
     initialize_srp(m)
-    # clear_output(wait=False)
-    TransformationFactory("network.expand_arcs").apply_to(m)
-    cvc(
-        m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"],
-        m.fs.ro.unit.recovery_constr,
-    )
-    m.fs.ro.unit.split_fraction.setlb(0)
-    m.fs.ro.unit.split_fraction.setub(None)
-    m.fs.obj = Objective(
-        expr=m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], sense=maximize
-    )
+    assert degrees_of_freedom(m) == 0
     results = solver.solve(m, tee=False)
     assert_optimal_termination(results)
-    print(f"dof = {degrees_of_freedom(m)}")
     print_stream_flows(m)
 
 
 if __name__ == "__main__":
-    run_srp()
+    run_srp_basic()
