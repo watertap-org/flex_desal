@@ -142,28 +142,34 @@ def set_system_op_conditions(m):
         },
         hold_state=True,
     )
-
+{
+    "outlet1": {"H2O": 0.3, "TDS": 0.3},
+    "outlet2": {"H2O": 0.1, "TDS": 0.1},
+}
 
 def set_separator_op_conditions(blk, split_fractions={}):
+    """
+    Set split fractions for separator unit.
+
+    split_fractions must take the form
+        {
+            "outlet1": {"H2O": 0.3, "TDS": 0.3},
+            "outlet2": {"H2O": 0.1, "TDS": 0.1},
+        }
+    There should be one split fraction that is left unspecified to avoid over-specification.
+    """
 
     if split_fractions == {}:
         raise ValueError(f"Please provide split_fractions dict for {blk.name} unit")
 
-    fixed_comps = {"H2O": False, "TDS": False}
+    if len(split_fractions.keys()) >= len(blk.unit.config.outlet_list):
+        raise ValueError(f"Too many outlets are specified for {blk.name}.")
 
-    for n, (port, comp_splits) in enumerate(split_fractions.items(), 1):
+    for port, comp_splits in split_fractions.items():
         for comp, frac in comp_splits.items():
-            print(n, port, comp, frac)
-            if fixed_comps[comp]:
-                continue
             if frac is not None:
-                fixed_comps[comp] = True
                 blk.unit.split_fraction[0, port, comp].fix(frac)
 
-    if not all(fixed_comps.values()):
-        raise ValueError(
-            f"Please provide at least one split fraction value for each component in {blk.name} unit"
-        )
 
 
 def init_system(m):
@@ -179,9 +185,14 @@ def init_system(m):
         pb.initialize()
 
 
-def init_separator(blk):
+def init_separator(blk, name=None):
 
-    print(f'\n{"=======> INITIALIZING SEPARATOR UNIT <=======":^60}\n')
+    if name is None:
+        name = blk.name.split(".")[-1]
+
+    name = name.replace("_", " ").upper()
+    
+    print(f'\n{f"=======> INITIALIZING {name} UNIT <=======":^60}\n')
 
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
