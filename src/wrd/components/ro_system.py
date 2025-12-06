@@ -89,7 +89,7 @@ def build_system(**kwargs):
 
 
 def build_wrd_ro_system(
-    blk, prop_package=None, number_trains=1, number_stages=3, date="8_19"
+    blk, prop_package=None, number_trains=1, number_stages=3, date="8_19_21"
 ):
     """
     Build reverse osmosis system for WRD
@@ -578,7 +578,7 @@ def report_ro_system(blk, w=30):
     return powers_kW, perm_flows_gpm
 
 
-def main(number_trains, number_stages, date="8_19"):
+def main(number_trains, number_stages, date="8_19_21"):
     m = build_system(
         number_trains=number_trains, number_stages=number_stages, date=date
     )
@@ -601,7 +601,7 @@ if __name__ == "__main__":
     number_trains = 1
     number_stages = 2
     m = build_system(
-        number_trains=number_trains, number_stages=number_stages, date="8_19"
+        number_trains=number_trains, number_stages=number_stages, date="8_19_21"
     )
     set_inlet_conditions(m.fs.ro_system)
     set_ro_system_op_conditions(m.fs.ro_system)
