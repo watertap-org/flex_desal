@@ -61,7 +61,6 @@ pumps:
       value: 153.3 
       units: psi
 
-# PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
 # A and B coefficients for the RO system from Josh estimates
 reverse_osmosis_1d:
   number_of_trains: 4  # unitless

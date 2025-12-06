@@ -26,21 +26,23 @@ def test_pump_TRO_8_19():
 
 @pytest.mark.component
 def test_pump_PRO_S1_3_13():
-    expected_power = 189.6  # kW
+    expected_power = (
+        189.6  # * .667/.782 --> ratio of measured and predicted efficiencies # kW
+    )
     power = main(stage_num=1, date="3_13_21")
     assert power == pytest.approx(expected_power, rel=0.15)
 
 
 # @pytest.mark.component
 def test_pump_PRO_S2_3_13():
-    expected_power = 22.8  # kW
+    expected_power = 22.8  # * .578/ .812 # kW
     power = main(stage_num=2, date="3_13_21")
     assert power == pytest.approx(expected_power, rel=0.15)
 
 
 @pytest.mark.component
 def test_pump_TRO_3_13():
-    expected_power = 24.9  # kW
+    expected_power = 24.9  # * .578 / .812 # kW
     power = main(stage_num=3, date="3_13_21")
     assert power == pytest.approx(expected_power, rel=0.15)
 
@@ -64,4 +66,3 @@ def test_pump_TRO_2_20():
     expected_power = 22.65  # kW
     power = main(stage_num=3, date="2_20_21")
     assert power == pytest.approx(expected_power, rel=0.15)
-    
