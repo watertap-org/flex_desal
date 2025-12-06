@@ -91,7 +91,6 @@ def build_ro(
         prop_package = m.fs.properties
 
     blk.feed = StateJunction(property_package=prop_package)
-
     touch_flow_and_conc(blk.feed)
 
     blk.unit = Separator(
@@ -99,6 +98,7 @@ def build_ro(
         outlet_list=outlet_list,
         split_basis=SplittingType.componentFlow,
     )
+    touch_flow_and_conc(blk.unit)
 
     if pump is not None:
 
