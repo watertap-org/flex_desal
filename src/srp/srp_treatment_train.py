@@ -1,6 +1,7 @@
 from pyomo.environ import *
 from pyomo.environ import units as pyunits
 from pyomo.network import Arc
+from pyomo.util.calc_var_value import calculate_variable_from_constraint as cvc
 from idaes.core import FlowsheetBlock
 from idaes.core.util.initialization import propagate_state
 from idaes.models.unit_models import Feed, Separator, Mixer, Product, StateJunction
@@ -26,13 +27,15 @@ __all__ = [
     "set_srp_operating_conditions",
     "add_bcs",
     "initialize_srp",
-    "print_stream_flows"
+    "print_stream_flows",
 ]
+
+solver = get_solver()
 
 def build_srp(
     Qin=11343, Cin=1467, feed_temp=27, BCs=["BC_A", "BC_B", "BC_C"], perm_flow_guess=49
 ):
-    BCs = []
+    # BCs = []
     Qin = Qin * pyunits.gallons / pyunits.minute
     Cin = Cin * pyunits.mg / pyunits.L
     perm_flow_guess = perm_flow_guess * pyunits.gallons / pyunits.minute
@@ -159,8 +162,12 @@ def build_srp(
     # ------------------------ CONCENTRATED WASTE TANK ------------------------
     m.fs.conc_waste = FlowsheetBlock(dynamic=False)
     m.conc_waste_inlets = ["from_ro_reject_tank"]
-    for bc_label in BCs:
-        m.conc_waste_inlets.append(f"from_{bc_label.lower()}")
+    if len(m.BCs) > 0:
+        for bc_label in m.BCs:
+            m.conc_waste_inlets.append(f"from_{bc_label.lower()}")
+    else:
+        pass
+
     build_mixer(
         m.fs.conc_waste,
         prop_package=m.fs.properties_feed,
@@ -177,14 +184,9 @@ def build_srp(
         build_separator(
             m.fs.bcs, prop_package=m.fs.properties_feed, outlet_list=m.bc_outlets
         )
-        split = 350 / (350 * 2 + 450)
-        for i, bc_label in enumerate(m.bc_outlets):
-            if i == 0:
-                continue
-            m.fs.bcs.unit.split_fraction[0, f"{bc_label}", "H2O"].fix(split)
-            m.fs.bcs.unit.split_fraction[0, f"{bc_label}", "TDS"].fix(split)
     else:
-        m.fs.bcs.feed = StateJunction(property_package=m.fs.properties_feed)
+        m.fs.bcs.unit = StateJunction(property_package=m.fs.properties_feed)
+
     # ------------------------ EVAPORATION PONDS ------------------------
     m.fs.evaporation_ponds = FlowsheetBlock(dynamic=False)
     build_mixer(
@@ -206,6 +208,7 @@ def build_srp(
         m.fs.demin, prop_package=m.fs.properties_feed, inlet_list=m.demin_inlets
     )
 
+    # ------------------------ FINAL PRODUCT ------------------------
     m.fs.product = Product(property_package=m.fs.properties_feed)
     touch_flow_and_conc(m.fs.product)
 
@@ -317,10 +320,16 @@ def connect_srp(m):
         source=m.fs.evaporation_ponds.product.outlet,
         destination=m.fs.pond_evap.feed.inlet,
     )
+    if len(m.BCs) > 0:
 
-    m.fs.bc_feed_tank_to_bcs = Arc(
-        source=m.fs.bc_feed_tank.product.outlet, destination=m.fs.bcs.feed.inlet
-    )
+        m.fs.bc_feed_tank_to_bcs = Arc(
+            source=m.fs.bc_feed_tank.product.outlet, destination=m.fs.bcs.feed.inlet
+        )
+    else:
+
+        m.fs.bc_feed_tank_to_bcs = Arc(
+            source=m.fs.bc_feed_tank.product.outlet, destination=m.fs.bcs.unit.inlet
+        )
 
     m.fs.ro_permeate_to_demin = Arc(
         source=m.fs.permeate.to_demin.outlet,
@@ -385,6 +394,7 @@ def set_srp_operating_conditions(m):
     ww_surge_tank_splits = {
         "to_bc_feed_tank": {"H2O": 966.2 / 1353.1, "TDS": 966.2 / 1353.1},
         "to_ro_reject_tank": {"H2O": 305.1 / 1353.1, "TDS": 305.1 / 1353.1},
+        # "to_mystery": {"H2O": 0, "TDS": 0},
     }
     set_separator_op_conditions(
         m.fs.ww_surge_tank, split_fractions=ww_surge_tank_splits
@@ -401,6 +411,21 @@ def set_srp_operating_conditions(m):
 
     ro_splits = {"to_ro_permeate": {"TDS": 0.01}}
     set_ro_op_conditions(m.fs.ro, split_fractions=ro_splits)
+
+    bc_splits = {}
+
+    split_ab = 350 / (350 * 2 + 450)
+    split_c = 1 - 2 * split_ab
+
+    for i, bc_label in enumerate(m.bc_outlets):
+        bc_splits[bc_label] = {}
+        if i == 2:
+            continue
+        else:
+            bc_splits[bc_label]["H2O"] = split_ab
+            bc_splits[bc_label]["TDS"] = split_ab
+
+    set_separator_op_conditions(m.fs.bcs, split_fractions=bc_splits)
 
 
 def add_bcs(m, recovery_vol=0.92):
@@ -426,11 +451,7 @@ def add_bcs(m, recovery_vol=0.92):
             feed_props = m.fs.bcs.unit.find_component("properties")
             upstream = m.fs.bcs.unit.find_component("outlet")
         upstream_to_bc = Arc(source=upstream, destination=bc_fs.feed.inlet)
-        # if feed_props is None:
-        #     raise
-        # print(feed_props)
-        # print(upstream)
-        # assert False
+
         init_bc(bc_fs, feed_props=feed_props[0])
         bc_fs.add_component(f"upstream_to_{bc_label}", upstream_to_bc)
         propagate_state(upstream_to_bc)
@@ -450,7 +471,7 @@ def add_bcs(m, recovery_vol=0.92):
         bc_fs.product.initialize()
         # results = bc.solve_bc(bc_fs)
 
-    results = solve_bc(m)
+    _ = solve_bc(m)
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
@@ -460,7 +481,7 @@ def add_bcs(m, recovery_vol=0.92):
     # m.fs.obj = Objective(expr=m.fs.costing.SEC)
     print(f"dof = {degrees_of_freedom(m)}")
 
-    results = solve_bc(m)
+    _ = solve_bc(m)
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
@@ -527,6 +548,55 @@ def add_bcs(m, recovery_vol=0.92):
     )
 
 
+def add_bcs_basic(m):
+    for bc_label in m.BCs:
+        m.fs.add_component(bc_label.lower(), FlowsheetBlock(dynamic=False))
+        bc_fs = m.fs.find_component(bc_label.lower())
+        build_separator(
+            bc_fs,
+            prop_package=m.fs.properties_feed,
+            outlet_list=["to_conc_waste", "to_demin"],
+        )
+        to_bcs = m.fs.bcs.find_component(f"to_{bc_label.lower()}")
+        to_conc_waste = bc_fs.find_component("to_conc_waste")
+        to_demin = bc_fs.find_component("to_demin")
+        from_demin = m.fs.demin.find_component(f"from_{bc_label.lower()}")
+        from_conc_waste = m.fs.conc_waste.find_component(f"from_{bc_label.lower()}")
+
+        a = Arc(source=to_bcs.outlet, destination=bc_fs.feed.inlet)
+        m.fs.add_component(f"bcs_to_{bc_label.lower()}", a)
+
+        a = Arc(source=to_demin.outlet, destination=from_demin.inlet)
+        m.fs.add_component(f"{bc_label.lower()}_to_demin", a)
+
+        a = Arc(source=to_conc_waste.outlet, destination=from_conc_waste.inlet)
+        m.fs.add_component(f"{bc_label.lower()}_to_conc_waste", a)
+
+
+def set_bcs_basic_op_conditions(m, splits={}):
+    if splits == {}:
+        raise ValueError("Must provide split fractions for BCs.")
+    for bc_label in m.BCs:
+        bc_fs = m.fs.find_component(bc_label.lower())
+        set_separator_op_conditions(bc_fs, split_fractions=splits)
+        print(f"dof {degrees_of_freedom(m)} after setting {bc_label} BCs.")
+
+
+def init_bcs_basic(m):
+    for bc_label in m.BCs:
+
+        bc_fs = m.fs.find_component(bc_label.lower())
+        a = m.fs.find_component(f"bcs_to_{bc_label.lower()}")
+        propagate_state(a)
+
+        init_separator(bc_fs)
+        a = m.fs.find_component(f"{bc_label.lower()}_to_demin")
+        propagate_state(a)
+
+        a = m.fs.find_component(f"{bc_label.lower()}_to_conc_waste")
+        propagate_state(a)
+
+
 def initialize_srp(m):
 
     m.fs.wells.initialize()
@@ -560,7 +630,6 @@ def initialize_srp(m):
     propagate_state(m.fs.raw_water_tank_to_service_and_fire)
 
     init_product(m.fs.service_and_fire)
-    init_product(m.fs.mystery)
 
     init_separator(m.fs.cooling_tower)
     propagate_state(m.fs.cooling_tower_to_evaporation)
@@ -573,6 +642,8 @@ def initialize_srp(m):
     propagate_state(m.fs.ww_surge_tank_to_ro_reject_tank)
     propagate_state(m.fs.ww_surge_tank_to_bc_feed_tank)
     propagate_state(m.fs.ww_surge_tank_to_mystery)
+
+    init_product(m.fs.mystery)
 
     init_separator(m.fs.ro_reject_tank)
     propagate_state(m.fs.ro_reject_tank_to_bc_feed_tank)
@@ -620,13 +691,23 @@ def initialize_srp(m):
 
     m.fs.product.initialize()
 
-    # print(f"dof = {degrees_of_freedom(m)}")
-    # assert False
-
 
 def print_stream_flows(m, w=30):
 
     for fb in m.fs.component_objects(Block, descend_into=False):
+
+        if any(x in fb.name for x in ["_expanded", "costing"]):
+            continue
+        if fb is m.fs.properties_feed:
+            continue
+        if fb is m.fs.properties_vapor:
+            continue
+
+        title = fb.name.replace("fs.", "").replace("_", " ").upper()
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "=" * side + f" {title} " + "=" * side
+        print(f"\n{header}\n")
+        # print(f"{title.lower()} DOF = {degrees_of_freedom(fb)}\n")
 
         if (
             isinstance(fb, Feed)
@@ -649,222 +730,196 @@ def print_stream_flows(m, w=30):
             print(f'{"Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
             print(f'{"TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
             continue
-        if any(x in fb.name for x in ["_expanded", "costing"]):
-            continue
-        if fb is m.fs.properties_feed:
-            continue
-        if fb is m.fs.properties_vapor:
+
+        u = fb.find_component("unit")
+
+        if u is None:
             continue
 
-        # title = "KBHDP RPT 1 Report"
-        title = fb.name.replace("fs.", "").replace("_", " ").upper()
-        side = int(((3 * w) - len(title)) / 2) - 1
-        header = "=" * side + f" {title} " + "=" * side
-        print(f"\n{header}\n")
-        print(fb.name)
-        for b in fb.component_objects(Block, descend_into=False):
-            if "_expanded" in b.name:
-                continue
-            # print(fb.name)
-            if not any(isinstance(b, _t) for _t in [StateJunction, Separator, Mixer]):
-                # if type(b) not in (StateJunction, Separator, Mixer):
-                print(b.name, type(b))
-                continue
-
-            # print(b.name)
-            # print(type(b))
-            # u = b.find_component("unit")
-            # if u is not None:
-            #     print(u.name)
-            # continue
-            if (
-                isinstance(b, Feed)
-                or isinstance(b, Product)
-                or isinstance(b, StateJunction)
-            ):
-                # continue
-                props = b.find_component("properties")
+        # print(type(u))
+        if (
+            isinstance(u, Feed)
+            or isinstance(u, Product)
+            or isinstance(u, StateJunction)
+        ):
+            props = u.find_component("properties")
+            flow_in = value(
+                pyunits.convert(
+                    props[0].flow_vol_phase["Liq"],
+                    to_units=pyunits.gallons / pyunits.minute,
+                )
+            )
+            conc_in = value(
+                pyunits.convert(
+                    props[0].conc_mass_phase_comp["Liq", "TDS"],
+                    to_units=pyunits.mg / pyunits.L,
+                )
+            )
+            print(f'{"Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
+            print(f'{"TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+            continue
+        elif isinstance(u, Separator) or isinstance(u, Mixer):
+            if u.name == "fs.ro":
+                recov = u.split_fraction[0, "to_ro_permeate", "H2O"]() * 100
+                print(f'{"Recovery":<{w}s}{f"{recov:<{w},.2f}"}{"%":<{w}s}')
+            ms = u.find_component("mixed_state")
+            if isinstance(u, Separator):
                 flow_in = value(
                     pyunits.convert(
-                        props[0].flow_vol_phase["Liq"],
+                        ms[0].flow_vol_phase["Liq"],
                         to_units=pyunits.gallons / pyunits.minute,
                     )
                 )
                 conc_in = value(
                     pyunits.convert(
-                        props[0].conc_mass_phase_comp["Liq", "TDS"],
+                        ms[0].conc_mass_phase_comp["Liq", "TDS"],
                         to_units=pyunits.mg / pyunits.L,
                     )
                 )
-                print(f'{"Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
-                print(f'{"TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
-                continue
-            elif isinstance(b, Separator) or isinstance(b, Mixer):
-                if b.name == "fs.ro":
-                    recov = b.split_fraction[0, "to_ro_permeate", "H2O"]() * 100
-                    print(f'{"Recovery":<{w}s}{f"{recov:<{w},.2f}"}{"%":<{w}s}')
-                ms = b.find_component("mixed_state")
-                if isinstance(b, Separator):
-                    flow_in = value(
-                        pyunits.convert(
-                            ms[0].flow_vol_phase["Liq"],
-                            to_units=pyunits.gallons / pyunits.minute,
-                        )
-                    )
-                    conc_in = value(
-                        pyunits.convert(
-                            ms[0].conc_mass_phase_comp["Liq", "TDS"],
-                            to_units=pyunits.mg / pyunits.L,
-                        )
-                    )
-                    print(f'{"Feed Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
-                    print(f'{"Feed TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
-                    tot_flow_out = sum(
+                print(f'{"Feed Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
+                print(f'{"Feed TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+                tot_flow_out = sum(
+                    value(
                         value(
-                            value(
-                                pyunits.convert(
-                                    b.find_component(f"{x}_state")[0].flow_vol_phase[
-                                        "Liq"
-                                    ],
-                                    to_units=pyunits.gallons / pyunits.minute,
-                                )
-                            )
-                        )
-                        for x in b.config.outlet_list
-                    )
-                    print(
-                        f'{"TOTAL OUTLET FLOW":<{w}s}{f"{tot_flow_out:<{w},.1f}"}{"gpm":<{w}s}'
-                    )
-                    for x in b.config.outlet_list:
-                        sb = b.find_component(f"{x}_state")
-                        flow_out = value(
                             pyunits.convert(
-                                sb[0].flow_vol_phase["Liq"],
+                                u.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
                                 to_units=pyunits.gallons / pyunits.minute,
                             )
                         )
-                        conc_out = value(
-                            pyunits.convert(
-                                sb[0].conc_mass_phase_comp["Liq", "TDS"],
-                                to_units=pyunits.mg / pyunits.L,
-                            )
-                        )
-                        print(
-                            f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}'
-                        )
-                        print(
-                            f'{"   TDS " + x.replace("_", " ").title():<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}'
-                        )
-                elif isinstance(b, Mixer):
-                    tot_flow_in = sum(
-                        value(
-                            value(
-                                pyunits.convert(
-                                    b.find_component(f"{x}_state")[0].flow_vol_phase[
-                                        "Liq"
-                                    ],
-                                    to_units=pyunits.gallons / pyunits.minute,
-                                )
-                            )
-                        )
-                        for x in b.config.inlet_list
                     )
-                    print(
-                        f'{"TOTAL INLET FLOW":<{w}s}{f"{tot_flow_in:<{w},.1f}"}{"gpm":<{w}s}'
-                    )
-                    for x in b.config.inlet_list:
-                        sb = b.find_component(f"{x}_state")
-                        flow_in = value(
-                            pyunits.convert(
-                                sb[0].flow_vol_phase["Liq"],
-                                to_units=pyunits.gallons / pyunits.minute,
-                            )
-                        )
-                        tot_flow_in += flow_in
-                        conc_in = value(
-                            pyunits.convert(
-                                sb[0].conc_mass_phase_comp["Liq", "TDS"],
-                                to_units=pyunits.mg / pyunits.L,
-                            )
-                        )
-                        print(
-                            f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}'
-                        )
-                        print(
-                            f'{"   TDS " + x.replace("_", " ").title():<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}'
-                        )
+                    for x in u.config.outlet_list
+                )
+                print(
+                    f'{"TOTAL OUTLET FLOW":<{w}s}{f"{tot_flow_out:<{w},.1f}"}{"gpm":<{w}s}'
+                )
+                for x in u.config.outlet_list:
+                    sb = u.find_component(f"{x}_state")
                     flow_out = value(
                         pyunits.convert(
-                            ms[0].flow_vol_phase["Liq"],
+                            sb[0].flow_vol_phase["Liq"],
                             to_units=pyunits.gallons / pyunits.minute,
                         )
                     )
                     conc_out = value(
                         pyunits.convert(
-                            ms[0].conc_mass_phase_comp["Liq", "TDS"],
+                            sb[0].conc_mass_phase_comp["Liq", "TDS"],
                             to_units=pyunits.mg / pyunits.L,
                         )
                     )
-                    print(f'{"Outlet Flow":<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}')
-                    print(f'{"Outlet TDS":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
-            elif isinstance(b, Pump):
-                cv = b.find_component("control_volume")
-                flow_in = value(
-                    pyunits.convert(
-                        cv.properties_in[0].flow_vol_phase["Liq"],
-                        to_units=pyunits.gallons / pyunits.minute,
+                    print(
+                        f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}'
                     )
-                )
-                conc_in = value(
-                    pyunits.convert(
-                        cv.properties_in[0].conc_mass_phase_comp["Liq", "TDS"],
-                        to_units=pyunits.mg / pyunits.L,
+                    print(
+                        f'{"   TDS " + x.replace("_", " ").title():<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}'
                     )
+                continue
+            elif isinstance(u, Mixer):
+                tot_flow_in = sum(
+                    value(
+                        value(
+                            pyunits.convert(
+                                u.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
+                                to_units=pyunits.gallons / pyunits.minute,
+                            )
+                        )
+                    )
+                    for x in u.config.inlet_list
                 )
-                pressure = value(
-                    pyunits.convert(cv.properties_in[0].pressure, to_units=pyunits.bar)
+                print(
+                    f'{"TOTAL INLET FLOW":<{w}s}{f"{tot_flow_in:<{w},.1f}"}{"gpm":<{w}s}'
                 )
-                print(f'{"Inlet Pressure":<{w}s}{f"{pressure:<{w},.1f}"}{"bar":<{w}s}')
-                print(f'{"Inlet Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
-                print(f'{"Inlet TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+                for x in u.config.inlet_list:
+                    sb = u.find_component(f"{x}_state")
+                    flow_in = value(
+                        pyunits.convert(
+                            sb[0].flow_vol_phase["Liq"],
+                            to_units=pyunits.gallons / pyunits.minute,
+                        )
+                    )
+                    tot_flow_in += flow_in
+                    conc_in = value(
+                        pyunits.convert(
+                            sb[0].conc_mass_phase_comp["Liq", "TDS"],
+                            to_units=pyunits.mg / pyunits.L,
+                        )
+                    )
+                    print(
+                        f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}'
+                    )
+                    print(
+                        f'{"   TDS " + x.replace("_", " ").title():<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}'
+                    )
                 flow_out = value(
                     pyunits.convert(
-                        cv.properties_out[0].flow_vol_phase["Liq"],
+                        ms[0].flow_vol_phase["Liq"],
                         to_units=pyunits.gallons / pyunits.minute,
                     )
                 )
                 conc_out = value(
                     pyunits.convert(
-                        cv.properties_out[0].conc_mass_phase_comp["Liq", "TDS"],
+                        ms[0].conc_mass_phase_comp["Liq", "TDS"],
                         to_units=pyunits.mg / pyunits.L,
                     )
                 )
-                pressure = value(
-                    pyunits.convert(cv.properties_out[0].pressure, to_units=pyunits.bar)
-                )
                 print(f'{"Outlet Flow":<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}')
                 print(f'{"Outlet TDS":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
-                print(f'{"Outlet Pressure":<{w}s}{f"{pressure:<{w},.1f}"}{"bar":<{w}s}')
-        # elif isinstance(b, FlowsheetBlock):
-        #     print_MVC_stream_flows(b, w=w)
+
+        elif isinstance(u, Pump):
+            cv = u.find_component("control_volume")
+            flow_in = value(
+                pyunits.convert(
+                    cv.properties_in[0].flow_vol_phase["Liq"],
+                    to_units=pyunits.gallons / pyunits.minute,
+                )
+            )
+            conc_in = value(
+                pyunits.convert(
+                    cv.properties_in[0].conc_mass_phase_comp["Liq", "TDS"],
+                    to_units=pyunits.mg / pyunits.L,
+                )
+            )
+            pressure = value(
+                pyunits.convert(cv.properties_in[0].pressure, to_units=pyunits.bar)
+            )
+            print(f'{"Inlet Pressure":<{w}s}{f"{pressure:<{w},.1f}"}{"bar":<{w}s}')
+            print(f'{"Inlet Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
+            print(f'{"Inlet TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+            flow_out = value(
+                pyunits.convert(
+                    cv.properties_out[0].flow_vol_phase["Liq"],
+                    to_units=pyunits.gallons / pyunits.minute,
+                )
+            )
+            conc_out = value(
+                pyunits.convert(
+                    cv.properties_out[0].conc_mass_phase_comp["Liq", "TDS"],
+                    to_units=pyunits.mg / pyunits.L,
+                )
+            )
+            pressure = value(
+                pyunits.convert(cv.properties_out[0].pressure, to_units=pyunits.bar)
+            )
+            print(f'{"Outlet Pressure":<{w}s}{f"{pressure:<{w},.1f}"}{"bar":<{w}s}')
+            print(f'{"Outlet Flow":<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}')
+            print(f'{"Outlet TDS":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
 
 
 def run_srp():
 
-    m = build_srp()
-    connect_srp(m)
-    set_srp_scaling(m)
-    set_srp_operating_conditions(m)
-    initialize_srp(m)
-    # add_bcs(m)
-    # m.fs.demin.unit.display()
-    # m.fs.bcs.unit.display()
-    solver = get_solver()
-    results = solver.solve(m)
-    print_stream_flows(m)
+    # m = build_srp()
+    # connect_srp(m)
+    # set_srp_scaling(m)
+    # set_srp_operating_conditions(m)
+    # initialize_srp(m)
+    # # add_bcs(m)
+    # # m.fs.demin.unit.display()
+    # # m.fs.bcs.unit.display()
+    # solver = get_solver()
+    # results = solver.solve(m)
+    # print_stream_flows(m)
 
-    # assert degrees_of_freedom(m) == 0
-    print(f"\nDegrees of freedom: {degrees_of_freedom(m)}\n")
+    # # assert degrees_of_freedom(m) == 0
+    # print(f"\nDegrees of freedom: {degrees_of_freedom(m)}\n")
 
     # solver = get_solver()
     # results = solver.solve(m, tee=True)
@@ -882,6 +937,35 @@ def run_srp():
     # report_separator(m.fs.ro.unit)
     # m.fs.ro.unit.split_fraction.display()
 
-
+    m = build_srp()
+    connect_srp(m)
+    set_srp_scaling(m)
+    set_srp_operating_conditions(m)
+    initialize_srp(m)
+    # clear_output(wait=False)
+    TransformationFactory("network.expand_arcs").apply_to(m)
+    cvc(m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], m.fs.ro.unit.recovery_constr)
+    m.fs.ro.unit.split_fraction.setlb(0)
+    m.fs.ro.unit.split_fraction.setub(None)
+    m.fs.obj = Objective(expr=m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], sense=maximize)
+    results = solver.solve(m, tee=False)
+    assert_optimal_termination(results)
+    print(f"dof = {degrees_of_freedom(m)}")
+    print_stream_flows(m)
+    print(f"dof = {degrees_of_freedom(m)}")
+    add_bcs_basic(m)
+    print(f"dof after adding = {degrees_of_freedom(m)}")
+    splits = {
+        "to_conc_waste": {"H2O": 0.05, "TDS": 0.99}
+    }
+    set_bcs_basic_op_conditions(m, splits=splits)
+    print(f"dof = {degrees_of_freedom(m)}")
+    init_bcs_basic(m)
+    TransformationFactory("network.expand_arcs").apply_to(m)
+    print(f"dof = {degrees_of_freedom(m)}")
+    results = solver.solve(m, tee=False)
+    assert_optimal_termination(results)
+    print(f"dof = {degrees_of_freedom(m)}")
+    print_stream_flows(m)
 if __name__ == "__main__":
     run_srp()
