@@ -37,7 +37,7 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_pump(blk, stage_num=1, date="8_19", prop_package=None):
+def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
@@ -202,7 +202,8 @@ def report_pump(blk, w=30):
 
     total_flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
     deltaP = blk.pump.deltaP[0]
-    work = blk.pump.work_mechanical[0]
+    motor_eff = 0.954  # MAYBE
+    work = blk.pump.work_mechanical[0] / motor_eff
     print(
         f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
     )
@@ -221,7 +222,7 @@ def report_pump(blk, w=30):
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.pump.efficiency_pump[0]):<{w}.3f}{"-"}')
 
 
-def main(stage_num=1, date="8_19"):
+def main(stage_num=1, date="8_19_21"):
     m = build_system(stage_num=stage_num, date=date)  # optional input of stage_num
     set_inlet_conditions(m.fs.pump_system)
     set_pump_op_conditions(m.fs.pump_system)
@@ -234,10 +235,7 @@ def main(stage_num=1, date="8_19"):
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    work = (
-        m.fs.pump_system.pump.work_mechanical[0]
-        / m.fs.pump_system.pump.efficiency_pump[0]
-    )
+    work = m.fs.pump_system.pump.work_mechanical[0]
     return value(pyunits.convert(work, to_units=pyunits.kW))
 
 
