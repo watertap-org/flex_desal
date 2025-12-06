@@ -3,12 +3,10 @@ import math
 from pyomo.environ import (
     ConcreteModel,
     TransformationFactory,
-    Param,
     Var,
     Constraint,
     Expression,
     Objective,
-    check_optimal_termination,
     assert_optimal_termination,
     value,
     units as pyunits,
