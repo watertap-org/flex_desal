@@ -144,12 +144,6 @@ def set_system_op_conditions(m):
     )
 
 
-{
-    "outlet1": {"H2O": 0.3, "TDS": 0.3},
-    "outlet2": {"H2O": 0.1, "TDS": 0.1},
-}
-
-
 def set_separator_op_conditions(blk, split_fractions={}):
     """
     Set split fractions for separator unit.
