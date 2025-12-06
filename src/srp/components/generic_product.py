@@ -90,12 +90,12 @@ def build_product(blk, name=None, prop_package=None):
     blk.feed = StateJunction(property_package=prop_package)
     touch_flow_and_conc(blk.feed)
 
-    blk.product = Product(property_package=prop_package)
-    touch_flow_and_conc(blk.product)
+    blk.unit = Product(property_package=prop_package)
+    touch_flow_and_conc(blk.unit)
 
     blk.feed_to_product = Arc(
         source=blk.feed.outlet,
-        destination=blk.product.inlet,
+        destination=blk.unit.inlet,
     )
 
     TransformationFactory("network.expand_arcs").apply_to(blk)
@@ -103,12 +103,17 @@ def build_product(blk, name=None, prop_package=None):
     return blk
 
 
-def init_product(blk):
+def init_product(blk, name=None):
 
-    print(f'\n{f"=======> INITIALIZING PRODUCT UNIT <=======":^60}\n')
+    if name is None:
+        name = blk.name.split(".")[-1]
+
+    name = name.replace("_", " ").upper()
+
+    print(f'\n{f"=======> INITIALIZING {name} UNIT <=======":^60}\n')
 
     propagate_state(blk.feed_to_product)
-    blk.product.initialize()
+    blk.unit.initialize()
 
 
 def main():
