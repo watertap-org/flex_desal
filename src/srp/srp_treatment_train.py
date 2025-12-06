@@ -32,6 +32,7 @@ __all__ = [
 
 solver = get_solver()
 
+
 def build_srp(
     Qin=11343, Cin=1467, feed_temp=27, BCs=["BC_A", "BC_B", "BC_C"], perm_flow_guess=49
 ):
@@ -944,10 +945,15 @@ def run_srp():
     initialize_srp(m)
     # clear_output(wait=False)
     TransformationFactory("network.expand_arcs").apply_to(m)
-    cvc(m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], m.fs.ro.unit.recovery_constr)
+    cvc(
+        m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"],
+        m.fs.ro.unit.recovery_constr,
+    )
     m.fs.ro.unit.split_fraction.setlb(0)
     m.fs.ro.unit.split_fraction.setub(None)
-    m.fs.obj = Objective(expr=m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], sense=maximize)
+    m.fs.obj = Objective(
+        expr=m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"], sense=maximize
+    )
     results = solver.solve(m, tee=False)
     assert_optimal_termination(results)
     print(f"dof = {degrees_of_freedom(m)}")
@@ -955,9 +961,7 @@ def run_srp():
     print(f"dof = {degrees_of_freedom(m)}")
     add_bcs_basic(m)
     print(f"dof after adding = {degrees_of_freedom(m)}")
-    splits = {
-        "to_conc_waste": {"H2O": 0.05, "TDS": 0.99}
-    }
+    splits = {"to_conc_waste": {"H2O": 0.05, "TDS": 0.99}}
     set_bcs_basic_op_conditions(m, splits=splits)
     print(f"dof = {degrees_of_freedom(m)}")
     init_bcs_basic(m)
@@ -967,5 +971,7 @@ def run_srp():
     assert_optimal_termination(results)
     print(f"dof = {degrees_of_freedom(m)}")
     print_stream_flows(m)
+
+
 if __name__ == "__main__":
     run_srp()

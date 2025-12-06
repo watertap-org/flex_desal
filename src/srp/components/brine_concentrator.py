@@ -507,7 +507,7 @@ def init_bc(
     """
 
     m = blk.model()
-    
+
     if solver is None:
         solver = get_solver()
     solver.options["halt_on_ampl_error"] = "yes"

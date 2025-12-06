@@ -23,12 +23,7 @@ from watertap.core.solvers import get_solver
 
 from srp.utils.utils import touch_flow_and_conc
 
-__all__ = [
-    "build_pump",
-    "set_pump_op_conditions",
-    "init_pump",
-    "set_pump_scaling"
-]
+__all__ = ["build_pump", "set_pump_op_conditions", "init_pump", "set_pump_scaling"]
 
 solver = get_solver()
 

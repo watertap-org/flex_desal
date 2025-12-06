@@ -142,10 +142,13 @@ def set_system_op_conditions(m):
         },
         hold_state=True,
     )
+
+
 {
     "outlet1": {"H2O": 0.3, "TDS": 0.3},
     "outlet2": {"H2O": 0.1, "TDS": 0.1},
 }
+
 
 def set_separator_op_conditions(blk, split_fractions={}):
     """
@@ -171,7 +174,6 @@ def set_separator_op_conditions(blk, split_fractions={}):
                 blk.unit.split_fraction[0, port, comp].fix(frac)
 
 
-
 def init_system(m):
 
     m.fs.feed.initialize()
@@ -191,7 +193,7 @@ def init_separator(blk, name=None):
         name = blk.name.split(".")[-1]
 
     name = name.replace("_", " ").upper()
-    
+
     print(f'\n{f"=======> INITIALIZING {name} UNIT <=======":^60}\n')
 
     blk.feed.initialize()
