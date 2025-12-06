@@ -1,4 +1,4 @@
-# Feed stream for Train 1 data on 8/19/21
+# Feed stream for Train 1 data on 3/13/21
 feed_stream:
   feed_flow_water: 
     value: 0.166
@@ -19,23 +19,23 @@ feed_stream:
     value: 2.4
     units: bar
 
-# Pump pressure for Train 1 data on 8/19/21.  
+# Pump pressure for Train 1 data on 3/13/21.  
 pumps:
   pump_1:
     pump_flowrate: # Currently only used for pump tests
       value: 2452.2
       units: gal /min
-    feed_conductivity: 
+    feed_conductivity: # Currently only used for pump tests
       value: 1007.0
       units: uS/cm
-    pump_suction_pressure:
-      value: 35.5
+    pump_suction_pressure: # Currently only used for pump tests
+      value: 35.2
       units: psi
-    pump_outlet_pressure: 
-      value: 154.0 
+    pump_outlet_pressure: # Used in the ro system and pump test
+      value: 153.5
       units: psi 
   pump_2:
-    pump_flowrate: # Currently only used for pump tests
+    pump_flowrate: 
       value: 1047.4
       units: gal /min
     feed_conductivity: 
@@ -45,7 +45,7 @@ pumps:
       value: 143.5
       units: psi
     pump_outlet_pressure: 
-      value: 173.0 
+      value: 172.5
       units: psi  
   pump_3:
     pump_flowrate: # Currently only used for pump tests
@@ -83,7 +83,7 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.6  # unitless
     pressure_drop: 
-      value: -9.9
+      value: -10.0
       units: psi
 
   stage_2:
@@ -103,7 +103,7 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.657  # unitless
     pressure_drop: 
-      value: -7.03
+      value: -6.9
       units: psi
     
 
@@ -125,6 +125,6 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.51  # unitless
     pressure_drop: 
-      value: -8.1
+      value: -9.8
       units: psi
       
