@@ -94,6 +94,7 @@ def build_mixer(blk, name=None, prop_package=None, inlet_list=["inlet1", "inlet2
         momentum_mixing_type=MomentumMixingType.none,
         inlet_list=inlet_list,
     )
+    touch_flow_and_conc(blk.unit)
 
     blk.unit.outlet.pressure[0].fix(101325)
 
@@ -167,7 +168,13 @@ def init_system(m):
     m.fs.product.initialize()
 
 
-def init_mixer(blk):
+def init_mixer(blk, name=None):
+    if name is None:
+        name = blk.name.split(".")[-1]
+
+    name = name.replace("_", " ").upper()
+
+    print(f'\n{f"=======> INITIALIZING {name} UNIT <=======":^60}\n')
 
     for inlet in blk.unit.config.inlet_list:
         sj = blk.find_component(f"{inlet}")
