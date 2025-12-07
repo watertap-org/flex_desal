@@ -11,7 +11,7 @@ from idaes.core import FlowsheetBlock
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.initialization import propagate_state
 import idaes.core.util.scaling as iscale
-from idaes.models.unit_models import Separator, StateJunction
+from idaes.models.unit_models import Separator, StateJunction, Feed, Product
 from idaes.models.unit_models.separator import SplittingType
 
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
