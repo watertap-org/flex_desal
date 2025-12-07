@@ -911,7 +911,7 @@ def run_srp_basic():
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m, tee=False)
     assert_optimal_termination(results)
-    print_stream_flows(m)
+    # print_stream_flows(m)
 
     return m
 
@@ -931,5 +931,5 @@ def run_srp():
 
 
 if __name__ == "__main__":
-    run_srp()
-    # run_srp_basic()
+    # run_srp()
+    run_srp_basic()
