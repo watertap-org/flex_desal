@@ -34,6 +34,9 @@ __all__ = [
     "add_bcs",
     "initialize_srp",
     "print_stream_flows",
+    "add_bcs_basic",
+    "init_bcs_basic",
+    "add_bcs",
 ]
 
 solver = get_solver()
@@ -228,6 +231,10 @@ def build_srp(
 
     if add_basic_bcs:
         add_bcs_basic(m)
+    # else:
+    #     add_bcs(m)
+
+    # m.fs.costing.cost_process()
 
     return m
 
@@ -449,7 +456,7 @@ def set_srp_operating_conditions(m):
         set_bcs_basic_op_conditions(m, splits=splits)
 
 
-def add_bcs(m, recovery_vol=0.92):
+def add_bcs(m, bc_recovery=0.92, ro_recovery=0.7):
 
     for bc_label in m.BCs:
         bc_fs = FlowsheetBlock()
@@ -458,91 +465,59 @@ def add_bcs(m, recovery_vol=0.92):
         build_bc(m, bc_fs)
         add_bc_costing(bc_fs)
 
-    m.fs.costing.cost_process()
-
-    for bc_label in m.BCs:
-        bc_fs = m.fs.find_component(bc_label)
-        print(f"dof {bc_label} = {degrees_of_freedom(bc_fs)}")
+        # print(f"dof {bc_label} = {degrees_of_freedom(bc_fs)}")
         set_bc_operating_conditions(bc_fs)
         set_bc_scaling(bc_fs)
-        if len(m.BCs) > 1:
-            feed_props = m.fs.bcs.unit.find_component(f"to_{bc_label.lower()}_state")
-            upstream = m.fs.bcs.unit.find_component(f"to_{bc_label.lower()}")
-        else:
-            feed_props = m.fs.bcs.unit.find_component("properties")
-            upstream = m.fs.bcs.unit.find_component("outlet")
-        upstream_to_bc = Arc(source=upstream, destination=bc_fs.feed.inlet)
 
+        feed_props = m.fs.bcs.unit.find_component(f"to_{bc_label.lower()}_state")
+        upstream = m.fs.bcs.unit.find_component(f"to_{bc_label.lower()}")
+        upstream_to_bc = Arc(source=upstream, destination=bc_fs.feed.inlet)
         init_bc(bc_fs, feed_props=feed_props[0])
         bc_fs.add_component(f"upstream_to_{bc_label}", upstream_to_bc)
         propagate_state(upstream_to_bc)
         TransformationFactory("network.expand_arcs").apply_to(m)
         bc_fs.feed.initialize()
         bc_fs.recovery_mass.unfix()
-        bc_fs.recovery_vol.fix(recovery_vol)
+        bc_fs.recovery_vol.fix(bc_recovery)
         results = solve_bc(bc_fs)
-        bc_fs.feed.properties[0].flow_vol_phase
-        bc_fs.feed.properties[0].conc_mass_phase_comp
-        bc_fs.feed.initialize()
-        bc_fs.disposal.properties[0].flow_vol_phase
-        bc_fs.disposal.properties[0].conc_mass_phase_comp
-        bc_fs.disposal.initialize()
-        bc_fs.product.properties[0].flow_vol_phase
-        bc_fs.product.properties[0].conc_mass_phase_comp
-        bc_fs.product.initialize()
-        # results = bc.solve_bc(bc_fs)
 
-    _ = solve_bc(m)
+    m.fs.ro_pump.unit.control_volume.properties_out[0].pressure.unfix()
+    m.fs.ro.unit.split_fraction[0, "to_ro_permeate", "H2O"].fix(ro_recovery)
+    results = solve_bc(m)
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
-        print(f"dof {bc_label} = {degrees_of_freedom(bc_fs)}")
+        # print(f"dof {bc_label} = {degrees_of_freedom(bc_fs)}")
         bc_fs.compressor.pressure_ratio.fix(1.6)
 
-    # m.fs.obj = Objective(expr=m.fs.costing.SEC)
-    print(f"dof = {degrees_of_freedom(m)}")
+    # print(f"dof = {degrees_of_freedom(m)}")
 
-    _ = solve_bc(m)
+    results = solve_bc(m)
 
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
-        conc_waste_port = m.fs.conc_waste.unit.find_component(
-            f"from_{bc_label.lower()}"
-        )
-        # print(conc_waste_port)
-        # assert False
+        conc_waste_port = m.fs.conc_waste.find_component(f"from_{bc_label.lower()}")
         bc_to_conc_waste = Arc(
-            source=bc_fs.disposal.outlet, destination=conc_waste_port
+            source=bc_fs.disposal.outlet, destination=conc_waste_port.inlet
         )
         m.fs.add_component(f"{bc_label.lower()}_to_conc_waste", bc_to_conc_waste)
         bc_to_conc_waste = m.fs.find_component(f"{bc_label.lower()}_to_conc_waste")
         propagate_state(bc_to_conc_waste)
 
-    for bc_label in m.BCs:
-        bc_fs = m.fs.find_component(bc_label)
-        demin_port = m.fs.demin.unit.find_component(f"from_{bc_label.lower()}")
-        bc_to_demin = Arc(source=bc_fs.product.outlet, destination=demin_port)
+        demin_port = m.fs.demin.find_component(f"from_{bc_label.lower()}")
+        bc_to_demin = Arc(source=bc_fs.product.outlet, destination=demin_port.inlet)
         m.fs.add_component(f"{bc_label.lower()}_to_demin", bc_to_demin)
         bc_to_demin = m.fs.find_component(f"{bc_label.lower()}_to_demin")
         propagate_state(bc_to_demin)
 
     TransformationFactory("network.expand_arcs").apply_to(m)
-    print(f"dof = {degrees_of_freedom(m)}")
+    # print(f"dof = {degrees_of_freedom(m)}")
 
     iscale.calculate_scaling_factors(m)
-
-    d = {"evaporator.area": 455.0, "hx_brine.area": 10.4, "hx_distillate.area": 60.8}
 
     for i, bc_label in enumerate(m.BCs):
         if i == 0:
             bc0 = m.fs.find_component(bc_label)
-            # for k, v in d.items():
-            #     a = bc0.find_component(k)
-            #     # print(a.name)
-            #     # if a is not None:
-            #     a.setlb(0.95 * v)
-            #     a.setub(1.05 * v)
-            #     a.set_value(v)
             continue
         bc_fs = m.fs.find_component(bc_label)
         evap_area_constr = Constraint(expr=bc0.evaporator.area == bc_fs.evaporator.area)
@@ -550,20 +525,14 @@ def add_bcs(m, recovery_vol=0.92):
         hx_distillate_area_constr = Constraint(
             expr=bc0.hx_distillate.area == bc_fs.hx_distillate.area
         )
-        # for k, v in d.items():
-        #     a = bc_fs.find_component(k)
-        #     # print(a.name)
-        #     # if a is not None:
-        #     a.setlb(0.95 * v)
-        #     a.setub(1.05 * v)
-        #     a.set_value(v)
         m.fs.add_component(f"{bc_label}_evap_area_constr", evap_area_constr)
         m.fs.add_component(f"{bc_label}_hx_brine_area_constr", hx_brine_area_constr)
         m.fs.add_component(
             f"{bc_label}_hx_distillate_area_constr", hx_distillate_area_constr
         )
-    # assert False
-    print(f"dof = {degrees_of_freedom(m)}")
+
+    # print(f"dof = {degrees_of_freedom(m)}")
+    m.fs.costing.cost_process()
     m.fs.costing.add_specific_energy_consumption(
         m.fs.product.properties[0].flow_vol_phase["Liq"], name="SEC"
     )
@@ -689,10 +658,8 @@ def initialize_srp(m):
     init_mixer(m.fs.bc_feed_tank)
     propagate_state(m.fs.bc_feed_tank_to_bcs)
 
-    if len(m.BCs) > 0:
-        init_separator(m.fs.bcs)
-    else:
-        m.fs.bcs.feed.initialize()
+    # if m.add_basic_bcs:
+    init_separator(m.fs.bcs)
 
     init_mixer(m.fs.conc_waste)
     propagate_state(m.fs.conc_waste_to_evaporation_ponds)
@@ -712,6 +679,8 @@ def initialize_srp(m):
 
     if m.add_basic_bcs:
         init_bcs_basic(m)
+    # else:
+    #     init_bcs(m)
 
     m.fs.product.initialize()
 
@@ -725,6 +694,8 @@ def print_stream_flows(m, w=30):
         if fb is m.fs.properties_feed:
             continue
         if fb is m.fs.properties_vapor:
+            continue
+        if "bc_" in fb.name.lower():
             continue
 
         title = fb.name.replace("fs.", "").replace("_", " ").upper()
@@ -804,11 +775,9 @@ def print_stream_flows(m, w=30):
                 print(f'{"Feed TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
                 tot_flow_out = sum(
                     value(
-                        value(
-                            pyunits.convert(
-                                u.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
-                                to_units=pyunits.gallons / pyunits.minute,
-                            )
+                        pyunits.convert(
+                            u.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
+                            to_units=pyunits.gallons / pyunits.minute,
                         )
                     )
                     for x in u.config.outlet_list
@@ -840,11 +809,9 @@ def print_stream_flows(m, w=30):
             elif isinstance(u, Mixer):
                 tot_flow_in = sum(
                     value(
-                        value(
-                            pyunits.convert(
-                                u.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
-                                to_units=pyunits.gallons / pyunits.minute,
-                            )
+                        pyunits.convert(
+                            u.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
+                            to_units=pyunits.gallons / pyunits.minute,
                         )
                     )
                     for x in u.config.inlet_list
@@ -860,7 +827,6 @@ def print_stream_flows(m, w=30):
                             to_units=pyunits.gallons / pyunits.minute,
                         )
                     )
-                    tot_flow_in += flow_in
                     conc_in = value(
                         pyunits.convert(
                             sb[0].conc_mass_phase_comp["Liq", "TDS"],
@@ -926,6 +892,13 @@ def print_stream_flows(m, w=30):
             print(f'{"Outlet Pressure":<{w}s}{f"{pressure:<{w},.1f}"}{"bar":<{w}s}')
             print(f'{"Outlet Flow":<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}')
             print(f'{"Outlet TDS":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
+    for bc_label in m.BCs:
+        title = bc_label.replace("fs.", "").replace("_", " ").upper()
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "=" * side + f" {title} " + "=" * side
+        print(f"\n{header}\n")
+        bc_fs = m.fs.find_component(bc_label)
+        print_bc_stream_flows(bc_fs, w=w)
 
 
 def run_srp_basic():
@@ -940,6 +913,23 @@ def run_srp_basic():
     assert_optimal_termination(results)
     print_stream_flows(m)
 
+    return m
+
+
+def run_srp():
+    m = build_srp()
+    connect_srp(m)
+    set_srp_scaling(m)
+    set_srp_operating_conditions(m)
+    initialize_srp(m)
+    add_bcs(m)
+    results = solver.solve(m, tee=False)
+    assert_optimal_termination(results)
+    print_stream_flows(m)
+
+    return m
+
 
 if __name__ == "__main__":
-    run_srp_basic()
+    run_srp()
+    # run_srp_basic()

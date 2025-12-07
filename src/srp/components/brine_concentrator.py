@@ -59,6 +59,7 @@ __all__ = [
     "display_bc_flow_table",
     "report_pump",
     "report_bc",
+    "print_bc_stream_flows",
 ]
 
 solver = get_solver()
@@ -140,7 +141,7 @@ def build_system(recovery=0.5, Qin=350, Cin=11408, feed_temp=27, **kwargs):
 
 def build_bc(m, blk, external_heating=True):
 
-    print(f'\n{"=======> BUILDING MVC SYSTEM <=======":^60}\n')
+    print(f'\n{"=======> BUILDING BC SYSTEM <=======":^60}\n')
 
     blk.feed = StateJunction(property_package=m.fs.properties_feed)
     touch_flow_and_conc(blk.feed)
@@ -520,6 +521,8 @@ def init_bc(
 
     blk.feed.properties[0].temperature.fix(value(feed_props.temperature))
     blk.feed.properties[0].pressure.fix(value(feed_props.pressure))
+    # blk.feed.properties[0].flow_vol_phase["Liq"].fix(value(feed_props.flow_vol_phase["Liq"]))
+    # blk.feed.properties[0].conc_mass_phase_comp["Liq", "TDS"].fix(value(feed_props.conc_mass_phase_comp["Liq", "TDS"]))
 
     solver.solve(blk.feed)
 
@@ -688,7 +691,7 @@ def init_bc(
     blk.disposal.initialize()
     _log.info(f"{blk.name} Disposal initialization complete.")
 
-    m.fs.costing.initialize()
+    # m.fs.costing.initialize()
     results = solver.solve(blk)
     _log.info(f"MVC solve termination {results.solver.termination_condition}")
     assert_optimal_termination(results)
@@ -732,7 +735,7 @@ def init_bc(
         print(f"BC dof = {degrees_of_freedom(blk)}")
         print(f"model dof = {degrees_of_freedom(m)}")
         blk.feed.initialize()
-        m.fs.costing.initialize()
+        # m.fs.costing.initialize()
         results = solver.solve(blk)
         assert_optimal_termination(results)
         _log.info(f"BC THIRD solve termination {results.solver.termination_condition}")
@@ -750,6 +753,8 @@ def init_bc(
             v.unfix()
 
     blk.feed.initialize()
+    blk.feed.properties[0].temperature.unfix()
+    blk.feed.properties[0].pressure.unfix()
 
     print(f"Initialization done, BC dof = {degrees_of_freedom(blk)}")
     print(f"Initialization done, model dof = {degrees_of_freedom(m)}")
@@ -894,7 +899,7 @@ def set_up_optimization(m, blk):
 
 
 def display_bc_flow_table(blk, w=25):
-    title = "MVC System Flow Table"
+    title = "BC System Flow Table"
     side = int(((5 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
     print(f"\n{header}\n")
@@ -940,7 +945,7 @@ def scale_bc_costs(m, blk):
     print("Scaled costs")
 
 
-def print_MVC_stream_flows(blk, w=30):
+def print_bc_stream_flows(blk, w=30):
 
     flow_in = pyunits.convert(
         blk.feed.properties[0.0].flow_vol_phase["Liq"],
@@ -1027,7 +1032,7 @@ def report_bc(blk, w=35):
 
     print(f'\n{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
-    print_MVC_stream_flows(blk, w=w)
+    print_bc_stream_flows(blk, w=w)
 
     dist_temp_F = (blk.product.properties[0].temperature.value - 273.15) * 9 / 5 + 32
     print(
