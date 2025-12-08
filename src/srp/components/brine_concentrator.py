@@ -947,6 +947,11 @@ def scale_bc_costs(m, blk):
 
 def print_bc_stream_flows(blk, w=30):
 
+    title = blk.name.replace("fs.", "").replace("_", " ").upper()
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+
     flow_in = pyunits.convert(
         blk.feed.properties[0.0].flow_vol_phase["Liq"],
         to_units=pyunits.gallon / pyunits.min,
@@ -1025,7 +1030,7 @@ def report_pump(blk, w=35):
 
 
 def report_bc(blk, w=35):
-    title = "MVC System Flow Table"
+    title = "BC System Flow Table"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
     print(f"\n{header}\n")
