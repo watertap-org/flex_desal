@@ -55,17 +55,16 @@ def build_wrd_system(**kwargs):
     # Add units
     m.fs.feed = Feed(property_package=m.fs.properties)
 
-    # Chemical addition units
-    m.fs.chemical_list = get_chem_list("chemical_addition.yaml")
+    # Pre-Treatment chemical addition units
+    m.fs.pre_treat_chem_list = get_chem_list("chemical_addition.yaml","pre_treatment")
 
-    for chem_name in m.fs.chemical_list:
+    for chem_name in m.fs.pre_treat_chem_list:
         m.fs.add_component(chem_name + "_addition", FlowsheetBlock(dynamic=False))
         build_chem_addition(
             m.fs.find_component(chem_name + "_addition"), chem_name, m.fs.properties
         )
-    # CHANGE TO PRE AND POST treatment based on where the chemcials are applied in the flow diagram
 
-    # anti-scalant --> may be the "threshold inhibitor" listed in Cost Tracker
+    # anti-scalant --> change to "threshold inhibitor" listed in Cost Tracker
 
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)
@@ -98,6 +97,15 @@ def build_wrd_system(**kwargs):
     m.fs.decarbonator = FlowsheetBlock(dynamic=False)
     build_decarbonator(m.fs.decarbonator, prop_package=m.fs.ro_properties)
 
+    # Pre-Treatment chemical addition units
+    m.fs.post_treat_chem_list = get_chem_list("chemical_addition.yaml","post_treatment")
+
+    for chem_name in m.fs.post_treat_chem_list:
+        m.fs.add_component(chem_name + "_addition", FlowsheetBlock(dynamic=False))
+        build_chem_addition(
+            m.fs.find_component(chem_name + "_addition"), chem_name, m.fs.properties
+        )
+
     m.fs.product = Product(property_package=m.fs.ro_properties)
 
     return m
@@ -105,8 +113,8 @@ def build_wrd_system(**kwargs):
 
 def add_connections(m):
 
-    for i in range(len(m.fs.chemical_list)):
-        chem_name = m.fs.chemical_list[i]
+    for i in range(len(m.fs.pre_treat_chem_list)):
+        chem_name = m.fs.pre_treat_chem_list[i]
         if i == 0:
             # Connect feed to first chemical
             m.fs.add_component(
@@ -120,10 +128,10 @@ def add_connections(m):
         else:  #
             # Connect each chemical to the next
             m.fs.add_component(
-                m.fs.chemical_list[i - 1] + "_to_" + chem_name,
+                m.fs.pre_treat_chem_list[i - 1] + "_to_" + chem_name,
                 Arc(
                     source=m.fs.find_component(
-                        m.fs.chemical_list[i - 1] + "_addition"
+                        m.fs.pre_treat_chem_list[i - 1] + "_addition"
                     ).product.outlet,
                     destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
                 ),
@@ -131,10 +139,10 @@ def add_connections(m):
 
     # Connect last chemical to UF
     m.fs.add_component(
-        m.fs.chemical_list[-1] + "_to_UF",
+        m.fs.pre_treat_chem_list[-1] + "_to_UF",
         Arc(
             source=m.fs.find_component(
-                m.fs.chemical_list[-1] + "_addition"
+                m.fs.pre_treat_chem_list[-1] + "_addition"
             ).product.outlet,
             destination=m.fs.UF.feed.inlet,
         ),
@@ -156,9 +164,41 @@ def add_connections(m):
     m.fs.uv_to_decarbonator = Arc(
         source=m.fs.UV_aop.product.outlet, destination=m.fs.decarbonator.feed.inlet
     )
-    # Connect Decarbonator to the Product
-    m.fs.decarbonator_to_product = Arc(
-        source=m.fs.decarbonator.product.outlet, destination=m.fs.product.inlet
+
+
+    for i in range(len(m.fs.post_treat_chem_list)):
+        chem_name = m.fs.post_treat_chem_list[i]
+        if i == 0:
+            # Connect decarb to first chemical
+            m.fs.add_component(
+                "decarb_to_" + chem_name,
+                Arc(
+                    source=m.fs.feed.outlet,
+                    destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
+                ),
+            )
+
+        else:  #
+            # Connect each chemical to the next
+            m.fs.add_component(
+                m.fs.post_treat_chem_list[i - 1] + "_to_" + chem_name,
+                Arc(
+                    source=m.fs.find_component(
+                        m.fs.post_treat_chem_list[i - 1] + "_addition"
+                    ).product.outlet,
+                    destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
+                ),
+            )
+
+    # Connect last chemical to the Product
+    m.fs.add_component(
+        m.fs.post_treat_chem_list[-1] + "_to_UF",
+        Arc(
+            source=m.fs.find_component(
+                m.fs.post_treat_chem_list[-1] + "_addition"
+            ).product.outlet,
+            destination=m.fs.product.inlet,
+        ),
     )
 
     TransformationFactory("network.expand_arcs").apply_to(m)
