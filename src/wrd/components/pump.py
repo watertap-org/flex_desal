@@ -44,12 +44,20 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
 
     blk.feed_in = StateJunction(property_package=prop_package)
     blk.feed_out = StateJunction(property_package=prop_package)
-    # CHANGE THIS FILE NAME TO BE AN INPUT
     config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
     blk.config_data = load_config(config_file_name)
     blk.stage_num = stage_num
 
     blk.pump = Pump(property_package=prop_package)
+
+    # Create variable for the efficiency from the pump curves
+    blk.pump.efficiency_fluid = Var(
+        initialize=0.7,
+        units = pyunits.dimensionless,
+        bounds = (0,1),
+        doc='Efficiency from pump curves'
+    )
+
 
     # Load Values for surrogate model
     if stage_num == 1:
@@ -63,10 +71,10 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
         a_2 = -133.157
         a_3 = -234.386
     else:
-        a_0 = 0.7
-        a_1 = 0
-        a_2 = 0
-        a_3 = 0
+        a_0 = 0.067
+        a_1 = 21.112
+        a_2 = -133.157
+        a_3 = -234.386
 
     # Create Variables for simple "surrogate"
     blk.pump.efficiency_eq_constant = Param(
@@ -101,7 +109,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
 
     blk.pump.efficiency_surr_eq = Constraint(
-        expr=blk.pump.efficiency_pump[0]
+        expr= blk.pump.efficiency_fluid
         == blk.pump.efficiency_eq_cubed * flow**3
         + blk.pump.efficiency_eq_squared * flow**2
         + blk.pump.efficiency_eq_linear * flow
@@ -109,6 +117,18 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
         doc="Efficiency surrogate equation",
     )
     blk.pump.efficiency_pump.bounds = (0, 1)
+
+    blk.pump.efficiency_motor = Param(
+        initialize= 0.9,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Efficiency of motor and VFD",
+    )
+    
+    blk.pump.efficiency_electrical = Constraint(
+        expr = blk.pump.efficiency_pump[0] == blk.pump.efficiency_motor * blk.pump.efficiency_fluid
+    )
+
     # Add Arcs
     blk.feed_in_to_pump = Arc(source=blk.feed_in.outlet, destination=blk.pump.inlet)
     blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.inlet)
@@ -202,8 +222,7 @@ def report_pump(blk, w=30):
 
     total_flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
     deltaP = blk.pump.deltaP[0]
-    motor_eff = 0.954  # MAYBE
-    work = blk.pump.work_mechanical[0] / motor_eff
+    work = blk.pump.work_mechanical[0]
     print(
         f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
     )
@@ -236,19 +255,14 @@ def main(stage_num=1, date="8_19_21"):
     results = solver.solve(m)
     assert_optimal_termination(results)
     work = m.fs.pump_system.pump.work_mechanical[0]
-    return value(pyunits.convert(work, to_units=pyunits.kW))
+    return value(pyunits.convert(work, to_units=pyunits.kW)), value(m.fs.pump_system.pump.efficiency_pump[0])
 
 
 if __name__ == "__main__":
-    # Qin = 1029 * (pyunits.gal / pyunits.min)  # gpm to m3/s
-    # Cin = 2496 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
-    # Pin = (141.9 - 11.4) / 14.5 * pyunits.bar  # psi to bar
-    # Pout = 160.5 / 14.5 * pyunits.bar  # psi to bar
     stage_num = 2
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
-    # set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, Pin=1)
     set_inlet_conditions(m.fs.pump_system)
     set_pump_op_conditions(m.fs.pump_system)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
