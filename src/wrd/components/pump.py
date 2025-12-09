@@ -53,11 +53,10 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     # Create variable for the efficiency from the pump curves
     blk.pump.efficiency_fluid = Var(
         initialize=0.7,
-        units = pyunits.dimensionless,
-        bounds = (0,1),
-        doc='Efficiency from pump curves'
+        units=pyunits.dimensionless,
+        bounds=(0, 1),
+        doc="Efficiency from pump curves",
     )
-
 
     # Load Values for surrogate model
     if stage_num == 1:
@@ -109,7 +108,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
 
     blk.pump.efficiency_surr_eq = Constraint(
-        expr= blk.pump.efficiency_fluid
+        expr=blk.pump.efficiency_fluid
         == blk.pump.efficiency_eq_cubed * flow**3
         + blk.pump.efficiency_eq_squared * flow**2
         + blk.pump.efficiency_eq_linear * flow
@@ -119,14 +118,15 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     blk.pump.efficiency_pump.bounds = (0, 1)
 
     blk.pump.efficiency_motor = Param(
-        initialize= 0.9,
+        initialize=0.85,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Efficiency of motor and VFD",
     )
-    
+
     blk.pump.efficiency_electrical = Constraint(
-        expr = blk.pump.efficiency_pump[0] == blk.pump.efficiency_motor * blk.pump.efficiency_fluid
+        expr=blk.pump.efficiency_pump[0]
+        == blk.pump.efficiency_motor * blk.pump.efficiency_fluid
     )
 
     # Add Arcs
@@ -255,7 +255,9 @@ def main(stage_num=1, date="8_19_21"):
     results = solver.solve(m)
     assert_optimal_termination(results)
     work = m.fs.pump_system.pump.work_mechanical[0]
-    return value(pyunits.convert(work, to_units=pyunits.kW)), value(m.fs.pump_system.pump.efficiency_pump[0])
+    return value(pyunits.convert(work, to_units=pyunits.kW)), value(
+        m.fs.pump_system.pump.efficiency_pump[0]
+    )
 
 
 if __name__ == "__main__":

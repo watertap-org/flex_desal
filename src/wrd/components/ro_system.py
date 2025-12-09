@@ -517,7 +517,7 @@ def report_ro_system(blk, w=30):
             stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
             powers_kW[f"train_{t}_stage_{s}"] = value(
                 pyunits.convert(
-                    pump.pump.work_mechanical[0] / pump.pump.efficiency_pump[0],
+                    pump.pump.work_mechanical[0],
                     to_units=pyunits.kW,
                 )
             )
