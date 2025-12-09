@@ -255,8 +255,9 @@ def main(stage_num=1, date="8_19_21"):
     results = solver.solve(m)
     assert_optimal_termination(results)
     work = m.fs.pump_system.pump.work_mechanical[0]
-    return value(pyunits.convert(work, to_units=pyunits.kW)), value(
-        m.fs.pump_system.pump.efficiency_pump[0]
+    return (
+        pyunits.convert(work, to_units=pyunits.kW),
+        m.fs.pump_system.pump.efficiency_pump[0],
     )
 
 
