@@ -590,7 +590,7 @@ def main(number_trains, number_stages, date="8_19_21"):
     results = solver.solve(m)
     assert_optimal_termination(results)
     powers_kW, perm_flows_gpm = report_ro_system(m.fs.ro_system)
-    return powers_kW, perm_flows_gpm  # Would be much simpler to return m
+    return m  # Would be much simpler to return m
 
 
 if __name__ == "__main__":
