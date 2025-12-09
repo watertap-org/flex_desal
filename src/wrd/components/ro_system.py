@@ -1,6 +1,5 @@
 from pyomo.environ import (
     ConcreteModel,
-    Objective,
     Expression,
     value,
     assert_optimal_termination,
@@ -587,14 +586,11 @@ def main(number_trains, number_stages, date="8_19_21"):
     add_ro_scaling(m.fs.ro_system)
     calculate_scaling_factors(m)
     initialize_ro_system(m.fs.ro_system)
-    m.fs.obj = Objective(
-        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
-    )
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
     powers_kW, perm_flows_gpm = report_ro_system(m.fs.ro_system)
-    return powers_kW, perm_flows_gpm
+    return powers_kW, perm_flows_gpm  # Would be much simpler to return m
 
 
 if __name__ == "__main__":
@@ -608,9 +604,6 @@ if __name__ == "__main__":
     add_ro_scaling(m.fs.ro_system)
     calculate_scaling_factors(m)
     initialize_ro_system(m.fs.ro_system)
-    m.fs.obj = Objective(
-        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
-    )
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)

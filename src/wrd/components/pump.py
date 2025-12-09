@@ -1,6 +1,5 @@
 from pyomo.environ import (
     ConcreteModel,
-    Objective,
     Var,
     Param,
     Constraint,
@@ -194,8 +193,6 @@ def set_inlet_conditions(blk):
 def add_pump_scaling(blk):
     # Properties
     set_scaling_factor(blk.pump.work_mechanical[0], 1e-3)
-    # Isn't there a needed scaling factor for electricity costs?
-    set_scaling_factor(blk.pump.efficiency_eq_cubed, 1e-2)
     set_scaling_factor(blk.pump.efficiency_pump, 1e1)
 
 
@@ -248,17 +245,10 @@ def main(stage_num=1, date="8_19_21"):
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
-    m.fs.obj = Objective(
-        expr=m.fs.pump_system.feed_out.properties[0].flow_vol_phase["Liq"]
-    )
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    work = m.fs.pump_system.pump.work_mechanical[0]
-    return (
-        pyunits.convert(work, to_units=pyunits.kW),
-        m.fs.pump_system.pump.efficiency_pump[0],
-    )
+    return m
 
 
 if __name__ == "__main__":
@@ -272,9 +262,6 @@ if __name__ == "__main__":
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
-    m.fs.obj = Objective(
-        expr=m.fs.pump_system.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
-    )  # There is no D.o.f to optimize with
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)

@@ -29,7 +29,7 @@ pumps:
   pump_2:
     pump_efficiency: 0.7  # unitless
     pump_outlet_pressure: 
-      value: 160.5 # old value is 160.5
+      value: 160.5 # old value is 157.8
       units: psi  
   pump_3:
     pump_efficiency: 0.7  # unitless
