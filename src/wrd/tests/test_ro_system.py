@@ -29,25 +29,34 @@ def test_ro_system_8_19():
     number_trains = 1
     number_stages = 2  # STAGE 3 will fail until pressure drop added
     expected_power = [v * pyunits.kW for v in (196.25, 22.71, 29.3)]
-    expected_perm_flow_gpm = [v * pyunits.gal/pyunits/min for v in (1608, 635, 198)]
-    expected_perm_flow = [pyunits.convert(f, to_units=pyunits.m**3 / pyunits.s) for f in expected_perm_flow_gpm]
+    expected_perm_flow_gpm = [v * pyunits.gal / pyunits.min for v in (1608, 635, 198)]
+    expected_perm_flow = [
+        pyunits.convert(f, to_units=pyunits.m**3 / pyunits.s)
+        for f in expected_perm_flow_gpm
+    ]
 
     m = main(number_trains, number_stages, date="8_19_21")
     for t in range(1, number_trains + 1):
         train = m.fs.ro_system.find_component(f"train_{t}")
         for s in range(1, number_stages + 1):
             pump = train.find_component(f"pump{s}")
-            modeled_power = pyunits.convert(pump.pump.work_mechanical[0],to_units=pyunits.kW)
-            stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[0, "Liq"]
+            modeled_power = pyunits.convert(
+                pump.pump.work_mechanical[0], to_units=pyunits.kW
+            )
+            stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[
+                0, "Liq"
+            ]
             stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
 
             assert_units_consistent(modeled_power + expected_power[0])
             assert_units_consistent(stage_perm + expected_perm_flow[0])
-            
-            assert modeled_power == pytest.approx(expected_power[s - 1], rel=0.15), f"Train{t}, Stage {s}: Expected {expected_power[s - 1]} kW, but got {modeled_power} kW"
+
+            assert value(modeled_power) == pytest.approx(
+                value(expected_power[s - 1]), rel=0.15
+            ), f"Train{t}, Stage {s}: Expected pump power {value(expected_power[s - 1])} kW, but got {value(modeled_power)} kW"
             assert value(stage_perm) == pytest.approx(
-                value(expected_perm_flow_gpm[s - 1]), rel=0.15
-            ), f"Train{t}, Stage {s}: Expected {expected_perm_flow_gpm[s - 1]} gpm, but got {modeled_flow} gpm"
+                value(expected_perm_flow[s - 1]), rel=0.15
+            ), f"Train{t}, Stage {s}: Expected permeate flow of {value(expected_perm_flow[s - 1])} m3/s, but got {value(stage_perm)} m3/s"
 
 
 # @pytest.mark.component

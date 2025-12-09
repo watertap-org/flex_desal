@@ -254,6 +254,11 @@ def set_inlet_conditions(blk):  # Default None to avoid units error
         blk.config_data, "feed_conductivity", "feed_stream"
     ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
 
+    Pin = get_config_value(
+        blk.config_data,
+        "feed_pressure",
+        "feed_stream",
+    )
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
@@ -261,7 +266,7 @@ def set_inlet_conditions(blk):  # Default None to avoid units error
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed.properties[0].pressure.fix(101325 * pyunits.Pa)  # 1 bar
+    blk.feed.properties[0].pressure.fix(Pin)  # 2.4 bar (UF outlet)
 
     m = blk.model()
     m.fs.ro_properties.set_default_scaling(
@@ -514,12 +519,8 @@ def report_ro_system(blk, w=30):
                 0, "Liq"
             ]
             stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
-            powers_kW[f"train_{t}_stage_{s}"] = value(
-                pyunits.convert(
-                    pump.pump.work_mechanical[0],
-                    to_units=pyunits.kW,
-                )
-            )
+            rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
+            perm_sal = train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[0,"Liq","NaCl"] / train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[0,"Liq","H2O"] * rho
             perm_flows_gpm[f"train_{t}_stage_{s}"] = value(
                 pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)
             )
@@ -555,9 +556,9 @@ def report_ro_system(blk, w=30):
                 f'{f"Stage {s} Recovery":<{w}s}{value(pyunits.convert(stage_rr, to_units=pyunits.dimensionless)):<{w}.3f}{"-"}'
             )
             print(
-                f'{f"Stage {s} Permeate (gpm)":<{w}s}{value(pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+                f'{f"Stage {s} Permeate Salinity (mg/L)":<{w}s}{value(pyunits.convert(perm_sal, to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
             )
-
+            
     print(f"{'.' * (3 * w)}")
     print(f"{'.' * (3 * w)}")
     print(
@@ -589,13 +590,12 @@ def main(number_trains, number_stages, date="8_19_21"):
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    powers_kW, perm_flows_gpm = report_ro_system(m.fs.ro_system)
-    return m  # Would be much simpler to return m
+    return m 
 
 
 if __name__ == "__main__":
     number_trains = 1
-    number_stages = 2
+    number_stages = 1
     m = build_system(
         number_trains=number_trains, number_stages=number_stages, date="8_19_21"
     )
@@ -607,6 +607,4 @@ if __name__ == "__main__":
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-
-    print(f"{iscale.jacobian_cond(m.fs.ro_system):.2e}")
     report_ro_system(m.fs.ro_system, w=40)

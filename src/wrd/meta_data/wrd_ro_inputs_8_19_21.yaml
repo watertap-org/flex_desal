@@ -16,8 +16,8 @@ feed_stream:
     value: 298.15
     units: K
   feed_pressure: 
-    value: 2.4
-    units: bar
+    value: 35.4
+    units: psi
 
 # Pump pressure for Train 1 data on 8/19/21.  
 pumps:
@@ -81,9 +81,9 @@ reverse_osmosis_1d:
     number_of_vessels: 72 # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.6  # unitless
+    water_recovery_mass_phase: 0.610  # unitless
     pressure_drop: 
-      value: -11.4
+      value: -10.7
       units: psi
 
   stage_2:
@@ -101,9 +101,9 @@ reverse_osmosis_1d:
     number_of_vessels: 30 # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.657  # unitless
+    water_recovery_mass_phase: 0.617  # unitless
     pressure_drop: 
-      value: -7.2
+      value: -6
       units: psi
     
 
@@ -123,8 +123,8 @@ reverse_osmosis_1d:
     number_of_vessels: 15  # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.51  # unitless
+    water_recovery_mass_phase: 0.516  # unitless
     pressure_drop: 
-      value: -7.45
+      value: -10.98
       units: psi
       
