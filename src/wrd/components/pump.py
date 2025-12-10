@@ -42,7 +42,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
         prop_package = m.fs.ro_properties
 
     blk.feed = StateJunction(property_package=prop_package)
-    blk.feed_out = StateJunction(property_package=prop_package)
+    blk.product = StateJunction(property_package=prop_package)
     config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
     blk.config_data = load_config(config_file_name)
     blk.stage_num = stage_num
@@ -129,7 +129,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
 
     # Add Arcs
     blk.feed_in_to_pump = Arc(source=blk.feed.outlet, destination=blk.pump.inlet)
-    blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.inlet)
+    blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.product.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
@@ -198,14 +198,14 @@ def add_pump_scaling(blk):
 def initialize_pump(blk):
     # Touch Properties that are needed for later
     blk.feed.properties[0].flow_vol_phase["Liq"]
-    blk.feed_out.properties[0].flow_vol_phase["Liq"]
+    blk.product.properties[0].flow_vol_phase["Liq"]
 
     blk.feed.initialize()
     propagate_state(blk.feed_in_to_pump)
 
     blk.pump.initialize()
     propagate_state(blk.pump_to_feed_out)
-    blk.feed_out.initialize()
+    blk.product.initialize()
 
 
 def report_pump(blk, w=30):
