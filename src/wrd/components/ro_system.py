@@ -389,10 +389,10 @@ def add_ro_connections(blk):
     Add connections between the units in the RO system
     """
     # Connect feed to first pump
-    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.feed_in.inlet)
+    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.feed.inlet)
 
     for i in range(1, blk.number_stages + 1):
-        pump_out = blk.find_component(f"pump{i}").feed_out.outlet
+        pump_out = blk.find_component(f"pump{i}").product.outlet
         ro_in = blk.find_component(f"ro_stage_{i}").inlet
         ro_perm = blk.find_component(f"ro_stage_{i}").permeate
         blk.add_component(
@@ -410,7 +410,7 @@ def add_ro_connections(blk):
         # Connections for the next stage
         if i != blk.number_stages:
             ro_out = blk.find_component(f"ro_stage_{i}").retentate
-            pump_in = blk.find_component(f"pump{i+1}").feed_in.inlet
+            pump_in = blk.find_component(f"pump{i+1}").feed.inlet
             if blk.number_stages == 3 and i == 2:
                 blk.ro_2_to_head_loss = Arc(
                     source=ro_out, destination=blk.stage_3_head_loss.inlet
@@ -545,14 +545,14 @@ def report_ro_system(blk, w=30):
             side = int(((3 * w) - len(title)) / 2) - 1
             header = "." * side + f" {title} " + "." * side
             if s == 1:
-                total_flow += pump.feed_out.properties[0].flow_vol_phase["Liq"]
+                total_flow += pump.product.properties[0].flow_vol_phase["Liq"]
             total_power += pyunits.convert(
                 pump.pump.work_mechanical[0], to_units=pyunits.kW
             )
             stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[
                 0, "Liq"
             ]
-            stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
+            stage_perm = stage_rr * pump.product.properties[0].flow_vol_phase["Liq"]
             rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
             perm_sal = (
                 train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[
@@ -568,19 +568,19 @@ def report_ro_system(blk, w=30):
             )
             print(f"\n{header}\n")
             print(
-                f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol_phase["Liq"], to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
+                f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
             )
             print(
-                f'{f"Stage {s} Flow In (m3/s)":<{w}s}{value(pump.feed_out.properties[0].flow_vol_phase["Liq"]):<{w}.3e}{"m3/s"}'
+                f'{f"Stage {s} Flow In (m3/s)":<{w}s}{value(pump.product.properties[0].flow_vol_phase["Liq"]):<{w}.3e}{"m3/s"}'
             )
             print(
-                f'{f"Stage {s} Flow In (gpm)":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+                f'{f"Stage {s} Flow In (gpm)":<{w}s}{value(pyunits.convert(pump.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
             )
             print(
-                f'{f"Stage {s} Pump Pressure In":<{w}s}{value(pyunits.convert(pump.feed_in.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
+                f'{f"Stage {s} Pump Pressure In":<{w}s}{value(pyunits.convert(pump.feed.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
             )
             print(
-                f'{f"Stage {s} Pump Pressure Out":<{w}s}{value(pyunits.convert(pump.feed_out.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
+                f'{f"Stage {s} Pump Pressure Out":<{w}s}{value(pyunits.convert(pump.product.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
             )
             print(
                 f'{f"Stage {s} Pump ∆P (psi)":<{w}s}{value(pyunits.convert(pump.pump.control_volume.deltaP[0], to_units=pyunits.psi)):<{w}.1f}{"psi"}'
