@@ -38,11 +38,9 @@ def ro_model():
 def _get_stage_objects(m, train_idx, stage_idx):
     train = m.fs.ro_system.find_component(f"train_{train_idx}")
     pump = train.find_component(f"pump{stage_idx}")
-    stage_rr = train.find_component(f"ro_stage_{stage_idx}").recovery_vol_phase[
-        0, "Liq"
-    ]
-    stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
-    return pump, stage_perm
+    stage = train.find_component(f"ro_stage_{stage_idx}")
+    perm_flow = stage.mixed_permeate[0].flow_vol_phase["Liq"]
+    return pump, perm_flow
 
 
 @pytest.mark.component
