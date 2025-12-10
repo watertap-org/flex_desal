@@ -128,8 +128,8 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     )
 
     # Add Arcs
-    blk.feed_in_to_pump = Arc(source=blk.feed.outlet, destination=blk.pump.inlet)
-    blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.product.inlet)
+    blk.feed_to_unit = Arc(source=blk.feed.outlet, destination=blk.pump.inlet)
+    blk.unit_to_product = Arc(source=blk.pump.outlet, destination=blk.product.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
@@ -197,10 +197,10 @@ def initialize_pump(blk):
     blk.product.properties[0].flow_vol_phase["Liq"]
 
     blk.feed.initialize()
-    propagate_state(blk.feed_in_to_pump)
+    propagate_state(blk.feed_to_unit)
 
     blk.pump.initialize()
-    propagate_state(blk.pump_to_feed_out)
+    propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
 
