@@ -103,7 +103,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
         doc="Cubed term of Efficiency equation",
     )
 
-    flow = blk.feed.properties[0].flow_vol_phase["Liq"] 
+    flow = blk.feed.properties[0].flow_vol_phase["Liq"]
 
     blk.pump.efficiency_surr_eq = Constraint(
         expr=blk.pump.efficiency_fluid
@@ -168,12 +168,8 @@ def set_inlet_conditions(blk):
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
 
-    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(
-        feed_mass_flow_water
-    )
-    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
-        feed_mass_flow_salt
-    )
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
     blk.feed.properties[0].pressure.fix(Pin)
     # blk.feed.properties[0].flow_vol  # Touching
