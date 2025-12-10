@@ -41,7 +41,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     if prop_package is None:
         prop_package = m.fs.ro_properties
 
-    blk.feed_in = StateJunction(property_package=prop_package)
+    blk.feed = StateJunction(property_package=prop_package)
     blk.feed_out = StateJunction(property_package=prop_package)
     config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
     blk.config_data = load_config(config_file_name)
@@ -103,8 +103,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
         doc="Cubed term of Efficiency equation",
     )
 
-    # flow = blk.feed_in.properties[0].flow_vol_phase["Liq"] <-- This does not work for some reason
-    flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
+    flow = blk.feed.properties[0].flow_vol_phase["Liq"] 
 
     blk.pump.efficiency_surr_eq = Constraint(
         expr=blk.pump.efficiency_fluid
@@ -129,7 +128,7 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     )
 
     # Add Arcs
-    blk.feed_in_to_pump = Arc(source=blk.feed_in.outlet, destination=blk.pump.inlet)
+    blk.feed_in_to_pump = Arc(source=blk.feed.outlet, destination=blk.pump.inlet)
     blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
@@ -169,15 +168,15 @@ def set_inlet_conditions(blk):
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
 
-    blk.feed_in.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(
         feed_mass_flow_water
     )
-    blk.feed_in.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
         feed_mass_flow_salt
     )
-    blk.feed_in.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed_in.properties[0].pressure.fix(Pin)
-    # blk.feed_in.properties[0].flow_vol  # Touching
+    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
+    blk.feed.properties[0].pressure.fix(Pin)
+    # blk.feed.properties[0].flow_vol  # Touching
     blk.pump.control_volume.properties_in[0].flow_vol  # Touching
 
     # Scaling properties
@@ -198,10 +197,10 @@ def add_pump_scaling(blk):
 
 def initialize_pump(blk):
     # Touch Properties that are needed for later
-    blk.feed_in.properties[0].flow_vol_phase["Liq"]
+    blk.feed.properties[0].flow_vol_phase["Liq"]
     blk.feed_out.properties[0].flow_vol_phase["Liq"]
 
-    blk.feed_in.initialize()
+    blk.feed.initialize()
     propagate_state(blk.feed_in_to_pump)
 
     blk.pump.initialize()
