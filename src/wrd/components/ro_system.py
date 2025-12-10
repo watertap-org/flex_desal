@@ -31,6 +31,7 @@ from watertap.unit_models.reverse_osmosis_1D import (
 )
 from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
+from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
 from idaes.core.util.scaling import (
@@ -202,6 +203,10 @@ def build_ro_train(blk, prop_package=None):
     blk.train_power_consumption = 0
 
     for i in range(1, (blk.number_stages + 1)):  # blk is one train
+        if i == 3:
+            # Below is not an actual pump and its power will not be costed
+            blk.stage_3_head_loss = Pump(property_package=prop_package)
+
         blk.add_component(f"pump{i}", FlowsheetBlock(dynamic=False))
         build_wrd_pump(
             blk.find_component(f"pump{i}"), stage_num=i, prop_package=prop_package
@@ -287,6 +292,13 @@ def set_ro_system_op_conditions(blk):
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
             set_pump_op_conditions(pump)
+            # Set pressure drop between stages 2 and 3
+            if s == 3:
+                P_drop = get_config_value(
+                    blk.config_data, "add_head_loss", "reverse_osmosis_1d", f"stage_{s}"
+                )
+                train.stage_3_head_loss.deltaP.fix(P_drop)
+
             # Set RO configuration for each stage
             ro_stage = train.find_component(f"ro_stage_{s}")
             ro_stage.A_comp.fix(
@@ -387,6 +399,7 @@ def add_ro_connections(blk):
             f"pump{i}_to_ro_stage_{i}",
             Arc(source=pump_out, destination=ro_in),
         )
+
         blk.add_component(
             f"ro_stage_{i}_to_permeate_mixer",
             Arc(
@@ -394,13 +407,23 @@ def add_ro_connections(blk):
                 destination=blk.permeate_mixer.find_component(f"ro_stage_{i}_permeate"),
             ),
         )
+        # Connections for the next stage
         if i != blk.number_stages:
             ro_out = blk.find_component(f"ro_stage_{i}").retentate
             pump_in = blk.find_component(f"pump{i+1}").feed_in.inlet
-            blk.add_component(
-                f"ro_stage_{i}_to_pump{i+1}",
-                Arc(source=ro_out, destination=pump_in),
-            )
+            if blk.number_stages == 3 and i == 2:
+                blk.ro_2_to_head_loss = Arc(
+                    source=ro_out, destination=blk.stage_3_head_loss.inlet
+                )
+                blk.head_loss_to_pump_3 = Arc(
+                    source=blk.stage_3_head_loss.outlet, destination=pump_in
+                )
+            else:
+                blk.add_component(
+                    f"ro_stage_{i}_to_pump{i+1}",
+                    Arc(source=ro_out, destination=pump_in),
+                )
+
     # Connect permeate mixer to permeate product stream
     blk.permeate_mixer_to_permeate = Arc(
         source=blk.permeate_mixer.outlet, destination=blk.permeate.inlet
@@ -460,13 +483,24 @@ def initialize_ro_system(blk):
         propagate_state(train.feed_to_pump1)
         initialize_pump(train.find_component("pump1"))
         for s in range(1, (train.number_stages + 1)):
-            propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
-            stage = train.find_component(f"ro_stage_{s}")
-            relax_bounds_for_low_salinity_waters(stage)
-            stage.initialize()
-            if s != train.number_stages:
+            if s == 3:
+                propagate_state(train.ro_2_to_head_loss)
+                train.stage_3_head_loss.initialize()
+                propagate_state(train.head_loss_to_pump_3)
+                initialize_pump(train.find_component(f"pump{s}"))
+                propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
+                stage = train.find_component(f"ro_stage_{s}")
+                relax_bounds_for_low_salinity_waters(stage)
+                stage.initialize()
+            else:
+                propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
+                stage = train.find_component(f"ro_stage_{s}")
+                relax_bounds_for_low_salinity_waters(stage)
+                stage.initialize()
+            if s == 1 and blk.number_stages != 1:
                 propagate_state(train.find_component(f"ro_stage_{s}_to_pump{s+1}"))
                 initialize_pump(train.find_component(f"pump{s+1}"))
+
             propagate_state(train.find_component(f"ro_stage_{s}_to_permeate_mixer"))
 
         train.permeate_mixer.initialize()
@@ -520,7 +554,15 @@ def report_ro_system(blk, w=30):
             ]
             stage_perm = stage_rr * pump.feed_out.properties[0].flow_vol_phase["Liq"]
             rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
-            perm_sal = train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[0,"Liq","NaCl"] / train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[0,"Liq","H2O"] * rho
+            perm_sal = (
+                train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[
+                    0, "Liq", "NaCl"
+                ]
+                / train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[
+                    0, "Liq", "H2O"
+                ]
+                * rho
+            )
             perm_flows_gpm[f"train_{t}_stage_{s}"] = value(
                 pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)
             )
@@ -558,7 +600,7 @@ def report_ro_system(blk, w=30):
             print(
                 f'{f"Stage {s} Permeate Salinity (mg/L)":<{w}s}{value(pyunits.convert(perm_sal, to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
             )
-            
+
     print(f"{'.' * (3 * w)}")
     print(f"{'.' * (3 * w)}")
     print(
@@ -590,12 +632,12 @@ def main(number_trains, number_stages, date="8_19_21"):
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    return m 
+    return m
 
 
 if __name__ == "__main__":
     number_trains = 1
-    number_stages = 1
+    number_stages = 3
     m = build_system(
         number_trains=number_trains, number_stages=number_stages, date="8_19_21"
     )

@@ -127,4 +127,7 @@ reverse_osmosis_1d:
     pressure_drop: 
       value: -10.98
       units: psi
-      
+    add_head_loss:
+      value: -41.9
+      units: psi
+        
