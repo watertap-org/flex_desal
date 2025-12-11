@@ -1,6 +1,5 @@
 from pyomo.environ import (
     ConcreteModel,
-    Objective,
     Var,
     Param,
     Constraint,
@@ -37,18 +36,26 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_pump(blk, stage_num=1, prop_package=None):
+def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
 
-    blk.feed_in = StateJunction(property_package=prop_package)
-    blk.feed_out = StateJunction(property_package=prop_package)
-
-    config_file_name = get_config_file("wrd_ro_inputs.yaml")
+    blk.feed = StateJunction(property_package=prop_package)
+    blk.product = StateJunction(property_package=prop_package)
+    config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
     blk.config_data = load_config(config_file_name)
+    blk.stage_num = stage_num
 
     blk.pump = Pump(property_package=prop_package)
+
+    # Create variable for the efficiency from the pump curves
+    blk.pump.efficiency_fluid = Var(
+        initialize=0.7,
+        units=pyunits.dimensionless,
+        bounds=(0, 1),
+        doc="Efficiency from pump curves",
+    )
 
     # Load Values for surrogate model
     if stage_num == 1:
@@ -62,10 +69,10 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         a_2 = -133.157
         a_3 = -234.386
     else:
-        a_0 = 0.7
-        a_1 = 0
-        a_2 = 0
-        a_3 = 0
+        a_0 = 0.067
+        a_1 = 21.112
+        a_2 = -133.157
+        a_3 = -234.386
 
     # Create Variables for simple "surrogate"
     blk.pump.efficiency_eq_constant = Param(
@@ -96,11 +103,10 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         doc="Cubed term of Efficiency equation",
     )
 
-    # flow = blk.feed_in.properties[0].flow_vol_phase["Liq"] <-- This does not work for some reason
-    flow = blk.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
+    flow = blk.feed.properties[0].flow_vol_phase["Liq"]
 
     blk.pump.efficiency_surr_eq = Constraint(
-        expr=blk.pump.efficiency_pump[0]
+        expr=blk.pump.efficiency_fluid
         == blk.pump.efficiency_eq_cubed * flow**3
         + blk.pump.efficiency_eq_squared * flow**2
         + blk.pump.efficiency_eq_linear * flow
@@ -108,42 +114,65 @@ def build_wrd_pump(blk, stage_num=1, prop_package=None):
         doc="Efficiency surrogate equation",
     )
     blk.pump.efficiency_pump.bounds = (0, 1)
+
+    blk.pump.efficiency_motor = Param(
+        initialize=0.85,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Efficiency of motor and VFD",
+    )
+
+    blk.pump.efficiency_electrical = Constraint(
+        expr=blk.pump.efficiency_pump[0]
+        == blk.pump.efficiency_motor * blk.pump.efficiency_fluid
+    )
+
     # Add Arcs
-    blk.feed_in_to_pump = Arc(source=blk.feed_in.outlet, destination=blk.pump.inlet)
-    blk.pump_to_feed_out = Arc(source=blk.pump.outlet, destination=blk.feed_out.inlet)
+    blk.feed_to_unit = Arc(source=blk.feed.outlet, destination=blk.pump.inlet)
+    blk.unit_to_product = Arc(source=blk.pump.outlet, destination=blk.product.inlet)
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk, stage_num=1, Pout=None):
-    # These values may be loaded from config files instead of passed as Pout and Pin
-    if Pout is None:
-        Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{stage_num}"
-        )
-    # else:
-    # Pout = Pout * pyunits.bar # Unit consistiency in main
+def set_pump_op_conditions(blk):
+    Pout = get_config_value(
+        blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
+    )
     blk.pump.control_volume.properties_out[0].pressure.fix(Pout)
 
 
-def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
+def set_inlet_conditions(blk):
     """
-    Set the operation conditions for the Pump
+    Set the inlet conditions for the Pump
     """
-    # Qin = Qin * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
-    # Cin  # Feed concentration in g/L
+    Qin = get_config_value(
+        blk.config_data,
+        "pump_flowrate",
+        "pumps",
+        f"pump_{blk.stage_num}",
+    )
+
+    Cin = get_config_value(
+        blk.config_data,
+        "feed_conductivity",
+        "pumps",
+        f"pump_{blk.stage_num}",
+    ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
+
+    Pin = get_config_value(
+        blk.config_data,
+        "pump_suction_pressure",
+        "pumps",
+        f"pump_{blk.stage_num}",
+    )
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
 
-    blk.feed_in.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(
-        feed_mass_flow_water
-    )
-    blk.feed_in.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
-        feed_mass_flow_salt
-    )
-    blk.feed_in.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed_in.properties[0].pressure.fix(Pin)
-    # blk.feed_in.properties[0].flow_vol  # Touching
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
+    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
+    blk.feed.properties[0].pressure.fix(Pin)
+    # blk.feed.properties[0].flow_vol  # Touching
     blk.pump.control_volume.properties_in[0].flow_vol  # Touching
 
     # Scaling properties
@@ -159,22 +188,20 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542, Pin=1):
 def add_pump_scaling(blk):
     # Properties
     set_scaling_factor(blk.pump.work_mechanical[0], 1e-3)
-    # Isn't there a needed scaling factor for electricity costs?
-    set_scaling_factor(blk.pump.efficiency_eq_cubed, 1e-2)
     set_scaling_factor(blk.pump.efficiency_pump, 1e1)
 
 
 def initialize_pump(blk):
     # Touch Properties that are needed for later
-    blk.feed_in.properties[0].flow_vol_phase["Liq"]
-    blk.feed_out.properties[0].flow_vol_phase["Liq"]
+    blk.feed.properties[0].flow_vol_phase["Liq"]
+    blk.product.properties[0].flow_vol_phase["Liq"]
 
-    blk.feed_in.initialize()
-    propagate_state(blk.feed_in_to_pump)
+    blk.feed.initialize()
+    propagate_state(blk.feed_to_unit)
 
     blk.pump.initialize()
-    propagate_state(blk.pump_to_feed_out)
-    blk.feed_out.initialize()
+    propagate_state(blk.unit_to_product)
+    blk.product.initialize()
 
 
 def report_pump(blk, w=30):
@@ -206,45 +233,30 @@ def report_pump(blk, w=30):
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.pump.efficiency_pump[0]):<{w}.3f}{"-"}')
 
 
-def main(stage_num=1, Qin=0.154, Cin=0.542, Pin=1, Pout=10):
-    m = build_system(stage_num=stage_num)  # optional input of stage_num
-    set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump_system, stage_num=stage_num, Pout=Pout)
+def main(stage_num=1, date="8_19_21"):
+    m = build_system(stage_num=stage_num, date=date)  # optional input of stage_num
+    set_inlet_conditions(m.fs.pump_system)
+    set_pump_op_conditions(m.fs.pump_system)
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
-    m.fs.obj = Objective(
-        expr=m.fs.pump_system.feed_out.properties[0].flow_vol_phase["Liq"]
-    )
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    work = (
-        m.fs.pump_system.pump.work_mechanical[0]
-        / m.fs.pump_system.pump.efficiency_pump[0]
-    )
-    return value(pyunits.convert(work, to_units=pyunits.kW))
+    return m
 
 
 if __name__ == "__main__":
-    Qin = 1029 * (pyunits.gal / pyunits.min)  # gpm to m3/s
-    Cin = 2496 * 0.5 / 1000 * (pyunits.g / pyunits.L)  # us/cm to g/L
-    Pin = (141.9 - 11.4) / 14.5 * pyunits.bar  # psi to bar
-    Pout = 160.5 / 14.5 * pyunits.bar  # psi to bar
     stage_num = 2
     m = build_system(stage_num=stage_num)  # optional input of stage_num
     assert_units_consistent(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
-    # set_inlet_conditions(m.fs.pump_system, Qin=0.154, Cin=0.542, Pin=1)
-    set_inlet_conditions(m.fs.pump_system, Qin=Qin, Cin=Cin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump_system, stage_num=stage_num)
+    set_inlet_conditions(m.fs.pump_system)
+    set_pump_op_conditions(m.fs.pump_system)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     add_pump_scaling(m.fs.pump_system)
     calculate_scaling_factors(m)
     initialize_pump(m.fs.pump_system)
-    m.fs.obj = Objective(
-        expr=m.fs.pump_system.pump.control_volume.properties_in[0].flow_vol_phase["Liq"]
-    )  # There is no D.o.f to optimize with
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)

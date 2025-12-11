@@ -29,7 +29,7 @@ pumps:
   pump_2:
     pump_efficiency: 0.7  # unitless
     pump_outlet_pressure: 
-      value: 160.5
+      value: 160.5 # old value is 157.8
       units: psi  
   pump_3:
     pump_efficiency: 0.7  # unitless
@@ -100,5 +100,8 @@ reverse_osmosis_1d:
     water_recovery_mass_phase: 0.51  # unitless
     pressure_drop: 
       value: -6.98
+      units: psi
+    head_loss:
+      value: 
       units: psi
       
