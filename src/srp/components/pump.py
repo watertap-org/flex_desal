@@ -8,6 +8,7 @@ from pyomo.environ import (
     units as pyunits,
 )
 from pyomo.network import Arc
+from pyomo.util.calc_var_value import calculate_variable_from_constraint
 
 from idaes.core import FlowsheetBlock
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -155,12 +156,16 @@ def set_system_op_conditions(m):
     iscale.calculate_scaling_factors(m)
 
 
-def set_pump_op_conditions(blk, pressure=350, efficiency=0.8):
-
+def set_pump_op_conditions(blk, pressure=350, efficiency=0.8, use_pressure_constr=True):
     pressure = pressure * pyunits.psi
 
     blk.unit.efficiency_pump.fix(efficiency)
-    blk.unit.control_volume.properties_out[0].pressure.fix(pressure)
+
+    if use_pressure_constr:
+        blk.unit.pressure_constr.activate()
+        blk.unit.control_volume.properties_out[0].pressure.unfix()
+    else:
+        blk.unit.control_volume.properties_out[0].pressure.fix(pressure)
 
 
 def init_pump(blk):
@@ -168,6 +173,11 @@ def init_pump(blk):
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
 
+    if blk.unit.pressure_constr.active:
+        calculate_variable_from_constraint(
+            blk.unit.control_volume.properties_out[0].pressure,
+            blk.unit.pressure_constr,
+        )
     blk.unit.initialize()
     propagate_state(blk.unit_to_product)
 
@@ -185,11 +195,16 @@ def init_system(m):
     m.fs.product.initialize()
 
 
-def main():
+def main(pressure=350, efficiency=0.8, use_pressure_constr=True):
     m = build_system()
     set_system_scaling(m)
     set_system_op_conditions(m)
-    set_pump_op_conditions(m.fs.pump, pressure=350)
+    set_pump_op_conditions(
+        m.fs.pump,
+        pressure=pressure,
+        efficiency=efficiency,
+        use_pressure_constr=use_pressure_constr,
+    )
     init_system(m)
 
     assert degrees_of_freedom(m) == 0
@@ -201,3 +216,8 @@ def main():
 
 if __name__ == "__main__":
     m = main()
+    m.fs.pump.unit.work_mechanical.display()
+    m.fs.pump.unit.control_volume.properties_out[0].pressure.display()
+
+    # m = main(pressure=500)
+    # print(*dir(m.fs.pump.unit.pressure_constr), sep="\n")
