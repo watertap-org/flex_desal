@@ -58,7 +58,7 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.feed = Feed(property_package=m.fs.properties)
 
     # Pre- UF Treatment chemical addition units (read from metadata)
-    m.fs.pre_UF_treat_chem_list = ["ammonium_sulfate", "sodium_hypochlorite"]
+    m.fs.pre_UF_treat_chem_list = ["ammonium_sulfate", "sodium_hypochlorite","sulfuric_acid", "scale_inhibitor"]
     for chem_name in m.fs.pre_UF_treat_chem_list:
         m.fs.add_component(chem_name + "_addition", FlowsheetBlock(dynamic=False))
         build_chem_addition(
@@ -68,15 +68,6 @@ def build_wrd_system(number_stages=3, **kwargs):
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)
     build_UF(m.fs.UF, m.fs.properties)
-
-    # Pre-RO-Treatment chemical addition units
-    m.fs.pre_RO_treat_chem_list = ["sulfuric_acid", "scale_inhibitor"]
-
-    for chem_name in m.fs.pre_RO_treat_chem_list:
-        m.fs.add_component(chem_name + "_addition", FlowsheetBlock(dynamic=False))
-        build_chem_addition(
-            m.fs.find_component(chem_name + "_addition"), chem_name, m.fs.properties
-        )
 
     # Translator block between ZO to RO property packages
     m.fs.translator_ZO_to_RO = TranslatorZOtoNaCl(
@@ -129,8 +120,7 @@ def build_wrd_system(number_stages=3, **kwargs):
 
     # Combined chemical list for operating conditions, scaling, and costing(?)
     m.fs.chemical_list = (
-        list(m.fs.pre_UF_treat_chem_list)
-        + list(m.fs.pre_RO_treat_chem_list)
+        + list(m.fs.pre_treat_chem_list)
         + list(m.fs.post_treat_chem_list)
     )
     return m
@@ -138,8 +128,8 @@ def build_wrd_system(number_stages=3, **kwargs):
 
 def add_wrd_connections(m):
     # Connect pre-UF chemical chain: feed -> chem1 -> chem2 -> ... -> UF
-    for i in range(len(m.fs.pre_UF_treat_chem_list)):
-        chem_name = m.fs.pre_UF_treat_chem_list[i]
+    for i in range(len(m.fs.pre_treat_chem_list)):
+        chem_name = m.fs.pre_treat_chem_list[i]
         if i == 0:
             # Connect feed to first chemical
             m.fs.add_component(
@@ -151,7 +141,7 @@ def add_wrd_connections(m):
             )
         else:
             # Connect each chemical to the next
-            prev = m.fs.pre_UF_treat_chem_list[i - 1]
+            prev = m.fs.pre_treat_chem_list[i-1]
             m.fs.add_component(
                 f"{prev}_to_{chem_name}",
                 Arc(
@@ -160,50 +150,22 @@ def add_wrd_connections(m):
                 ),
             )
 
-    # Connect last pre-UF chemical to UF
+    # Connect last pre treat chemical to UF_pump
     m.fs.add_component(
-        f"{m.fs.pre_UF_treat_chem_list[-1]}_to_UF",
+        f"{m.fs.pre_treat_chem_list[-1]}_to_UF",
         Arc(
             source=m.fs.find_component(
-                m.fs.pre_UF_treat_chem_list[-1] + "_addition"
+                m.fs.pre_treat_chem_list[-1] + "_addition"
             ).product.outlet,
             destination=m.fs.UF.feed.inlet,
         ),
     )
 
-    # Connect pre-ro chemical chain: feed -> chem1 -> chem2 -> ... -> ro_translator
-    for i in range(len(m.fs.pre_RO_treat_chem_list)):
-        chem_name = m.fs.pre_RO_treat_chem_list[i]
-        if i == 0:
-            # Connect feed to first chemical
-            m.fs.add_component(
-                "UF_to_" + chem_name,
-                Arc(
-                    source=m.fs.UF.feed.outlet,
-                    destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
-                ),
-            )
-        else:
-            # Connect each chemical to the next
-            prev = m.fs.pre_RO_treat_chem_list[i - 1]
-            m.fs.add_component(
-                f"{prev}_to_{chem_name}",
-                Arc(
-                    source=m.fs.find_component(prev + "_addition").product.outlet,
-                    destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
-                ),
-            )
-
-    # Connect last pre-RO chemical to RO translator
-    m.fs.add_component(
-        f"{m.fs.pre_RO_treat_chem_list[-1]}_to_translator",
-        Arc(
-            source=m.fs.find_component(
-                m.fs.pre_RO_treat_chem_list[-1] + "_addition"
-            ).product.outlet,
-            destination=m.fs.translator_ZO_to_RO.inlet,
-        ),
-    )
+    # Connect UF Pump to UF 
+    
+    # UF to RO translator
+    m.fs.UF_to_translator = Arc(
+        source=m.fs.UF.product.outlet, destination=m.fs.translator_ZO_to_RO.inlet)
 
     # Connect RO translator to RO
     m.fs.translator_to_ro = Arc(
@@ -309,31 +271,22 @@ def set_wrd_operating_conditions(m):
 def initialize_wrd_system(m):
     m.fs.feed.initialize()
     # Initialize pre-UF chemical chain
-    for i, chem_name in enumerate(m.fs.pre_UF_treat_chem_list):
+    for i, chem_name in enumerate(m.fs.pre_treat_chem_list):
         if i == 0:
             propagate_state(m.fs.find_component("feed_to_" + chem_name))
         else:
-            prev = m.fs.pre_UF_treat_chem_list[i - 1]
+            prev = m.fs.pre_treat_chem_list[i - 1]
             propagate_state(m.fs.find_component(prev + "_to_" + chem_name))
 
         init_chem_addition(m.fs.find_component(chem_name + "_addition"))
 
     # propagate from last pre-UF chemical to UF
-    propagate_state(m.fs.find_component(m.fs.pre_UF_treat_chem_list[-1] + "_to_UF"))
+    propagate_state(m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_UF"))
     init_UF(m.fs.UF)
-
-    # initialize first pre-RO and chained pre-ROs
-    for i, chem_name in enumerate(m.fs.pre_RO_treat_chem_list):
-        if i == 0:
-            propagate_state(m.fs.find_component("UF_to_" + chem_name))
-        else:
-            prev = m.fs.pre_RO_treat_chem_list[i - 1]
-            propagate_state(m.fs.find_component(prev + "_to_" + chem_name))
-        init_chem_addition(m.fs.find_component(chem_name + "_addition"))
 
     # propagate last pre-RO to translator
     propagate_state(
-        m.fs.find_component(m.fs.pre_RO_treat_chem_list[-1] + "_to_translator")
+        m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_translator")
     )
 
     m.fs.translator_ZO_to_RO.initialize()
