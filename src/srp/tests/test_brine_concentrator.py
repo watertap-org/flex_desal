@@ -5,7 +5,7 @@ from pyomo.environ import value
 import srp.components.brine_concentrator as bc
 
 
-# NOTE: 12/11/2025 - tests aren't passing on linux; 
+# NOTE: 12/11/2025 - tests aren't passing on linux;
 # the tested values below are the result of optimization and *not* validated against
 # plant data because no data is available.
 
