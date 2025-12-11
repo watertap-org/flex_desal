@@ -31,7 +31,7 @@ __author__ = "Zachary Binger"
 @declare_process_block_class("TranslatorNaCltoZO")
 class TranslatorZOtoNaClData(TranslatorData):
     """
-    Translator block for converting from to NaCl to ZO TDS 
+    Translator block for converting from to NaCl to ZO TDS
     """
 
     CONFIG = TranslatorData.CONFIG()
@@ -59,8 +59,8 @@ class TranslatorZOtoNaClData(TranslatorData):
                 == blk.properties_out[t].flow_mass_comp["tds"]
             )
 
-        #self.properties_out[0].pressure.fix(101325)
-        #self.properties_out[0].temperature.fix(298.15)
+        # self.properties_out[0].pressure.fix(101325)
+        # self.properties_out[0].temperature.fix(298.15)
 
     def initialize_build(
         self,
@@ -131,4 +131,3 @@ class TranslatorZOtoNaClData(TranslatorData):
                 f"{self.name} failed to initialize successfully. Please check "
                 f"the output logs for more information."
             )
- 

@@ -117,15 +117,15 @@ def add_costing(m):
     )
     # Add custom chemical cost
     m.fs.costing.sodium_hypochlorite_cost = Param(
-        initialize= 21,
+        initialize=21,
         units=pyunits.USD_2018 / pyunits.kg,
-        doc="Custom cleaning chemical cost"
+        doc="Custom cleaning chemical cost",
     )
     # Register as a flow type
     m.fs.costing.register_flow_type(
-        "sodium_hypochlorite",
-        m.fs.costing.sodium_hypochlorite_cost
+        "sodium_hypochlorite", m.fs.costing.sodium_hypochlorite_cost
     )
+
 
 def add_chem_addition_costing(m, blk, flowsheet_costing_block=None):
     if flowsheet_costing_block is None:

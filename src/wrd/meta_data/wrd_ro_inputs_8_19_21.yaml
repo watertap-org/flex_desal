@@ -64,7 +64,7 @@ pumps:
 # PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
 # A and B coefficients for the RO system from Josh estimates
 reverse_osmosis_1d:
-  number_of_trains: 4  # unitless
+  number_of_trains: 1  # unitless
   stage_1:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s

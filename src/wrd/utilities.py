@@ -70,7 +70,7 @@ def get_config_file(yaml_name):
     return config_file_name
 
 
-def get_chem_list(yaml_name,section):
+def get_chem_list(yaml_name, section):
     # Section must be "pre_treatment" or "post_treatment"
     chem_list = []
     config_file_name = get_config_file(yaml_name)
@@ -78,6 +78,5 @@ def get_chem_list(yaml_name,section):
     if section in config:
         for subsection in config[section]:
             chem_list.append(subsection)
-        #chem_list.remove("default")           
+        # chem_list.remove("default")
     return chem_list
-        
