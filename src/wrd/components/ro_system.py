@@ -7,7 +7,7 @@ from pyomo.environ import (
     value,
     TransformationFactory,
 )
-
+from pyomo.network import Arc
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -19,9 +19,12 @@ from idaes.models.unit_models import (
     Separator,
     StateJunction,
 )
-
-from pyomo.network import Arc
 import idaes.core.util.scaling as iscale
+from idaes.core.util.scaling import (
+    constraint_scaling_transform,
+    calculate_scaling_factors,
+    set_scaling_factor,
+)
 
 from watertap.unit_models.reverse_osmosis_1D import (
     ReverseOsmosis1D,
@@ -34,11 +37,6 @@ from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-from idaes.core.util.scaling import (
-    constraint_scaling_transform,
-    calculate_scaling_factors,
-    set_scaling_factor,
-)
 
 from wrd.components.pump import (
     build_wrd_pump,
@@ -47,6 +45,7 @@ from wrd.components.pump import (
     add_pump_scaling,
 )
 from wrd.utilities import load_config, get_config_value, get_config_file
+from models.head_loss import HeadLoss
 
 
 def relax_bounds_for_low_salinity_waters(blk):
@@ -205,7 +204,7 @@ def build_ro_train(blk, prop_package=None):
     for i in range(1, (blk.number_stages + 1)):  # blk is one train
         if i == 3:
             # Below is not an actual pump and its power will not be costed
-            blk.stage_3_head_loss = Pump(property_package=prop_package)
+            blk.stage_3_head_loss = HeadLoss(property_package=prop_package)
 
         blk.add_component(f"pump{i}", FlowsheetBlock(dynamic=False))
         build_wrd_pump(
@@ -297,7 +296,7 @@ def set_ro_system_op_conditions(blk):
                 P_drop = get_config_value(
                     blk.config_data, "add_head_loss", "reverse_osmosis_1d", f"stage_{s}"
                 )
-                train.stage_3_head_loss.deltaP.fix(P_drop)
+                train.stage_3_head_loss.control_volume.deltaP.fix(P_drop)
 
             # Set RO configuration for each stage
             ro_stage = train.find_component(f"ro_stage_{s}")
