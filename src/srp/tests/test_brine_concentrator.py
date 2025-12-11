@@ -1,10 +1,12 @@
 import pytest
 
-from pyomo.environ import value, units as pyunits
+from pyomo.environ import value
 
 import srp.components.brine_concentrator as bc
 
 
+# NOTE: 12/11/2025 - the tested values are the result of optimization and *not* validated against
+# plant data because no data is available.
 @pytest.mark.component
 def test_brine_concentrator_95_recov():
     m = bc.main(recovery_vol=0.95)

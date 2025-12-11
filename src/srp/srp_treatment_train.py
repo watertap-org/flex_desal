@@ -11,7 +11,7 @@ from pyomo.environ import (
     units as pyunits,
 )
 from pyomo.network import Arc
-from pyomo.util.calc_var_value import calculate_variable_from_constraint as cvc
+from pyomo.util.calc_var_value import calculate_variable_from_constraint
 
 from idaes.core import FlowsheetBlock
 from idaes.core.util.initialization import propagate_state
@@ -44,6 +44,17 @@ __all__ = [
 ]
 
 solver = get_solver()
+
+"""
+NOTE: 12/11/2025, KAS
+This file contains a working flowsheet for the SRP facility for the '100% Generation` 
+scenario as presented in 'SRP Gila River - Water and Material Balance Final.xlsx`.
+Other scenarios from that spreadsheet have not been constructed.
+
+The 'basic' build uses simple separators for BCs. The full build uses the detailed BC models.
+
+The flowsheet is not yet fully validated against plant data and should be considered preliminary.
+"""
 
 
 def build_srp(
@@ -919,6 +930,7 @@ def print_stream_flows(m, w=30):
             print(f'{"Outlet Pressure":<{w}s}{f"{pressure:<{w},.1f}"}{"bar":<{w}s}')
             print(f'{"Outlet Flow":<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}')
             print(f'{"Outlet TDS":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
+
     for bc_label in m.BCs:
         bc_fs = m.fs.find_component(bc_label)
         try:
