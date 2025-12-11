@@ -17,6 +17,7 @@ from watertap.core.solvers import get_solver
 from idaes.core.util.config import is_physical_parameter_block
 from idaes.core.util.exceptions import InitializationError
 import idaes.logger as idaeslog
+from idaes.core.util.misc import add_object_reference
 
 from watertap.core import InitializationMixin
 from watertap.core.control_volume_isothermal import (
@@ -172,6 +173,8 @@ class HeadLossData(InitializationMixin, UnitModelBlockData):
 
         self.add_inlet_port(name="inlet", block=self.control_volume)
         self.add_outlet_port(name="outlet", block=self.control_volume)
+
+        add_object_reference(self, "deltaP", self.control_volume.deltaP)
 
     def initialize_build(
         self,
