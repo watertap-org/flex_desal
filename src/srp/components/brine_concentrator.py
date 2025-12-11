@@ -14,6 +14,7 @@ from pyomo.environ import (
 from pyomo.network import Arc, SequentialDecomposition
 
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
+from idaes.core.solvers import get_solver as get_idaes_solver
 from idaes.core.util.initialization import propagate_state
 import idaes.core.util.scaling as iscale
 from idaes.models.unit_models import (
@@ -74,6 +75,7 @@ def solve_bc(blk, tee=False):
         print(f"termination MVC {results.solver.termination_condition}")
         assert_optimal_termination(results)
     except:
+        solver = get_idaes_solver()
         results = solver.solve(blk, tee=tee)
         print(f"termination MVC {results.solver.termination_condition}")
         assert_optimal_termination(results)
