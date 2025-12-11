@@ -10,11 +10,13 @@ import srp.components.pump as pump
 @pytest.mark.component
 def test_pump_main():
     m = pump.main()
-    assert pytest.approx(value(m.fs.pump.unit.work_mechanical[0]),  rel=1e-3) == 2068033.68
+    assert (
+        pytest.approx(value(m.fs.pump.unit.work_mechanical[0]), rel=1e-3) == 2068033.68
+    )
 
 
 @pytest.mark.component
-def test_pump_operation():
+def test_pump_set_operation():
     m = pump.build_system()
     pump.set_system_scaling(m)
     pump.set_system_op_conditions(m)
