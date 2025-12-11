@@ -35,10 +35,10 @@ from wrd.components.translator_NaCl_to_ZO import TranslatorNaCltoZO
 from wrd.components.ro_system import *
 from wrd.components.decarbonator import *
 from wrd.components.uv_aop import *
-from wrd.utilities import get_chem_list
+from wrd.utilities import load_config, get_config_file, get_config_value
 
 
-def build_wrd_system(**kwargs):
+def build_wrd_system(number_stages=3, **kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
 
@@ -46,8 +46,11 @@ def build_wrd_system(**kwargs):
     dir_path = os.path.dirname(os.path.abspath(__file__))
     m.db = Database(dbpath=os.path.join(dir_path, "meta_data"))
 
-    m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
+    config_file_name = get_config_file("wrd_feed_flow.yaml")
+    m.fs.config_data = load_config(config_file_name)
 
+    # ZO Properties
+    m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
     # RO properties
     m.fs.ro_properties = NaClParameterBlock()
 
@@ -130,12 +133,10 @@ def build_wrd_system(**kwargs):
         + list(m.fs.pre_RO_treat_chem_list)
         + list(m.fs.post_treat_chem_list)
     )
-
     return m
 
 
-def add_connections(m):
-
+def add_wrd_connections(m):
     # Connect pre-UF chemical chain: feed -> chem1 -> chem2 -> ... -> UF
     for i in range(len(m.fs.pre_UF_treat_chem_list)):
         chem_name = m.fs.pre_UF_treat_chem_list[i]
@@ -265,12 +266,32 @@ def add_connections(m):
 def set_wrd_inlet_conditions(m):
     # Inlet conditions
     number_trains = m.fs.ro_system.number_trains
+    Qin = get_config_value(
+        m.fs.config_data,
+        "feed_flow_water",
+        "feed_stream",
+    )
+
+    Cin = get_config_value(
+        m.fs.config_data, "feed_conductivity", "feed_stream"
+    ) * get_config_value(
+        m.fs.config_data, "feed_conductivity_conversion", "feed_stream"
+    )
+
+    # Would like to load Pin and Tin as well once property model is changed.
+
+    rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
+    feed_mass_flow_water = Qin * rho
+    feed_mass_flow_salt = Cin * Qin
 
     m.fs.feed.properties[0].flow_mass_comp["H2O"].fix(
-        number_trains * 174
+        number_trains * feed_mass_flow_water
     )  # Fix feed water flow rate
-    m.fs.feed.properties[0].flow_mass_comp["tds"].fix(0.05)  # Fix feed salt flow rate
-    m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0.1)  # Fix feed salt flow rate
+    # Not sure this is correct way to translate salinate to tds and tss
+    m.fs.feed.properties[0].flow_mass_comp["tds"].fix(
+        feed_mass_flow_salt
+    )  # Fix feed salt flow rate
+    m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0)  # Fix feed salt flow rate
 
 
 def set_wrd_operating_conditions(m):
@@ -279,7 +300,6 @@ def set_wrd_operating_conditions(m):
         set_chem_addition_op_conditions(
             blk=m.fs.find_component(chem_name + "_addition")
         )
-
     set_UF_op_conditions(m.fs.UF)
     set_ro_system_op_conditions(m.fs.ro_system)
     set_uv_aop_op_conditions(m.fs.UV_aop)
@@ -287,7 +307,6 @@ def set_wrd_operating_conditions(m):
 
 
 def initialize_wrd_system(m):
-
     m.fs.feed.initialize()
     # Initialize pre-UF chemical chain
     for i, chem_name in enumerate(m.fs.pre_UF_treat_chem_list):
@@ -377,22 +396,41 @@ def solve(model, solver=None, tee=True, raise_on_failure=True):
         return results
 
 
-if __name__ == "__main__":
-    m = build_wrd_system()
-    add_connections(m)
+def main(number_stages=3, date="8_19_21"):
+    m = build_wrd_system(number_stages=number_stages, date=date)
+    add_wrd_connections(m)
     set_wrd_inlet_conditions(m)
     set_wrd_operating_conditions(m)
     set_wrd_system_scaling(m)
     calculate_scaling_factors(m)
     initialize_wrd_system(m)
-    m.fs.ro_system.feed.display()
-
-    # assert False
-
     try:
         results = solve(m)
         assert_optimal_termination(results)
     except:
         print_infeasible_constraints(m)
+    return m
 
-    # report_wrd(m)
+
+if __name__ == "__main__":
+    number_stages = 3
+    date = "8_19_21"
+    main(number_stages=number_stages, date=date)
+    # m = build_wrd_system(number_stages=number_stages, date=date)
+    # add_connections(m)
+    # set_wrd_inlet_conditions(m)
+    # set_wrd_operating_conditions(m)
+    # set_wrd_system_scaling(m)
+    # calculate_scaling_factors(m)
+    # initialize_wrd_system(m)
+    # m.fs.ro_system.feed.display()
+
+    # # assert False
+
+    # try:
+    #     results = solve(m)
+    #     assert_optimal_termination(results)
+    # except:
+    #     print_infeasible_constraints(m)
+
+    # # report_wrd(m)

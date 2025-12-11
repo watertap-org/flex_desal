@@ -78,7 +78,7 @@ def relax_bounds_for_low_salinity_waters(blk):
             blk.flux_mass_phase_comp[e].setub(0.999)
 
 
-def build_system(**kwargs):
+def build_system(number_stages=3, date=None, **kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
@@ -87,9 +87,7 @@ def build_system(**kwargs):
     return m
 
 
-def build_wrd_ro_system(
-    blk, prop_package=None, number_trains=1, number_stages=3, date="8_19_21"
-):
+def build_wrd_ro_system(blk, prop_package=None, number_stages=3, date="8_19_21"):
     """
     Build reverse osmosis system for WRD
     """

@@ -34,7 +34,7 @@ def build_system(**kwargs):
     m.fs.ro_properties = NaClParameterBlock()
     m.fs.feed = Feed(property_package=m.fs.ro_properties)
     m.fs.uv_aop_system = FlowsheetBlock(dynamic=False)
-    build_uv_aop(m.fs.uv_aop_system, prop_package=m.fs.ro_properties, **kwargs)
+    build_uv_aop(m.fs.uv_aop_system, prop_package=m.fs.ro_properties)
     m.fs.feed_to_unit = Arc(
         source=m.fs.feed.outlet, destination=m.fs.uv_aop_system.feed.inlet
     )
