@@ -7,7 +7,7 @@ name = "flex_desal_analysis"
 readme = "README.md"
 version = "0.1.0"
 description = "Python package for conducting analysis for NAWI 3.25"
-requires-python = ">=3.9"
+requires-python = ">=3.10,<3.11"
 dependencies = [
     "watertap-reflo>=0.2"
 ]

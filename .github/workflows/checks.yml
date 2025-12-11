@@ -1,6 +1,3 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
 name: Checks
 
 on:
@@ -10,18 +7,11 @@ on:
     branches: [main]
 
 concurrency:
-  # NOTE: the value of `group` should be chosen carefully,
-  # otherwise we might end up over- or under-canceling workflow runs
-  # github.head_ref is only defined for pull request events
-  # so, if it's not present (i.e. event was triggered by push)
-  # we use github.ref instead
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 defaults:
   run:
-    # important to make sure that all commands on Windows are run using Bash
-    # -l: login shell, needed when using Conda
     shell: bash -l {0}
 
 env:
@@ -35,94 +25,49 @@ jobs:
 
   code-formatting:
     name: Check code is formatted (Black)
-    # OS and/or Python version don't make a difference, so we choose ubuntu and 3.8 as defaults
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
       - name: Install Black
-        # unlike the other jobs, we don't need to install WaterTAP and/or all the dev dependencies,
-        # but we still want to specify the Black version to use in requirements-dev.txt for local development
-        # so we extract the relevant line and pass it to a simple `pip install`
         run: |
           black_requirement="$(grep '^black==' requirements.txt)"
-          pip --no-cache-dir install "$black_requirement"
-      - name: Run Black to verify that the committed code is formatted
-        run: |
-          black --check .
-
-#   pylint:
-#     name: Code linting (pylint)
-#     runs-on: ubuntu-latest
-#     needs: [code-formatting]
-#     steps:
-#       - uses: actions/checkout@v4
-#       - uses: actions/setup-python@v5
-#         with:
-#           python-version: '3.11'
-#       - name: Install dev dependencies
-#         run: |
-#           pip install -r requirements.txt
-#           pip list
-#       - name: Run pylint
-#         run: |
-#           pylint watertap
+          pip install "$black_requirement"
+      - name: Run Black
+        run: black --check .
 
   tests:
-    name: Tests (py${{ matrix.python-version }}/${{ matrix.os }})
-    runs-on: ${{ matrix.os-version }}
+    name: Tests (Python 3.10)
     needs: [code-formatting]
     strategy:
-      fail-fast: false
       matrix:
-        python-version:
-          - '3.9'
-          - '3.10'
-          - '3.11'
-        os:
-          - linux
-          - win64
-        #   - macos
-        include:
-          - os: linux
-            os-version: ubuntu-22.04
-          - os: win64
-            os-version: windows-2022
-        #   - os: macos
-        #     os-version: macos-10.15
-          - python-version: '3.10'
-            # limit uploading coverage report for a single Python version in the matrix
-            coverage: true
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: conda-incubator/setup-miniconda@v3
-      with:
-        activate-environment: flex_desal_analysis
-        python-version: ${{ matrix.python-version }}
-        miniforge-version: latest
-    - name: Install dependencies
-      run: |
-        echo '::group::Output of "conda install" commands'
-        conda install --quiet --yes pip setuptools wheel pandoc
-        echo '::endgroup::'
-        echo '::group::Output of "pip install" commands'
-        pip install -r requirements.txt
-        echo '::endgroup::'
-        echo '::group::Output of "conda install -c conda-forge cyipopt" command'
-        conda install -c conda-forge cyipopt
-        echo '::endgroup::'
-        echo '::group::Display installed packages'
-        conda list
-        pip list
-        pip show idaes-pse
-        echo '::endgroup::'
-        echo '::group::Output of "idaes get-extensions" command'
-        idaes get-extensions --extra petsc --verbose
-        echo '::endgroup::'
-    - name: Run pytest
-      run: |
-        pytest -vv
+        # os: [ubuntu-22.04, macos-12, windows-2022]
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
 
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Conda environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: flex_desal_analysis
+          environment-file: flex_desal_analysis_setup.yml
+          auto-update-conda: false
+
+      - name: Display installed packages
+        run: |
+          conda list
+          pip list
+
+      - name: Install IDAES extensions
+        run: |
+          echo '::group::Installing IDAES extensions'
+          idaes get-extensions
+          echo '::endgroup::'
+
+      - name: Run tests
+        run: pytest -vv
