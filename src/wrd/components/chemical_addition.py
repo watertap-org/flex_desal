@@ -1,4 +1,4 @@
-import pathlib
+import os
 from pyomo.environ import (
     ConcreteModel,
     value,
@@ -44,13 +44,16 @@ def build_system():
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-
-    m.db = Database(dbpath="src/wrd/meta_data")
+    current_script_path = os.path.abspath(__file__)
+    current_directory = os.path.dirname(current_script_path)
+    parent_directory = os.path.dirname(current_directory)
+    dbpath = os.path.join(parent_directory, "meta_data")
+    m.db = Database(dbpath=dbpath)
     m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
 
     m.fs.chem_addition = FlowsheetBlock(dynamic=False)
 
-    build_chem_addition(m.fs.chem_addition, "ammonia", m.fs.properties)
+    build_chem_addition(m.fs.chem_addition, "sodium_hypochlorite", m.fs.properties)
 
     TransformationFactory("network.expand_arcs").apply_to(m)
 
@@ -91,7 +94,6 @@ def set_system_conditions(blk):
 
 
 def set_chem_addition_scaling(blk, calc_blk_scaling_factors=False):
-
     set_scaling_factor(blk.unit.chemical_dosage, 0.1)
     set_scaling_factor(blk.unit.solution_density, 1e-3)
     set_scaling_factor(blk.unit.chemical_flow_vol, 1e6)
@@ -112,6 +114,16 @@ def set_chem_addition_op_conditions(blk, **kwargs):
 def add_costing(m):
     m.fs.costing = ZeroOrderCosting(
         case_study_definition="src/wrd/meta_data/wrd_case_study.yaml"
+    )
+    # Add custom chemical cost
+    m.fs.costing.sodium_hypochlorite_cost = Param(
+        initialize=21,
+        units=pyunits.USD_2018 / pyunits.kg,
+        doc="Custom cleaning chemical cost",
+    )
+    # Register as a flow type
+    m.fs.costing.register_flow_type(
+        "sodium_hypochlorite", m.fs.costing.sodium_hypochlorite_cost
     )
 
 
@@ -186,8 +198,8 @@ def main():
     m.fs.costing.initialize()
 
     solve(m)
-
     m.fs.costing.display()
+    m.fs.costing.sodium_hypochlorite_cost.display()
 
 
 if __name__ == "__main__":
