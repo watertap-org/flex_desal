@@ -1,4 +1,10 @@
-from pyomo.environ import ConcreteModel, TransformationFactory, value, units as pyunits
+from pyomo.environ import (
+    ConcreteModel,
+    TransformationFactory,
+    value,
+    assert_optimal_termination,
+    units as pyunits,
+)
 from pyomo.network import Arc
 
 from idaes.core import FlowsheetBlock
@@ -122,7 +128,10 @@ def main():
     print(f"dof = {degrees_of_freedom(m)}")
     init_product(m.fs.product)
     results = solver.solve(m)
+    assert_optimal_termination(results)
+
+    return m
 
 
 if __name__ == "__main__":
-    main()
+    m = main()

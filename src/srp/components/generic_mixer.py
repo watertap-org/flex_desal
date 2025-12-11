@@ -198,6 +198,8 @@ def main():
     results = solver.solve(m)
     assert_optimal_termination(results)
 
+    return m
+
 
 if __name__ == "__main__":
-    main()
+    m = main()

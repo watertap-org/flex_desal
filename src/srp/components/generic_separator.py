@@ -273,6 +273,8 @@ def main():
     print(f"dof = {degrees_of_freedom(m)}")
     report_separator(m.fs.separator.unit)
 
+    return m
+
 
 if __name__ == "__main__":
-    main()
+    m = main()

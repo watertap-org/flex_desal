@@ -232,7 +232,10 @@ def main():
     init_system(m)
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
+    assert_optimal_termination(results)
+
+    return m
 
 
 if __name__ == "__main__":
-    main()
+    m = main()
