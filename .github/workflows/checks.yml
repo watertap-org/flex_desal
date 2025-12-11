@@ -48,6 +48,7 @@ jobs:
           miniforge-version: latest
           activate-environment: flex_desal_analysis
           environment-file: flex_desal_analysis_setup.yml
+          auto-update-conda: false
 
       - name: Display installed packages
         run: |
