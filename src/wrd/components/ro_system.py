@@ -83,7 +83,7 @@ def build_system(number_stages=3, date=None, **kwargs):
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
     m.fs.ro_system = FlowsheetBlock(dynamic=False)
-    build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties, **kwargs)
+    build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties)
     return m
 
 
