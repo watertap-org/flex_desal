@@ -30,7 +30,7 @@ def test_pump_PRO_S2_8_19():
 
 @pytest.mark.component
 def test_pump_TRO_8_19():
-    expected_power = 29.3 * pyunits.kW # kW
+    expected_power = 29.3 * pyunits.kW  # kW
     m = main(stage_num=3, date="8_19_21")
     power = pyunits.convert(
         m.fs.pump_system.pump.work_mechanical[0], to_units=pyunits.kW
@@ -41,7 +41,7 @@ def test_pump_TRO_8_19():
 
 @pytest.mark.component
 def test_pump_PRO_S1_3_13():
-    expected_power = 189.6 * pyunits.kW 
+    expected_power = 189.6 * pyunits.kW
     m = main(stage_num=1, date="3_13_21")
     power = pyunits.convert(
         m.fs.pump_system.pump.work_mechanical[0], to_units=pyunits.kW
@@ -53,7 +53,7 @@ def test_pump_PRO_S1_3_13():
 @pytest.mark.component
 def test_pump_PRO_S2_3_13():
     extra_load = 3 * pyunits.kW
-    expected_power = 22.8 * pyunits.kW - extra_load 
+    expected_power = 22.8 * pyunits.kW - extra_load
     m = main(stage_num=2, date="3_13_21")
     power = pyunits.convert(
         m.fs.pump_system.pump.work_mechanical[0], to_units=pyunits.kW
@@ -64,7 +64,7 @@ def test_pump_PRO_S2_3_13():
 
 @pytest.mark.component
 def test_pump_TRO_3_13():
-    expected_power = 24.9 * pyunits.kW 
+    expected_power = 24.9 * pyunits.kW
     m = main(stage_num=3, date="2_20_21")
     power = pyunits.convert(
         m.fs.pump_system.pump.work_mechanical[0], to_units=pyunits.kW

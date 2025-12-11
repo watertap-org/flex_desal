@@ -120,14 +120,15 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
         efficiency_motor = 0.962
         efficiency_vfd = 0.97
     elif stage_num == 2:
-        efficiency_motor = 0.938 # Likely these numbers are lower (due to elevated temperatures ?)
+        efficiency_motor = (
+            0.938  # Likely these numbers are lower (due to elevated temperatures ?)
+        )
         efficiency_vfd = 0.97
     elif stage_num == 3:
         # Making same as stage 2 for now
         efficiency_motor = 0.938
         efficiency_vfd = 0.97
-    
-    
+
     blk.pump.efficiency_motor = Param(
         initialize=efficiency_motor,
         mutable=True,
@@ -144,7 +145,9 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
 
     blk.pump.efficiency_electrical = Constraint(
         expr=blk.pump.efficiency_pump[0]
-        == blk.pump.efficiency_fluid * blk.pump.efficiency_motor * blk.pump.efficiency_vfd
+        == blk.pump.efficiency_fluid
+        * blk.pump.efficiency_motor
+        * blk.pump.efficiency_vfd
     )
 
     # Add Arcs
@@ -242,8 +245,12 @@ def report_pump(blk, w=30):
     print(
         f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
     )
-    print(f'{f"Pressure Change (psi)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.psi)):<{w}.3e}{"psi"}')
-    print(f'{f"Head (ft)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.ftH2O)):<{w}.3e}{"ft"}')
+    print(
+        f'{f"Pressure Change (psi)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.psi)):<{w}.3e}{"psi"}'
+    )
+    print(
+        f'{f"Head (ft)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.ftH2O)):<{w}.3e}{"ft"}'
+    )
     print(
         f'{f"Pressure Change (bar)":<{w}s}{value(pyunits.convert(deltaP,to_units=pyunits.bar)):<{w}.3e}{"bar"}'
     )
