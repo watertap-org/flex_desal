@@ -1,16 +1,13 @@
 from pyomo.environ import (
     ConcreteModel,
-    Param,
-    Objective,
     Expression,
-    check_optimal_termination,
     value,
     assert_optimal_termination,
     units as pyunits,
     value,
     TransformationFactory,
 )
-
+from pyomo.network import Arc
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -20,15 +17,14 @@ from idaes.models.unit_models import (
     MomentumMixingType,
     Mixer,
     Separator,
-    Product,
-    Feed,
     StateJunction,
 )
-
-from pyomo.network import Arc
 import idaes.core.util.scaling as iscale
-
-from watertap.unit_models.pressure_changer import Pump, EnergyRecoveryDevice
+from idaes.core.util.scaling import (
+    constraint_scaling_transform,
+    calculate_scaling_factors,
+    set_scaling_factor,
+)
 
 from watertap.unit_models.reverse_osmosis_1D import (
     ReverseOsmosis1D,
@@ -38,76 +34,18 @@ from watertap.unit_models.reverse_osmosis_1D import (
 )
 from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
+from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-from idaes.core.util.scaling import (
-    constraint_scaling_transform,
-    calculate_scaling_factors,
-    set_scaling_factor,
-    list_badly_scaled_variables,
-    extreme_jacobian_rows,
+
+from wrd.components.pump import (
+    build_wrd_pump,
+    initialize_pump,
+    set_pump_op_conditions,
+    add_pump_scaling,
 )
-
-import yaml
-import os
-
-
-solver = get_solver()
-
-
-def load_config(config):
-    with open(config, "r") as file:
-        return yaml.safe_load(file)
-
-
-def get_config_value(
-    config,
-    key,
-    section,
-    subsection=None,
-):
-    """
-    Get a value from the configuration file.
-    """
-
-    if section in config:
-        if subsection:
-            if subsection in config[section]:
-                if key in config[section][subsection]:
-                    if (
-                        isinstance(config[section][subsection][key], dict)
-                        and "value" in config[section][subsection][key]
-                        and "units" in config[section][subsection][key]
-                    ):
-                        return config[section][subsection][key]["value"] * getattr(
-                            pyunits, config[section][subsection][key]["units"]
-                        )
-                    return config[section][subsection][key]
-                else:
-                    raise KeyError(
-                        f"Key '{key}' not found in subsection '{subsection}' of section '{section}' of the configuration."
-                    )
-            else:
-                raise KeyError(
-                    f"Section '{section}' or subsection '{subsection}' not found in the configuration."
-                )
-        else:
-            if key in config[section]:
-                if (
-                    isinstance(config[section][key], dict)
-                    and "value" in config[section][key]
-                    and "units" in config[section][key]
-                ):
-                    return config[section][key]["value"] * getattr(
-                        pyunits, config[section][key]["units"]
-                    )
-                return config[section][key]
-            else:
-                raise KeyError(
-                    f"Key '{key}' not found in section '{section}' of the configuration."
-                )
-    else:
-        raise KeyError(f"Section '{section}' not found in the configuration.")
+from wrd.utilities import load_config, get_config_value, get_config_file
+from models.head_loss import HeadLoss
 
 
 def relax_bounds_for_low_salinity_waters(blk):
@@ -144,19 +82,17 @@ def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.ro_properties = NaClParameterBlock()
-
     m.fs.ro_system = FlowsheetBlock(dynamic=False)
-
-    build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties, **kwargs)
-
+    build_wrd_ro_system(m.fs.ro_system, prop_package=m.fs.ro_properties)
     return m
 
 
-def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3):
+def build_wrd_ro_system(
+    blk, prop_package=None, number_trains=1, number_stages=3, date="8_19_21"
+):
     """
     Build reverse osmosis system for WRD
     """
-
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
@@ -171,7 +107,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
         outlet_list=[f"train_{i+1}_feed" for i in range(number_trains)],
     )
 
-    blk.permeate = Product(property_package=prop_package)
+    blk.permeate = StateJunction(property_package=prop_package)
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[f"train_{i+1}_permeate" for i in range(number_trains)],
@@ -179,7 +115,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
         momentum_mixing_type=MomentumMixingType.minimize,
     )
 
-    blk.brine = Product(property_package=prop_package)
+    blk.brine = StateJunction(property_package=prop_package)
     blk.brine_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[f"train_{i+1}_brine" for i in range(number_trains)],
@@ -202,16 +138,8 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
             / b.feed.properties[0].flow_vol_phase["Liq"]
         )
 
-    # WRD RO configurations input file. References to all values included in yml file
-    # Get the absolute path of the current script
-    current_script_path = os.path.abspath(__file__)
-    # Get the directory containing the current script
-    current_directory = os.path.dirname(current_script_path)
-    # Get the parent directory of the current directory (one folder prior)
-    parent_directory = os.path.dirname(current_directory)
-
-    config = parent_directory + "/meta_data/wrd_ro_inputs.yaml"
-    blk.config_data = load_config(config)
+    config_file_name = get_config_file("wrd_ro_inputs_" + date + ".yaml")
+    blk.config_data = load_config(config_file_name)
 
     total_power_consumption = 0
 
@@ -227,7 +155,7 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
             blk.feed_splitter.split_fraction[0, f"train_{i+1}_feed"].fix()
         splitter_outlet = blk.feed_splitter.find_component(f"train_{i+1}_feed")
 
-        add_ro_units(train, prop_package=prop_package)
+        build_ro_train(train, prop_package=prop_package)
         total_power_consumption += train.train_power_consumption
         add_ro_connections(train)
 
@@ -262,11 +190,10 @@ def build_wrd_ro_system(blk, prop_package=None, number_trains=4, number_stages=3
     print("Degrees of freedom after adding units:", degrees_of_freedom(blk))
 
 
-def add_ro_units(blk, prop_package=None):
+def build_ro_train(blk, prop_package=None):
     """
     Add RO units to a single RO train
     """
-
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.ro_properties
@@ -274,13 +201,17 @@ def add_ro_units(blk, prop_package=None):
     blk.feed = StateJunction(property_package=prop_package)
     blk.train_power_consumption = 0
 
-    for i in range(1, (blk.number_stages + 1)):
-        blk.add_component(
-            f"pump{i}",
-            Pump(property_package=prop_package),
+    for i in range(1, (blk.number_stages + 1)):  # blk is one train
+        if i == 3:
+            # Below is not an actual pump and its power will not be costed
+            blk.stage_3_head_loss = HeadLoss(property_package=prop_package)
+
+        blk.add_component(f"pump{i}", FlowsheetBlock(dynamic=False))
+        build_wrd_pump(
+            blk.find_component(f"pump{i}"), stage_num=i, prop_package=prop_package
         )
         blk.train_power_consumption += pyunits.convert(
-            blk.find_component(f"pump{i}").work_mechanical[0], to_units=pyunits.kW
+            blk.find_component(f"pump{i}").pump.work_mechanical[0], to_units=pyunits.kW
         )
         blk.add_component(
             f"ro_stage_{i}",
@@ -309,17 +240,29 @@ def add_ro_units(blk, prop_package=None):
         momentum_mixing_type=MomentumMixingType.minimize,
     )
     blk.power_consumption = Expression(expr=blk.train_power_consumption)
-
     blk.permeate = StateJunction(property_package=prop_package)
     blk.brine = StateJunction(property_package=prop_package)
 
 
-def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
+def set_inlet_conditions(blk):  # Default None to avoid units error
     """
-    Set the operation conditions for the RO system
+    Set the inlet conditions for the RO system. Only used for testing .
     """
-    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
-    Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
+    Qin = get_config_value(
+        blk.config_data,
+        "feed_flow_water",
+        "feed_stream",
+    )
+
+    Cin = get_config_value(
+        blk.config_data, "feed_conductivity", "feed_stream"
+    ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
+
+    Pin = get_config_value(
+        blk.config_data,
+        "feed_pressure",
+        "feed_stream",
+    )
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
@@ -327,7 +270,15 @@ def set_inlet_conditions(blk, Qin=0.154, Cin=0.542):
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
     blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
     blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed.properties[0].pressure.fix(101325 * pyunits.Pa)  # 1 bar
+    blk.feed.properties[0].pressure.fix(Pin)  # 2.4 bar (UF outlet)
+
+    m = blk.model()
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")  # changed from 1
+    )
+    m.fs.ro_properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
 
 
 def set_ro_system_op_conditions(blk):
@@ -339,22 +290,16 @@ def set_ro_system_op_conditions(blk):
         train = blk.find_component(f"train_{t}")
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
-
-            pump.control_volume.properties_out[0].pressure.fix(
-                get_config_value(
-                    blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{s}"
+            set_pump_op_conditions(pump)
+            # Set pressure drop between stages 2 and 3
+            if s == 3:
+                P_drop = get_config_value(
+                    blk.config_data, "add_head_loss", "reverse_osmosis_1d", f"stage_{s}"
                 )
-            )
-
-            pump.efficiency_pump.fix(
-                get_config_value(
-                    blk.config_data, "pump_efficiency", "pumps", f"pump_{s}"
-                )
-            )
+                train.stage_3_head_loss.control_volume.deltaP.fix(P_drop)
 
             # Set RO configuration for each stage
             ro_stage = train.find_component(f"ro_stage_{s}")
-
             ro_stage.A_comp.fix(
                 get_config_value(
                     blk.config_data, "A_comp", "reverse_osmosis_1d", f"stage_{s}"
@@ -398,7 +343,7 @@ def set_ro_system_op_conditions(blk):
                 )
             )
 
-            ro_stage.area.setub(1e6)
+            ro_stage.area.setub(1e6)  # These ubs make is equation feasible- A = L*W
             ro_stage.width.setub(1e5)
 
             ro_stage.area.fix(
@@ -442,19 +387,18 @@ def add_ro_connections(blk):
     """
     Add connections between the units in the RO system
     """
-
     # Connect feed to first pump
-    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.inlet)
+    blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.feed.inlet)
 
     for i in range(1, blk.number_stages + 1):
-
-        p_out = blk.find_component(f"pump{i}").outlet
+        pump_out = blk.find_component(f"pump{i}").product.outlet
         ro_in = blk.find_component(f"ro_stage_{i}").inlet
         ro_perm = blk.find_component(f"ro_stage_{i}").permeate
         blk.add_component(
             f"pump{i}_to_ro_stage_{i}",
-            Arc(source=p_out, destination=ro_in),
+            Arc(source=pump_out, destination=ro_in),
         )
+
         blk.add_component(
             f"ro_stage_{i}_to_permeate_mixer",
             Arc(
@@ -462,13 +406,23 @@ def add_ro_connections(blk):
                 destination=blk.permeate_mixer.find_component(f"ro_stage_{i}_permeate"),
             ),
         )
+        # Connections for the next stage
         if i != blk.number_stages:
             ro_out = blk.find_component(f"ro_stage_{i}").retentate
-            p_in = blk.find_component(f"pump{i+1}").inlet
-            blk.add_component(
-                f"ro_stage_{i}_to_pump{i+1}",
-                Arc(source=ro_out, destination=p_in),
-            )
+            pump_in = blk.find_component(f"pump{i+1}").feed.inlet
+            if blk.number_stages == 3 and i == 2:
+                blk.ro_2_to_head_loss = Arc(
+                    source=ro_out, destination=blk.stage_3_head_loss.inlet
+                )
+                blk.head_loss_to_pump_3 = Arc(
+                    source=blk.stage_3_head_loss.outlet, destination=pump_in
+                )
+            else:
+                blk.add_component(
+                    f"ro_stage_{i}_to_pump{i+1}",
+                    Arc(source=ro_out, destination=pump_in),
+                )
+
     # Connect permeate mixer to permeate product stream
     blk.permeate_mixer_to_permeate = Arc(
         source=blk.permeate_mixer.outlet, destination=blk.permeate.inlet
@@ -485,29 +439,19 @@ def add_ro_scaling(blk):
     """
     Add scaling to the units in the RO system
     """
-    m = blk.model()
 
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1, index=("Liq", "H2O")
-    )
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
-    )
     for t in range(1, blk.number_trains + 1):
         train = blk.find_component(f"train_{t}")
         for s in range(1, train.number_stages + 1):
-            pump = train.find_component(f"pump{s}")
-
-            set_scaling_factor(pump.control_volume.work, 1e-3)
-
-            ro_stage = train.find_component(f"ro_stage_{s}")
-
+            add_pump_scaling(train.find_component(f"pump{s}"))
             # Calculate RO scaling factors
+            ro_stage = train.find_component(f"ro_stage_{s}")
             set_scaling_factor(ro_stage.feed_side.length, 1e-1)
             set_scaling_factor(ro_stage.feed_side.width, 1e-3)
             set_scaling_factor(ro_stage.area, 1e-5)
             set_scaling_factor(ro_stage.feed_side.spacer_porosity, 1e-1)
             # set_scaling_factor(ro_stage.feed_side.channel_height, 1e-5)
+
             for i, x in ro_stage.feed_side.mass_transfer_term.items():
                 if i[3] == "NaCl":
                     set_scaling_factor(x, 1e4)
@@ -519,33 +463,43 @@ def add_ro_scaling(blk):
                 set_scaling_factor(c, 1e4)
             # constraint_scaling_transform(ro_stage.feed_side.eq_K, 1e4
 
-    calculate_scaling_factors(blk)
-
 
 def initialize_ro_system(blk):
+    # Touch any properties needed later
+    blk.permeate_mixer.train_1_permeate_state[0].flow_vol_phase["Liq"]
 
+    # Initialize
     blk.feed.initialize()
     propagate_state(blk.feed_to_feed_splitter)
 
     blk.feed_splitter.initialize()
 
     for t in range(1, blk.number_trains + 1):
-        splitter_out = blk.feed_splitter.find_component(f"train_{t}_feed")
         train = blk.find_component(f"train_{t}")
         splitter_to_train = train.find_component(f"feed_to_train_{t}")
         propagate_state(splitter_to_train)
         train.feed.initialize()
         propagate_state(train.feed_to_pump1)
-        train.pump1.initialize()
+        initialize_pump(train.find_component("pump1"))
         for s in range(1, (train.number_stages + 1)):
-            propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
-            stage = train.find_component(f"ro_stage_{s}")
-            relax_bounds_for_low_salinity_waters(stage)
-            stage.initialize()
-            if s != train.number_stages:
+            if s == 3:
+                propagate_state(train.ro_2_to_head_loss)
+                train.stage_3_head_loss.initialize()
+                propagate_state(train.head_loss_to_pump_3)
+                initialize_pump(train.find_component(f"pump{s}"))
+                propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
+                stage = train.find_component(f"ro_stage_{s}")
+                relax_bounds_for_low_salinity_waters(stage)
+                stage.initialize()
+            else:
+                propagate_state(train.find_component(f"pump{s}_to_ro_stage_{s}"))
+                stage = train.find_component(f"ro_stage_{s}")
+                relax_bounds_for_low_salinity_waters(stage)
+                stage.initialize()
+            if s == 1 and blk.number_stages != 1:
                 propagate_state(train.find_component(f"ro_stage_{s}_to_pump{s+1}"))
-                pump = train.find_component(f"pump{s+1}")
-                pump.initialize()
+                initialize_pump(train.find_component(f"pump{s+1}"))
+
             propagate_state(train.find_component(f"ro_stage_{s}_to_permeate_mixer"))
 
         train.permeate_mixer.initialize()
@@ -565,7 +519,7 @@ def initialize_ro_system(blk):
     blk.brine.initialize()
 
 
-def report_pump(blk, w=30):
+def report_ro_system(blk, w=30):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -573,45 +527,77 @@ def report_pump(blk, w=30):
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
 
+    powers_kW = {}
+    perm_flows_gpm = {}
     total_flow = 0
     total_power = 0
+    total_perm_flow = 0
+    total_recovery = blk.recovery
     for t in range(1, blk.number_trains + 1):
         train = blk.find_component(f"train_{t}")
+        total_perm_flow += blk.permeate_mixer.find_component(
+            f"train_{t}_permeate_state[0]"
+        ).flow_vol_phase["Liq"]
         for s in range(1, (train.number_stages + 1)):
             pump = train.find_component(f"pump{s}")
             title = f"Train {t}, Stage {s}"
             side = int(((3 * w) - len(title)) / 2) - 1
             header = "." * side + f" {title} " + "." * side
             if s == 1:
-                total_flow += pump.control_volume.properties_out[0].flow_vol
-            total_power += pyunits.convert(pump.work_mechanical[0], to_units=pyunits.kW)
+                total_flow += pump.product.properties[0].flow_vol_phase["Liq"]
+            total_power += pyunits.convert(
+                pump.pump.work_mechanical[0], to_units=pyunits.kW
+            )
+            stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[
+                0, "Liq"
+            ]
+            stage_perm = stage_rr * pump.product.properties[0].flow_vol_phase["Liq"]
+            rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
+            perm_sal = (
+                train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[
+                    0, "Liq", "NaCl"
+                ]
+                / train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[
+                    0, "Liq", "H2O"
+                ]
+                * rho
+            )
+            perm_flows_gpm[f"train_{t}_stage_{s}"] = value(
+                pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)
+            )
             print(f"\n{header}\n")
             print(
-                f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.control_volume.properties_out[0].flow_vol, to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
+                f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
             )
             print(
-                f'{f"Stage {s} Flow In (m3/s)":<{w}s}{value(pump.control_volume.properties_out[0].flow_vol):<{w}.3e}{"m3/s"}'
+                f'{f"Stage {s} Flow In (m3/s)":<{w}s}{value(pump.product.properties[0].flow_vol_phase["Liq"]):<{w}.3e}{"m3/s"}'
             )
             print(
-                f'{f"Stage {s} Flow In (gpm)":<{w}s}{value(pyunits.convert(pump.control_volume.properties_out[0].flow_vol, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+                f'{f"Stage {s} Flow In (gpm)":<{w}s}{value(pyunits.convert(pump.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
             )
             print(
-                f'{f"Stage {s} Pump Pressure In":<{w}s}{value(pyunits.convert(pump.control_volume.properties_in[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
+                f'{f"Stage {s} Pump Pressure In":<{w}s}{value(pyunits.convert(pump.feed.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
             )
             print(
-                f'{f"Stage {s} Pump Pressure Out":<{w}s}{value(pyunits.convert(pump.control_volume.properties_out[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
+                f'{f"Stage {s} Pump Pressure Out":<{w}s}{value(pyunits.convert(pump.product.properties[0].pressure, to_units=pyunits.psi)):<{w}.1f}{"psi"}'
             )
             print(
-                f'{f"Stage {s} Pump ∆P (psi)":<{w}s}{value(pyunits.convert(pump.control_volume.deltaP[0], to_units=pyunits.psi)):<{w}.1f}{"psi"}'
+                f'{f"Stage {s} Pump ∆P (psi)":<{w}s}{value(pyunits.convert(pump.pump.control_volume.deltaP[0], to_units=pyunits.psi)):<{w}.1f}{"psi"}'
             )
             print(
-                f'{f"Stage {s} Pump ∆P (Pa)":<{w}s}{value(pump.control_volume.deltaP[0]):<{w}.1f}{"Pa"}'
+                f'{f"Stage {s} Pump ∆P (Pa)":<{w}s}{value(pump.pump.control_volume.deltaP[0]):<{w}.1f}{"Pa"}'
             )
             print(
-                f'{f"Stage {s} Pump Work Fluid":<{w}s}{value(pyunits.convert(pump.work_fluid[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+                f'{f"Stage {s} Pump Work Fluid":<{w}s}{value(pyunits.convert(pump.pump.work_fluid[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
             )
             print(
-                f'{f"Stage {s} Pump Work Mech.":<{w}s}{value(pyunits.convert(pump.work_mechanical[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+                f'{f"Stage {s} Pump Work Mech.":<{w}s}{value(pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+            )
+            print(
+                f'{f"Stage {s} Recovery":<{w}s}{value(pyunits.convert(stage_rr, to_units=pyunits.dimensionless)):<{w}.3f}{"-"}'
+            )
+            print(
+                f'{f"Stage {s} Permeate Salinity (mg/L)":<{w}s}{value(pyunits.convert(perm_sal, to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
             )
 
     print(f"{'.' * (3 * w)}")
@@ -626,67 +612,40 @@ def report_pump(blk, w=30):
     print(
         f'{f"Total Power Consumption":<{w}s}{value(pyunits.convert(total_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+    print(f'{f"Total Recovery":<{w}s}{value(total_recovery):<{w}.3f}{"-"}')
+    print(
+        f'{f"Total Perm Flow (gpm)":<{w}s}{value(pyunits.convert(total_perm_flow, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+    )
+    return powers_kW, perm_flows_gpm
 
 
-def main():
-    m = build_system(number_trains=4, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=4 * 0.154, Cin=0.542)
+def main(number_trains, number_stages, date="8_19_21"):
+    m = build_system(
+        number_trains=number_trains, number_stages=number_stages, date=date
+    )
+    set_inlet_conditions(m.fs.ro_system)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
+    calculate_scaling_factors(m)
     initialize_ro_system(m.fs.ro_system)
-    m.fs.obj = Objective(
-        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
-    )
+    solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
+    return m
 
 
 if __name__ == "__main__":
-    m = build_system(number_trains=4, number_stages=3)
-    set_inlet_conditions(m.fs.ro_system, Qin=4 * 0.154, Cin=0.542)
+    number_trains = 1
+    number_stages = 3
+    m = build_system(
+        number_trains=number_trains, number_stages=number_stages, date="8_19_21"
+    )
+    set_inlet_conditions(m.fs.ro_system)
     set_ro_system_op_conditions(m.fs.ro_system)
     add_ro_scaling(m.fs.ro_system)
+    calculate_scaling_factors(m)
     initialize_ro_system(m.fs.ro_system)
-    m.fs.obj = Objective(
-        expr=m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"]
-    )
+    solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-
-    print(f"{iscale.jacobian_cond(m.fs.ro_system):.2e}")
-    # m.fs.ro_system.recovery.display()
-    m.fs.ro_system.total_power_consumption.display()
-    report_pump(m.fs.ro_system, w=40)
-
-    # for t in range(1, m.fs.ro_system.number_trains + 1):
-    #     train = m.fs.ro_system.find_component(f"train_{t}")
-    #     # print(f"\n--- Train {t} ---")
-    #     # train.feed.display()
-    #     # train.permeate.display()
-    #     # train.brine.display()
-    #     for s in range(1, (train.number_stages + 1)):
-    # #         if s == train.number_stages:
-    #         pump = train.find_component(f"pump{s}")
-    #         print(f"\n--- Train {t}, Stage {s} ---")
-    #         print(f"Pump {s}- Pressure In: {value(pyunits.convert(pump.control_volume.properties_in[0].pressure, to_units=pyunits.psi))} psi")
-    #         print(f"Pump {s}- Pressure Out: {value(pyunits.convert(pump.control_volume.properties_out[0].pressure , to_units=pyunits.psi))} psi")
-    #         print(f"Pump {s}- Power: {value(pump.work_mechanical[0] * 1e-3)} kW")
-    #             p = pump.control_volume.properties_out[0].pressure.value
-    #             pump.control_volume.properties_out[0].pressure.unfix()
-    #             pump.control_volume.properties_out[0].pressure.set_value(p * 0.5/0.93)
-
-    #         # stage = train.find_component(f"ro_stage_{s}")
-    #         # print(f"\n Stage {s}")
-    #         # stage.display()
-    # # m.fs.del_component(m.fs.obj
-    # m.fs.obj.deactivate()
-    # m.fs.obj2 = Objective(
-    #     expr=m.fs.ro_system.recovery
-    # )
-    # print(f"dof = {degrees_of_freedom(m.fs.ro_system)}")
-    # m.fs.ro_system.recovery.fix(0.8)
-    # print(f"dof = {degrees_of_freedom(m.fs.ro_system)}")
-    # results = solver.solve(m)
-    # assert_optimal_termination(results)
-
-    # # m.fs.ro_system.display()
+    report_ro_system(m.fs.ro_system, w=40)
