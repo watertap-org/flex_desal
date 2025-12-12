@@ -1,4 +1,4 @@
-import pathlib
+import os
 from pyomo.environ import (
     ConcreteModel,
     value,
@@ -44,8 +44,11 @@ def build_system():
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-
-    m.db = Database(dbpath="src/wrd/meta_data")
+    current_script_path = os.path.abspath(__file__)
+    current_directory = os.path.dirname(current_script_path)
+    parent_directory = os.path.dirname(current_directory)
+    dbpath = os.path.join(parent_directory, "meta_data")
+    m.db = Database(dbpath=dbpath)
     m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
 
     m.fs.chem_addition = FlowsheetBlock(dynamic=False)
@@ -186,8 +189,7 @@ def main():
     m.fs.costing.initialize()
 
     solve(m)
-
-    m.fs.costing.display()
+    # m.fs.costing.display()
 
 
 if __name__ == "__main__":
