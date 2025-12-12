@@ -1,0 +1,42 @@
+# Approx Feed stream for 1 data on 8/19/21
+feed_stream:
+  feed_flow_water: 
+    value: 2500
+    units: gal/min
+  feed_density_water: 
+    value: 1000
+    units: kg/m**3
+  feed_conductivity: 
+    value: 1055
+    units: uS/cm
+  feed_conductivity_conversion: 
+    value: 0.5
+    units: mg/L/(uS/cm)
+  feed_temperature: 
+    value: 298.15
+    units: K
+  feed_pressure: 
+    value: 14.5
+    units: psi
+  
+pumps:
+  pump_1:
+    pump_efficiency: 0.45  # unitless
+    pump_outlet_pressure: 
+      value: 35
+      units: psi 
+  pump_2:
+    pump_efficiency: 0.45  # unitless
+    pump_outlet_pressure: 
+      value: 35
+      units: psi  
+  pump_3:
+    pump_efficiency: 0.45 # unitless
+    pump_outlet_pressure: 
+      value: 35
+      units: psi
+  pump_4:
+    pump_efficiency: 0.5  # unitless
+    pump_outlet_pressure: 
+      value: 35
+      units: psi

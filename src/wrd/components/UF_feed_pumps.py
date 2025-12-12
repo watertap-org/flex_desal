@@ -1,6 +1,3 @@
-import os
-import math
-import numpy as np
 from pyomo.environ import (
     ConcreteModel,
     value,
@@ -52,7 +49,9 @@ from watertap.costing.zero_order_costing import ZeroOrderCosting
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 
-from watertap.flowsheets.flex_desal.wrd.components.ro_system import (
+from wrd.components.pump import build_wrd_pump
+from wrd.utilities import (
+    get_config_file,
     load_config,
     get_config_value,
 )
@@ -64,50 +63,34 @@ from watertap.core import Database
 # 1. Unfix the variable energy_electric_flow_vol_inlet
 
 
-def build_UF_pumps_system(split_fractions, config=None):
+def build_system(split_fractions, config=None):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-
     m.fs.properties = NaClParameterBlock()
-
     m.fs.UF_pumps = FlowsheetBlock(dynamic=False)
     build_UF_pumps(
         m.fs.UF_pumps, m.fs.properties, split_fractions=split_fractions, config=config
     )
-
-    TransformationFactory("network.expand_arcs").apply_to(m)
-
     return m
 
 
 def build_UF_pumps(
-    blk, prop_package, number_trains=3, split_fractions=None, config=None
+    blk, prop_package, number_trains=3, split_fractions=None, config=None,date="8_19_21"
 ) -> None:
 
-    print(f'\n{"=======> BUILDING ULTRAFILTRATION SYSTEM <=======":^60}\n')
+    # print(f'\n{"=======> BUILDING ULTRAFILTRATION SYSTEM <=======":^60}\n')
 
-    current_script_path = os.path.abspath(__file__)
-    # Get the directory containing the current script
-    current_directory = os.path.dirname(current_script_path)
-    # Get the parent directory of the current directory (one folder prior)
-    parent_directory = os.path.dirname(current_directory)
-
-    print(f"Parent directory: {parent_directory}")
-
-    if config is None:
-        config = parent_directory + "/meta_data/wrd_uf_pumps_inputs.yaml"
-    else:
-        config = "/Users/mhardika/Documents/watertap/watertap/watertap/flowsheets/flex_desal/wrd/meta_data/wrd_uf_pumps_inputs.yaml"
-    blk.config_data = load_config(config)
-
-    blk.number_trains = number_trains
+    config_file_name = get_config_file("wrd_uf_pumps_inputs_" + date + ".yaml")
+    blk.config_data = load_config(config_file_name)
+   
+    blk.number_trains = number_trains # Could be moved to config / yaml
 
     m = blk.model()
     if prop_package is None:
-        prop_package = m.fs.UF_properties
+        prop_package = m.fs.ro_properties
 
-    blk.feed_in = StateJunction(property_package=prop_package)
-    blk.feed_out = StateJunction(property_package=prop_package)
+    blk.feed = StateJunction(property_package=prop_package)
+    blk.product = StateJunction(property_package=prop_package)
 
     # Splits the feed to multiple UF feed pumps
     blk.feed_splitter = Separator(
@@ -127,7 +110,6 @@ def build_UF_pumps(
         split_fractions = [1 / number_trains for i in range(number_trains)]
 
     for i in range(1, (blk.number_trains + 1)):
-
         # Add pump for each train
         blk.add_component(
             f"pump_{i}",
@@ -161,37 +143,67 @@ def build_UF_pumps(
         )
 
     blk.feed_to_feed_splitter = Arc(
-        source=blk.feed_in.outlet,
+        source=blk.feed.outlet,
         destination=blk.feed_splitter.inlet,
     )
 
-    blk.pump_mixer_to_feed_out = Arc(
+    blk.pump_mixer_to_product = Arc(
         source=blk.pump_outlet_mixer.outlet,
-        destination=blk.feed_out.inlet,
+        destination=blk.product.inlet,
     )
 
+    TransformationFactory("network.expand_arcs").apply_to(m)
 
-def set_UF_pumps_inlet_conditions(blk, Qin=0.618, Cin=0.542):
+def set_inlet_conditions(blk, Qin=None, Cin=None):
     """
-    Set the operation conditions for the UF pumps
+    Set the operation conditions for the UF pumps.
+
+    If Qin or Cin are not provided they are read from the block's
+    `config_data` (using the same keys/structure as the pump inlet helper).
+    This mirrors `set_inlet_conditions` in `wrd/components/pump.py`.
     """
-    Qin = (Qin) * pyunits.m**3 / pyunits.s  # Feed flow rate in m3/s
-    Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
-    rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
+    # Read from config if not provided. Config values are expected to
+    # already carry units consistent with the rest of the model (as in
+    # `set_inlet_conditions` in `pump.py`). Use pump_1 as the default key.
+    if Qin is None:
+        Qin = get_config_value(blk.config_data, "feed_flow_water", "feed_stream")
+
+    if Cin is None:
+        Cin = (
+            get_config_value(blk.config_data, "feed_conductivity", "feed_stream")
+            * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
+        )
+
+    Pin = get_config_value(blk.config_data, "feed_pressure","feed_stream")
+
+    # Approximate density of water
+    rho = 1000 * pyunits.kg / pyunits.m**3
+    # Calculate mass flows from volumetric flow and concentration
     feed_mass_flow_water = Qin * rho
     feed_mass_flow_salt = Cin * Qin
 
-    blk.feed_in.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(
         feed_mass_flow_water
     )
-    blk.feed_in.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
+    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(
         feed_mass_flow_salt
     )
-    blk.feed_in.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed_in.properties[0].pressure.fix(101325 * pyunits.Pa)  # 1 bar
+    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
+    blk.feed.properties[0].pressure.fix(Pin)
+    # Touching volumetric flow variables for initialization
+    blk.feed.properties[0].flow_vol
+
+    # Scaling defaults on the top-level property block (match pump behavior)
+    m = blk.model()
+    m.fs.properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+    )
+    m.fs.properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
 
 
-def set_UF_pump_op_conditions(blk):
+def set_UF_pumps_op_conditions(blk):
     # Set pump operating conditions
     for i in range(1, blk.number_trains + 1):
         pump = blk.find_component(f"pump_{i}")
@@ -284,6 +296,21 @@ def print_UF_costing_breakdown(blk, debug=False):
     if debug:
         print(blk.unit.costing.display())
 
+def report_UF_pumps(blk, w=30):
+    title = "UF Feed Pumps Report"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
+    print(f"{'-' * (3 * w)}")
+    # Print work mechanical of each pump
+    for i in range(1, (blk.number_trains + 1)):
+        pump = blk.find_component(f"pump_{i}")
+        electricity = pyunits.convert(pump.work_mechanical[0], to_units=pyunits.kW)
+        print(
+            f"Pump {i} Work Mechanical: {value(electricity) :.2f} {pyunits.get_units(electricity)}"
+        )
+
 
 if __name__ == "__main__":
 
@@ -293,30 +320,25 @@ if __name__ == "__main__":
         0.2,
     ]  # Based on ratio of pump capacity to total capacity
 
-    m = build_UF_pumps_system(split_fractions=split_fractions)
-
-    set_UF_pumps_inlet_conditions(m.fs.UF_pumps)
-    set_UF_pump_op_conditions(m.fs.UF_pumps)
-
+    m = build_system(split_fractions=split_fractions)
+    assert_units_consistent(m)
+    print(f"{degrees_of_freedom(m)} degrees of freedom after build")    
+    set_inlet_conditions(m.fs.UF_pumps)
+    set_UF_pumps_op_conditions(m.fs.UF_pumps)
+    print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
+    add_UF_pump_scaling(m.fs.UF_pumps)
+    calculate_scaling_factors(m)
     init_UF_pumps(m.fs.UF_pumps)
     solve(m)
+    report_UF_pumps(m.fs.UF_pumps)
 
-    add_costing(m)
-    add_UF_pumps_costing(m, m.fs.UF_pumps)
-    m.fs.costing.cost_process()
-    m.fs.costing.initialize()
-
+    # Not doing any costing for the moment
+    # add_costing(m)
+    # add_UF_pumps_costing(m, m.fs.UF_pumps)
+    # m.fs.costing.cost_process()
+    # m.fs.costing.initialize()
     solve(m)
-
-    print("Degrees of Freedom: ", degrees_of_freedom(m))
-
+ 
     # Electricity consumption
-    m.fs.costing.aggregate_flow_electricity.display()
+    # m.fs.costing.aggregate_flow_electricity.display()
 
-    # Print work mechanical of each pump
-    for i in range(1, (m.fs.UF_pumps.number_trains + 1)):
-        pump = m.fs.UF_pumps.find_component(f"pump_{i}")
-        electricity = pyunits.convert(pump.work_mechanical[0], to_units=pyunits.kW)
-        print(
-            f"Pump {i} Work Mechanical: {value(electricity) :.2f} {pyunits.get_units(electricity)}"
-        )
