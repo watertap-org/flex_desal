@@ -68,3 +68,14 @@ def get_config_file(yaml_name):
     # parent_directory = os.path.dirname(current_directory)
     config_file_name = os.path.join(current_directory, "meta_data", yaml_name)
     return config_file_name
+
+def get_chem_list(yaml_name, section):
+    # Section must be "pre_treatment" or "post_treatment"
+    chem_list = []
+    config_file_name = get_config_file(yaml_name)
+    config = load_config(config_file_name)
+    if section in config:
+        for subsection in config[section]:
+            chem_list.append(subsection)
+        # chem_list.remove("default")
+    return chem_list
