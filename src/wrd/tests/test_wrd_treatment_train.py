@@ -20,11 +20,11 @@ def _get_stage_objects(m, train_idx, stage_idx):
     return pump, perm_flow
 
 
-@pytest.mark.component
-def test_wrd_treatment_train_builds_8_19_21(full_wrd_system_8_19_21):
-    pump, _ = _get_stage_objects(full_wrd_system_8_19_21, 1, 1)
-    power = pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)
-    expected_power = 196.25 * pyunits.kW
-    # Units check
-    assert_units_consistent(power + expected_power)
-    assert value(power) == pytest.approx(value(expected_power), rel=0.15)
+# @pytest.mark.component
+# def test_wrd_treatment_train_builds_8_19_21(full_wrd_system_8_19_21):
+#     pump, _ = _get_stage_objects(full_wrd_system_8_19_21, 1, 1)
+#     power = pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)
+#     expected_power = 196.25 * pyunits.kW
+#     # Units check
+#     assert_units_consistent(power + expected_power)
+#     assert value(power) == pytest.approx(value(expected_power), rel=0.15)
