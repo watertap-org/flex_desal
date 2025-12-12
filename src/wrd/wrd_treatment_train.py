@@ -75,9 +75,7 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.UF = FlowsheetBlock(dynamic=False)
     # build_UF(m.fs.UF, m.fs.properties)
     build_separator(
-        blk=m.fs.UF,
-        prop_package=m.fs.ro_properties,
-        outlet_list=["to_RO", "to_waste"]
+        blk=m.fs.UF, prop_package=m.fs.ro_properties, outlet_list=["to_RO", "to_waste"]
     )
 
     # Translator block between ZO to RO property packages
@@ -183,7 +181,6 @@ def add_wrd_connections(m):
     m.fs.UF_to_ro = Arc(
         source=m.fs.UF.to_RO.outlet, destination=m.fs.ro_system.feed.inlet
     )
-
 
     # Connect RO to UV_aop
     m.fs.ro_to_uv = Arc(
@@ -298,7 +295,9 @@ def initialize_wrd_system(m):
         init_chem_addition(m.fs.find_component(chem_name + "_addition"))
 
     # propagate from last pre-UF chemical to UF
-    propagate_state(m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_translator"))
+    propagate_state(
+        m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_translator")
+    )
     # init_UF(m.fs.UF)
     m.fs.translator_ZO_to_RO.initialize()
     propagate_state(m.fs.translator_to_uf)
