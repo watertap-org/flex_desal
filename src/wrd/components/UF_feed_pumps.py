@@ -388,12 +388,7 @@ def report_UF_pumps(blk, w=30):
 
 if __name__ == "__main__":
     # Probably will want to move split fraction into the yaml
-    split_fractions = [
-        0.25,
-        0.25,
-        0.25,
-        0.25,
-    ]  # Based on ratio of pump capacity to total capacity
+    split_fractions = [1]# Based on ratio of pump capacity to total capacity
 
     m = build_system(split_fractions=split_fractions)
     assert_units_consistent(m)

@@ -74,7 +74,7 @@ def build_wrd_system(number_stages=3, **kwargs):
 
     # UF Pumps
     m.fs.UF_pumps = FlowsheetBlock(dynamic=False)
-    build_UF_pumps(m.fs.UF_pumps, m.fs.ro_properties,split_fractions=[.25,.25,.25,.25])
+    build_UF_pumps(m.fs.UF_pumps, m.fs.ro_properties,split_fractions=[1]) #could move split_fractions in yaml?
 
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)    

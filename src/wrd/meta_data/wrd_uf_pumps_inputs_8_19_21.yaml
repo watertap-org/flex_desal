@@ -1,13 +1,13 @@
 # Approx Feed stream for 1 data on 8/19/21
 feed_stream:
   feed_flow_water: 
-    value: 10400
+    value: 2637 # And this should be matching the flow given in feed_flow.yaml
     units: gal/min
   feed_density_water: 
     value: 1000
     units: kg/m**3
   feed_conductivity: 
-    value: 1055
+    value: 1082.1
     units: uS/cm
   feed_conductivity_conversion: 
     value: 0.5
@@ -19,7 +19,7 @@ feed_stream:
     value: 14.5
     units: psi 
 pumps:
-  number_trains: 4
+  number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
   pump_1:
     pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
       value: 35.4

@@ -1,7 +1,7 @@
-# I DON'T KNOW THESE VALUES YET
+# This is for one train # I DON'T KNOW THESE VALUES YET
 feed_stream:
   feed_flow_water: 
-    value: 2650
+    value: 2637
     units: gal / min
   feed_density_water: 
     value: 1000
@@ -16,5 +16,5 @@ feed_stream:
     value: 298.15
     units: K
   feed_pressure: 
-    value: 1
-    units: atm
+    value: 14.5
+    units: psi 
