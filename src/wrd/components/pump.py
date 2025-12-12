@@ -116,15 +116,24 @@ def build_wrd_pump(blk, stage_num=1, date="8_19_21", prop_package=None):
     blk.pump.efficiency_pump.bounds = (0, 1)
 
     blk.pump.efficiency_motor = Param(
-        initialize=0.85,
+        initialize=0.938,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Efficiency of motor and VFD",
     )
 
+    blk.pump.efficiency_vfd = Param(
+        initialize=0.95,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Efficiency of VFD",
+    )
+
     blk.pump.efficiency_electrical = Constraint(
         expr=blk.pump.efficiency_pump[0]
-        == blk.pump.efficiency_motor * blk.pump.efficiency_fluid
+        == blk.pump.efficiency_motor
+        * blk.pump.efficiency_vfd
+        * blk.pump.efficiency_fluid
     )
 
     # Add Arcs
@@ -187,7 +196,6 @@ def set_inlet_conditions(blk):
 
 def add_pump_scaling(blk):
     set_scaling_factor(blk.pump.work_mechanical[0], 1e-3)
-    
 
 
 def initialize_pump(blk):
