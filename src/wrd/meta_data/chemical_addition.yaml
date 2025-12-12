@@ -9,15 +9,15 @@ default:
   ratio_in_solution:
     value: 0.5
     units: dimensionless
-ammonia:
+ammonium_sulfate:
   chemical_dosage:
-    value: 100
+    value: 0.5
     units: mg/L
   solution_density:
-    value: 900
+    value: 1230 # Will want to double check these density values - I just googled them
     units: kg/m^3
   ratio_in_solution:
-    value: 0.3
+    value: 0.4
     units: dimensionless
   capital_cost:
     basis: chemical_flow_mass
@@ -28,13 +28,15 @@ ammonia:
     capital_b_parameter:
       value: 0.4219
       units: dimensionless
-anti-scalant:
-  # Hydrazine
+  unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+    value: 1.89
+    units: USD_2021/gal # Not sure if year is valid
+sodium_hypochlorite:
   chemical_dosage:
-    value: 10
+    value: 4
     units: mg/L
   solution_density:
-    value: 1021
+    value: 1196
     units: kg/m^3
   ratio_in_solution:
     value: 1
@@ -48,72 +50,84 @@ anti-scalant:
     capital_b_parameter:
       value: 0.6179
       units: dimensionless
-caustic_soda:
+  unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+    value: 0.73
+    units: USD_2021/gal # Not sure if year is valid
+sulfuric_acid:
   chemical_dosage:
-    value: 10
+    value: 96
     units: mg/L
   solution_density:
-    value: 1540
+    value: 1835
     units: kg/m^3
   ratio_in_solution:
-    value: 0.5
+    value: 0.93
     units: dimensionless
   capital_cost:
     basis: chemical_flow_mass
     cost_factor: TPEC
     capital_a_parameter:
-      value: 2262.8
+      value: 900.97
       units: USD_2007
     capital_b_parameter:
-      value: 0.6195
+      value: 0.6179
       units: dimensionless
-# coagulant:
+  unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+    value: 178.49
+    units: USD_2021/ton # What is the difference between a ton and dry ton?
+scale_inhibitor:
+  chemical_dosage:
+    value: 4.5
+    units: mg/L
+  solution_density:
+    value: 1000 # I don't know this actual value
+    units: kg/m^3
+  ratio_in_solution:
+    value: 1
+    units: dimensionless
+  capital_cost:
+    basis: chemical_flow_mass
+    cost_factor: TPEC
+    capital_a_parameter:
+      value: 900.97
+      units: USD_2007
+    capital_b_parameter:
+      value: 0.6179
+      units: dimensionless
+  unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+    value: 8.72
+    units: USD_2021/gal # What is the difference between a ton and dry ton?
+# calcium_chloride: # This chemical seems to have only been used for part of 2021
 #   chemical_dosage:
 #     value: 10
 #     units: mg/L
 #   solution_density:
-#     value: 1360
+#     value: 1781
 #     units: kg/m^3
 #   ratio_in_solution:
-#     value: 0.5
+#     value: 1
 #     units: dimensionless
 #   capital_cost:
 #     basis: chemical_flow_mass
 #     cost_factor: TPEC
 #     capital_a_parameter:
-#       value: 15408
+#       value: 900.97
 #       units: USD_2007
 #     capital_b_parameter:
-#       value: 0.5479
-#       units: dimensionless
-ferric_chloride:
+#       value: 0.6179
+#       units: dimensionless 
+#   unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+#     value: 637.55
+#     units: USD_2021/ton # Not sure if year is valid
+calcium_hydroxide: 
   chemical_dosage:
-    value: 10
+    value: 47
     units: mg/L
   solution_density:
-    value: 1460
+    value: 1300 
     units: kg/m^3
   ratio_in_solution:
-    value: 0.42
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 34153
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.319
-      units: dimensionless
-hydrochloric_acid:
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1490
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
+    value: 0.35
     units: dimensionless
   capital_cost:
     basis: chemical_flow_mass
@@ -124,53 +138,18 @@ hydrochloric_acid:
     capital_b_parameter:
       value: 0.6179
       units: dimensionless
-lime:
+  unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+    value: 731.94
+    units: USD_2021/ton 
+sodium_hydroxide: 
   chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1250
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 12985
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.5901
-      units: dimensionless
-sodium_bisulfite:
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1480
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 900.97
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.6179
-      units: dimensionless
-sulfuric_acid:
-  chemical_dosage:
-    value: 10
+    value: 3
     units: mg/L
   solution_density:
     value: 1781
     units: kg/m^3
   ratio_in_solution:
-    value: 1
+    value: 0.25
     units: dimensionless
   capital_cost:
     basis: chemical_flow_mass
@@ -181,12 +160,15 @@ sulfuric_acid:
     capital_b_parameter:
       value: 0.6179
       units: dimensionless
-sodium_hypochlorite: #----> Update!
+  unit_cost: 
+    value: 538.52
+    units: USD_2021/ton # Not sure if year is valid
+sodium_hypochlorite_post:
   chemical_dosage:
-    value: 10
+    value: 4
     units: mg/L
   solution_density:
-    value: 1781
+    value: 1196
     units: kg/m^3
   ratio_in_solution:
     value: 1
@@ -200,3 +182,28 @@ sodium_hypochlorite: #----> Update!
     capital_b_parameter:
       value: 0.6179
       units: dimensionless
+  unit_cost: 
+    value: 0.73
+    units: USD_2021/gal # Not sure if year is valid
+# sodium_bisulfite:
+#   chemical_dosage:
+#     value: 10
+#     units: mg/L
+#   solution_density:
+#     value: 1480
+#     units: kg/m^3
+#   ratio_in_solution:
+#     value: 1
+#     units: dimensionless
+#   capital_cost:
+#     basis: chemical_flow_mass
+#     cost_factor: TPEC
+#     capital_a_parameter:
+#       value: 900.97
+#       units: USD_2007
+#     capital_b_parameter:
+#       value: 0.6179
+# #       units: dimensionless 
+#   unit_cost: # Adding this so it can be loading from config when changing the cost values in costing
+#     value: 1.89
+#     units: USD_2021/gal # Not sure if year is valid
