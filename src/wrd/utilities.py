@@ -69,6 +69,7 @@ def get_config_file(yaml_name):
     config_file_name = os.path.join(current_directory, "meta_data", yaml_name)
     return config_file_name
 
+
 def get_chem_list(yaml_name, section):
     # Section must be "pre_treatment" or "post_treatment"
     chem_list = []
