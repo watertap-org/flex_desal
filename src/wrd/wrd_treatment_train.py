@@ -36,6 +36,7 @@ from wrd.components.ro_system import *
 from wrd.components.decarbonator import *
 from wrd.components.uv_aop import *
 from wrd.utilities import load_config, get_config_file, get_config_value
+from srp.components.generic_separator import *
 
 
 def build_wrd_system(number_stages=3, **kwargs):
@@ -50,7 +51,7 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.config_data = load_config(config_file_name)
 
     # ZO Properties
-    m.fs.properties = WaterParameterBlock(solute_list=["tds", "tss"])
+    m.fs.properties = WaterParameterBlock(solute_list=["tds"])
     # RO properties
     m.fs.ro_properties = NaClParameterBlock()
 
@@ -58,13 +59,13 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.feed = Feed(property_package=m.fs.properties)
 
     # Pre- UF Treatment chemical addition units (read from metadata)
-    m.fs.pre_UF_treat_chem_list = [
+    m.fs.pre_treat_chem_list = [
         "ammonium_sulfate",
         "sodium_hypochlorite",
         "sulfuric_acid",
         "scale_inhibitor",
     ]
-    for chem_name in m.fs.pre_UF_treat_chem_list:
+    for chem_name in m.fs.pre_treat_chem_list:
         m.fs.add_component(chem_name + "_addition", FlowsheetBlock(dynamic=False))
         build_chem_addition(
             m.fs.find_component(chem_name + "_addition"), chem_name, m.fs.properties
@@ -72,7 +73,12 @@ def build_wrd_system(number_stages=3, **kwargs):
 
     # UF unit
     m.fs.UF = FlowsheetBlock(dynamic=False)
-    build_UF(m.fs.UF, m.fs.properties)
+    # build_UF(m.fs.UF, m.fs.properties)
+    build_separator(
+        blk=m.fs.UF,
+        prop_package=m.fs.ro_properties,
+        outlet_list=["to_RO", "to_waste"]
+    )
 
     # Translator block between ZO to RO property packages
     m.fs.translator_ZO_to_RO = TranslatorZOtoNaCl(
@@ -124,7 +130,7 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.product = Product(property_package=m.fs.properties)
 
     # Combined chemical list for operating conditions, scaling, and costing(?)
-    m.fs.chemical_list = +list(m.fs.pre_treat_chem_list) + list(
+    m.fs.chemical_list = list(m.fs.pre_treat_chem_list) + list(
         m.fs.post_treat_chem_list
     )
     return m
@@ -134,48 +140,50 @@ def add_wrd_connections(m):
     # Connect pre-UF chemical chain: feed -> chem1 -> chem2 -> ... -> UF
     for i in range(len(m.fs.pre_treat_chem_list)):
         chem_name = m.fs.pre_treat_chem_list[i]
+        unit = m.fs.find_component(chem_name + "_addition")
         if i == 0:
             # Connect feed to first chemical
             m.fs.add_component(
-                "feed_to_" + chem_name,
+                f"feed_to_{chem_name}",
                 Arc(
                     source=m.fs.feed.outlet,
-                    destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
+                    destination=unit.feed.inlet,
                 ),
             )
         else:
             # Connect each chemical to the next
             prev = m.fs.pre_treat_chem_list[i - 1]
+            prev_unit = m.fs.find_component(prev + "_addition")
             m.fs.add_component(
                 f"{prev}_to_{chem_name}",
                 Arc(
-                    source=m.fs.find_component(prev + "_addition").product.outlet,
-                    destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
+                    source=prev_unit.product.outlet,
+                    destination=unit.feed.inlet,
                 ),
             )
 
     # Connect last pre treat chemical to UF_pump
     m.fs.add_component(
-        f"{m.fs.pre_treat_chem_list[-1]}_to_UF",
+        f"{m.fs.pre_treat_chem_list[-1]}_to_translator",
         Arc(
             source=m.fs.find_component(
                 m.fs.pre_treat_chem_list[-1] + "_addition"
             ).product.outlet,
-            destination=m.fs.UF.feed.inlet,
+            destination=m.fs.translator_ZO_to_RO.inlet,
         ),
     )
 
+    # Connect RO translator to RO
+    m.fs.translator_to_uf = Arc(
+        source=m.fs.translator_ZO_to_RO.outlet, destination=m.fs.UF.feed.inlet
+    )
     # Connect UF Pump to UF
 
     # UF to RO translator
-    m.fs.UF_to_translator = Arc(
-        source=m.fs.UF.product.outlet, destination=m.fs.translator_ZO_to_RO.inlet
+    m.fs.UF_to_ro = Arc(
+        source=m.fs.UF.to_RO.outlet, destination=m.fs.ro_system.feed.inlet
     )
 
-    # Connect RO translator to RO
-    m.fs.translator_to_ro = Arc(
-        source=m.fs.translator_ZO_to_RO.outlet, destination=m.fs.ro_system.feed.inlet
-    )
 
     # Connect RO to UV_aop
     m.fs.ro_to_uv = Arc(
@@ -258,7 +266,7 @@ def set_wrd_inlet_conditions(m):
     m.fs.feed.properties[0].flow_mass_comp["tds"].fix(
         feed_mass_flow_salt
     )  # Fix feed salt flow rate
-    m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0)  # Fix feed salt flow rate
+    # m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0)  # Fix feed salt flow rate
 
 
 def set_wrd_operating_conditions(m):
@@ -267,7 +275,11 @@ def set_wrd_operating_conditions(m):
         set_chem_addition_op_conditions(
             blk=m.fs.find_component(chem_name + "_addition")
         )
-    set_UF_op_conditions(m.fs.UF)
+    # set_UF_op_conditions(m.fs.UF)
+    uf_splits = {
+        "to_RO": {"H2O": 0.99, "NaCl": 0.99},
+    }
+    set_separator_op_conditions(m.fs.UF, split_fractions=uf_splits)
     set_ro_system_op_conditions(m.fs.ro_system)
     set_uv_aop_op_conditions(m.fs.UV_aop)
     set_decarbonator_op_conditions(m.fs.decarbonator)
@@ -286,16 +298,20 @@ def initialize_wrd_system(m):
         init_chem_addition(m.fs.find_component(chem_name + "_addition"))
 
     # propagate from last pre-UF chemical to UF
-    propagate_state(m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_UF"))
-    init_UF(m.fs.UF)
+    propagate_state(m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_translator"))
+    # init_UF(m.fs.UF)
+    m.fs.translator_ZO_to_RO.initialize()
+    propagate_state(m.fs.translator_to_uf)
+    init_separator(m.fs.UF)
+    propagate_state(m.fs.UF_to_ro)
 
     # propagate last pre-RO to translator
-    propagate_state(
-        m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_translator")
-    )
+    # propagate_state(
+    #     m.fs.find_component(m.fs.pre_treat_chem_list[-1] + "_to_translator")
+    # )
 
-    m.fs.translator_ZO_to_RO.initialize()
-    propagate_state(m.fs.translator_to_ro)
+    # m.fs.translator_ZO_to_RO.initialize()
+    # propagate_state(m.fs.translator_to_ro)
     initialize_ro_system(m.fs.ro_system)
     propagate_state(m.fs.ro_to_uv)
     initialize_uv_aop(m.fs.UV_aop)
@@ -327,7 +343,7 @@ def set_wrd_system_scaling(m):
     for chem_name in m.fs.chemical_list:
         set_chem_addition_scaling(blk=m.fs.find_component(chem_name + "_addition"))
 
-    add_UF_scaling(m.fs.UF)
+    # add_UF_scaling(m.fs.UF)
     add_ro_scaling(m.fs.ro_system)
     add_uv_aop_scaling(m.fs.UV_aop)
     add_decarbonator_scaling(m.fs.decarbonator)
