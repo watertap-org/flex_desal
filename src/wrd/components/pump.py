@@ -240,7 +240,7 @@ def report_pump(blk, w=30):
     )
     print(f'{f"∆P (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
     print(
-        f'{f"∆P (bar)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.bar)):<{w}.3e}{"bar"}'
+        f'{f"∆P (psi)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.psi)):<{w}.3e}{"psi"}'
     )
     print(
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
