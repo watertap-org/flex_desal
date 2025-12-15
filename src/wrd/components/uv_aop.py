@@ -169,7 +169,7 @@ def main():
     TransformationFactory("network.expand_arcs").apply_to(m)
     initialize_system(m)
     calculate_scaling_factors(m)
-
+    cost_uv_aop(m.fs.uv_aop_system)
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)

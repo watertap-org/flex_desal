@@ -18,6 +18,8 @@ from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import Product, Feed
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.core.zero_order_properties import WaterParameterBlock
+from watertap.costing import WaterTAPCosting
+from watertap.costing.zero_order_costing import ZeroOrderCosting
 
 from wrd.components.chemical_addition import *
 from wrd.components.translator_ZO_to_NaCl import TranslatorZOtoNaCl
@@ -131,6 +133,7 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.brine = Product(
         property_package=m.fs.ro_properties
     )  # directly from ro, so needs same prop model
+
 
     return m
 
@@ -363,6 +366,26 @@ def initialize_wrd_system(m):
     m.fs.product.initialize()
 
 
+def add_costing_to_wrd_system(m):
+    m.fs.costing = WaterTAPCosting()
+        
+    # cost_UF_pumps(m.fs.UF_pumps)
+    # cost_separator(m.fs.UF)
+    # cost_ro_system(m.fs.ro_system)
+    cost_uv_aop(m.fs.UV_aop)
+    # cost_decarbonator(m.fs.decarbonator)
+    m.fs.costing.cost_process()
+    
+    # Product is actually ZO, so applying to RO perm, which is same flowrate
+    m.fs.costing.add_specific_energy_consumption(m.fs.ro_system.permeate.properties[0].flow_vol_phase["Liq"],name="SEC")
+
+    # m.fs.zo_costing = ZeroOrderCosting()
+    # for chem_name in m.fs.chemical_list:
+    #     cost_chem_addition(blk=m.fs.find_component(chem_name + "_addition"), costing_package=m.fs.zo_costing)
+    # m.fs.zo_costing.cost_process()
+
+
+
 def solve(model, solver=None, tee=True, raise_on_failure=True):
     # ---solving---
     if solver is None:
@@ -387,6 +410,7 @@ def solve(model, solver=None, tee=True, raise_on_failure=True):
 def main(number_stages=3, date="8_19_21"):
     m = build_wrd_system(number_stages=number_stages, date=date)
     assert_units_consistent(m)
+    add_costing_to_wrd_system(m)
     add_wrd_connections(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     set_wrd_inlet_conditions(m)
