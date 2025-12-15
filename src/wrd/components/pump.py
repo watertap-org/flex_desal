@@ -236,15 +236,11 @@ def report_pump(blk, w=30):
     deltaP = blk.unit.deltaP[0]
     work = blk.unit.work_mechanical[0]
     print(
-        f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(flow_in, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
+        f'{f"Inlet Flow":<{w}s}{value(pyunits.convert(flow_in, to_units=pyunits.gallons /pyunits.minute)):<{w}.3f}{"gpm"}'
     )
-    # print(f'{f"Total Flow Rate (m3/s)":<{w}s}{value(flow_in):<{w}.3e}{"m3/s"}')
-    # print(
-    #     f'{f"Total Flow Rate (gpm)":<{w}s}{value(pyunits.convert(flow_in, to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
-    # )
-    print(f'{f"Pressure Change (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
+    print(f'{f"∆P (Pa)":<{w}s}{value(deltaP):<{w}.3e}{"Pa"}')
     print(
-        f'{f"Pressure Change (bar)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.bar)):<{w}.3e}{"bar"}'
+        f'{f"∆P (bar)":<{w}s}{value(pyunits.convert(deltaP, to_units=pyunits.bar)):<{w}.3e}{"bar"}'
     )
     print(
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
