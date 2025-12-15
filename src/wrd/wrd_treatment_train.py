@@ -3,7 +3,6 @@ from pyomo.environ import (
     ConcreteModel,
     Param,
     check_optimal_termination,
-    value,
     assert_optimal_termination,
     units as pyunits,
     value,
@@ -43,7 +42,7 @@ def build_wrd_system(number_stages=3, **kwargs):
     m.fs.config_data = load_config(config_file_name)
 
     # ZO Properties
-    m.fs.properties = WaterParameterBlock(solute_list=["tds"])
+    m.fs.properties = WaterParameterBlock(solute_list=["tds","tss"])
     # RO properties
     m.fs.ro_properties = NaClParameterBlock()
 
@@ -198,7 +197,7 @@ def add_wrd_connections(m):
     )
 
     # Connect Decarbonator to translator
-    m.fs.ro_to_translator = Arc(
+    m.fs.decarbonator_to_translator = Arc(
         source=m.fs.decarbonator.product.outlet,
         destination=m.fs.translator_RO_to_ZO.inlet,
     )
@@ -209,7 +208,7 @@ def add_wrd_connections(m):
         if i == 0:
             # Connect decarb to first chemical
             m.fs.add_component(
-                "decarb_to_" + chem_name,
+                "translator_to_" + chem_name,
                 Arc(
                     source=m.fs.translator_RO_to_ZO.outlet,
                     destination=m.fs.find_component(chem_name + "_addition").feed.inlet,
@@ -255,7 +254,6 @@ def set_wrd_inlet_conditions(m):
         "feed_flow_water",
         "feed_stream",
     )
-
     Cin = get_config_value(
         m.fs.config_data, "feed_conductivity", "feed_stream"
     ) * get_config_value(
@@ -276,7 +274,7 @@ def set_wrd_inlet_conditions(m):
         feed_mass_flow_salt
     )  # Fix feed salt flow rate
     # Does not seem to like tss being 0
-    # m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0)  # Fix feed salt flow rate
+    m.fs.feed.properties[0].flow_mass_comp["tss"].fix(0)  # Fix feed salt flow rate
 
 
 def set_wrd_operating_conditions(m):
@@ -285,11 +283,10 @@ def set_wrd_operating_conditions(m):
         set_chem_addition_op_conditions(
             blk=m.fs.find_component(chem_name + "_addition")
         )
-    # set_UF_op_conditions(m.fs.UF)
+    set_UF_pumps_op_conditions(m.fs.UF_pumps)
     uf_splits = {
         "to_RO": {"H2O": 0.99, "NaCl": 0.99},
     }
-    set_UF_pumps_op_conditions(m.fs.UF_pumps)
     set_separator_op_conditions(m.fs.UF, split_fractions=uf_splits)
     set_ro_system_op_conditions(m.fs.ro_system)
     set_uv_aop_op_conditions(m.fs.UV_aop)
@@ -342,15 +339,21 @@ def initialize_wrd_system(m):
 
     propagate_state(m.fs.UF_to_ro)
     initialize_ro_system(m.fs.ro_system)
+    # Brine
+    propagate_state(m.fs.ro_waste_to_brine)
+    m.fs.brine.initialize()
+    # Permeate
     propagate_state(m.fs.ro_to_uv)
     initialize_uv_aop(m.fs.UV_aop)
     propagate_state(m.fs.uv_to_decarbonator)
     initialize_decarbonator(m.fs.decarbonator)
+    propagate_state(m.fs.decarbonator_to_translator)
+    m.fs.translator_RO_to_ZO.initialize() # Permeate pressure drops out
 
     # Initialize post-treatment chemical chain (downstream of decarbonator)
     for i, chem_name in enumerate(m.fs.post_treat_chem_list):
         if i == 0:
-            propagate_state(m.fs.find_component("decarb_to_" + chem_name))
+            propagate_state(m.fs.find_component("translator_to_" + chem_name))
         else:
             prev = m.fs.post_treat_chem_list[i - 1]
             propagate_state(m.fs.find_component(prev + "_to_" + chem_name))
@@ -358,8 +361,7 @@ def initialize_wrd_system(m):
 
     propagate_state(m.fs.find_component(m.fs.post_treat_chem_list[-1] + "_to_product"))
     m.fs.product.initialize()
-    propagate_state(m.fs.ro_waste_to_brine)
-    m.fs.brine.initialize()
+
 
 
 def solve(model, solver=None, tee=True, raise_on_failure=True):
@@ -394,6 +396,10 @@ def main(number_stages=3, date="8_19_21"):
     set_wrd_system_scaling(m)
     calculate_scaling_factors(m)
     initialize_wrd_system(m)
+    # from wrd.components.ro_system import report_ro_system
+    # report_ro_system(m.fs.ro_system)
+    # from wrd.components.UF_separator import report_separator
+    # report_separator(m.fs.UF.unit)
     try:
         results = solve(m)
         assert_optimal_termination(results)

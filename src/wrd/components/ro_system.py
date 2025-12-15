@@ -230,7 +230,7 @@ def build_ro_train(blk, prop_package=None):
             ),
         )
 
-    # Add permeate mixer
+    # Add permeate mixer for the stages in this train
     blk.permeate_mixer = Mixer(
         property_package=prop_package,
         inlet_list=[
@@ -390,27 +390,27 @@ def add_ro_connections(blk):
     # Connect feed to first pump
     blk.feed_to_pump1 = Arc(source=blk.feed.outlet, destination=blk.pump1.feed.inlet)
 
-    for i in range(1, blk.number_stages + 1):
-        pump_out = blk.find_component(f"pump{i}").product.outlet
-        ro_in = blk.find_component(f"ro_stage_{i}").inlet
-        ro_perm = blk.find_component(f"ro_stage_{i}").permeate
+    for s in range(1, blk.number_stages + 1):
+        pump_out = blk.find_component(f"pump{s}").product.outlet
+        ro_in = blk.find_component(f"ro_stage_{s}").inlet
+        ro_perm = blk.find_component(f"ro_stage_{s}").permeate
         blk.add_component(
-            f"pump{i}_to_ro_stage_{i}",
+            f"pump{s}_to_ro_stage_{s}",
             Arc(source=pump_out, destination=ro_in),
         )
 
         blk.add_component(
-            f"ro_stage_{i}_to_permeate_mixer",
+            f"ro_stage_{s}_to_permeate_mixer",
             Arc(
                 source=ro_perm,
-                destination=blk.permeate_mixer.find_component(f"ro_stage_{i}_permeate"),
+                destination=blk.permeate_mixer.find_component(f"ro_stage_{s}_permeate"),
             ),
         )
         # Connections for the next stage
-        if i != blk.number_stages:
-            ro_out = blk.find_component(f"ro_stage_{i}").retentate
-            pump_in = blk.find_component(f"pump{i+1}").feed.inlet
-            if blk.number_stages == 3 and i == 2:
+        if s != blk.number_stages:
+            ro_out = blk.find_component(f"ro_stage_{s}").retentate
+            pump_in = blk.find_component(f"pump{s+1}").feed.inlet
+            if blk.number_stages == 3 and s == 2:
                 blk.ro_2_to_head_loss = Arc(
                     source=ro_out, destination=blk.stage_3_head_loss.inlet
                 )
@@ -419,7 +419,7 @@ def add_ro_connections(blk):
                 )
             else:
                 blk.add_component(
-                    f"ro_stage_{i}_to_pump{i+1}",
+                    f"ro_stage_{s}_to_pump{s+1}",
                     Arc(source=ro_out, destination=pump_in),
                 )
 
@@ -503,11 +503,13 @@ def initialize_ro_system(blk):
             propagate_state(train.find_component(f"ro_stage_{s}_to_permeate_mixer"))
 
         train.permeate_mixer.initialize()
+        propagate_state(train.permeate_mixer_to_permeate)
         train.permeate.initialize()
 
         propagate_state(train.last_stage_to_brine)
         train.brine.initialize()
-
+        # To the mixers of all trains
+        propagate_state(train.find_component(f"train_{t}_permeate_to_mixer"))
         propagate_state(train.find_component(f"train_{t}_brine_to_mixer"))
 
     blk.permeate_mixer.initialize()
@@ -520,7 +522,7 @@ def initialize_ro_system(blk):
 
 
 def report_ro_system(blk, w=30):
-    title = "Pump Report"
+    title = "RO System Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
     print(f"\n{header}\n")
@@ -551,7 +553,7 @@ def report_ro_system(blk, w=30):
             stage_rr = train.find_component(f"ro_stage_{s}").recovery_vol_phase[
                 0, "Liq"
             ]
-            stage_perm = stage_rr * pump.product.properties[0].flow_vol_phase["Liq"]
+            stage_perm = train.find_component(f"ro_stage_{s}").mixed_permeate[0].flow_vol_phase["Liq"]
             rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
             perm_sal = (
                 train.find_component(f"ro_stage_{s}").permeate.flow_mass_phase_comp[
@@ -565,6 +567,7 @@ def report_ro_system(blk, w=30):
             perm_flows_gpm[f"train_{t}_stage_{s}"] = value(
                 pyunits.convert(stage_perm, to_units=pyunits.gallons / pyunits.minute)
             )
+            perm_pressure = train.find_component(f"ro_stage_{s}").mixed_permeate[0].pressure
             print(f"\n{header}\n")
             print(
                 f'{f"Stage {s} Flow In (MGD)":<{w}s}{value(pyunits.convert(pump.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.Mgallons / pyunits.day)):<{w}.3f}{"MGD"}'
@@ -598,6 +601,9 @@ def report_ro_system(blk, w=30):
             )
             print(
                 f'{f"Stage {s} Permeate Salinity (mg/L)":<{w}s}{value(pyunits.convert(perm_sal, to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+            )
+            print(
+                f'{f"Stage {s} Permeate Pressure (bar)":<{w}s}{value(pyunits.convert(perm_pressure, to_units=pyunits.bar)):<{w}.3f}{"bar"}'
             )
 
     print(f"{'.' * (3 * w)}")
