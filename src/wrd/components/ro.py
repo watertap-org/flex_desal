@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pyomo.environ import (
     ConcreteModel,
     assert_optimal_termination,
@@ -31,9 +32,8 @@ from watertap.core.solvers import get_solver
 from wrd.utilities import load_config, get_config_value, get_config_file
 from srp.utils import touch_flow_and_conc
 
-default_config = dict(
+default_ro_config = dict(
     has_pressure_change=True,
-    # pressure_change_type=PressureChangeType.calculated,
     pressure_change_type=PressureChangeType.fixed_per_stage,
     mass_transfer_coefficient=MassTransferCoefficient.calculated,
     concentration_polarization_type=ConcentrationPolarizationType.calculated,
@@ -102,9 +102,9 @@ def build_ro(
 ):
 
     if config is None:
-        config = default_config
+        config = deepcopy(default_ro_config)
     else:
-        for k, v in default_config.items():
+        for k, v in default_ro_config.items():
             if k not in config.keys():
                 config[k] = v
 
