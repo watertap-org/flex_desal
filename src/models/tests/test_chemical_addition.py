@@ -58,7 +58,7 @@ def test_chemical_addition():
         m = build_chem_addition_model(chemical=chem)
 
         # Check unit configuration
-        assert len(m.fs.unit.config) == 5
+        assert len(m.fs.unit.config) == 6
 
         # Check that variables are constructed
         assert hasattr(m.fs.unit, "dose")
