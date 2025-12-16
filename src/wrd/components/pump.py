@@ -140,11 +140,21 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
         doc="Efficiency of VFD",
     )
 
+    blk.unit.efficiency_loss = Param(
+        initialize=0,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Loss factor due to heat, age, wear, etc.",
+    )
+
     blk.unit.efficiency_electrical = Constraint(
         expr=blk.unit.efficiency_pump[0]
-        == blk.unit.efficiency_motor
-        * blk.unit.efficiency_vfd
-        * blk.unit.efficiency_fluid
+        == (
+            blk.unit.efficiency_motor
+            * blk.unit.efficiency_vfd
+            * blk.unit.efficiency_fluid
+        )
+        - blk.unit.efficiency_loss
     )
 
     # Add Arcs
