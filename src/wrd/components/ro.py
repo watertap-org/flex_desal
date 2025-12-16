@@ -11,7 +11,7 @@ from pyomo.network import Arc
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.models.unit_models import Feed, Product
-from idaes.core import FlowsheetBlock
+from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.models.unit_models import StateJunction
 from idaes.core.util.scaling import (
     constraint_scaling_transform,
@@ -19,6 +19,7 @@ from idaes.core.util.scaling import (
     set_scaling_factor,
 )
 
+from watertap.costing import WaterTAPCosting
 from watertap.unit_models.reverse_osmosis_1D import (
     ReverseOsmosis1D,
     PressureChangeType,
@@ -60,6 +61,7 @@ def build_system():
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
+    m.fs.costing = WaterTAPCosting()
 
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -272,7 +274,7 @@ def set_ro_op_conditions(blk):
     )
 
 
-def init_system(m):
+def initialize_system(m):
 
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_ro)
@@ -377,6 +379,15 @@ def report_ro(blk, w=30):
     )
 
 
+def add_ro_costing(blk, costing_package=None):
+
+    if costing_package is None:
+        m = blk.model()
+        costing_package = m.fs.costing
+
+    blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
+
+
 def main(file="wrd_ro_inputs_8_19_21.yaml"):
 
     m = build_system()
@@ -385,8 +396,12 @@ def main(file="wrd_ro_inputs_8_19_21.yaml"):
     set_inlet_conditions(m, file=file)
     set_ro_op_conditions(m.fs.ro)
 
+    add_ro_costing(m.fs.ro)
+    m.fs.costing.cost_process()
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+
     assert degrees_of_freedom(m) == 0
-    init_system(m)
+    initialize_system(m)
 
     results = solver.solve(m, tee=True)
     assert_optimal_termination(results)
