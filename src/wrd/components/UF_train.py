@@ -33,12 +33,12 @@ from wrd.components.UF_separator import *
 from srp.utils import touch_flow_and_conc
 
 __all__ = [
-    "build_ro_train",
-    "set_ro_train_op_conditions",
-    "set_ro_train_scaling",
-    "initialize_ro_train",
-    "report_ro_train",
-    "add_ro_train_costing",
+    "build_uf_train",
+    "set_uf_train_op_conditions",
+    "set_uf_train_scaling",
+    "initialize_uf_train",
+    "report_uf_train",
+    "add_uf_train_costing",
 ]
 
 solver = get_solver()
