@@ -179,9 +179,14 @@ def report_ro_stage(blk, w=30):
     report_ro(blk.ro, w=w)
 
 
-def add_ro_stage_costing(blk):
-    add_pump_costing(blk.pump)
-    add_ro_costing(blk.ro)
+def add_ro_stage_costing(blk, costing_package=None):
+
+    if costing_package is None:
+        m = blk.model()
+        costing_package = m.fs.costing
+
+    add_pump_costing(blk.pump, costing_package=costing_package)
+    add_ro_costing(blk.ro, costing_package=costing_package)
 
 
 def main(

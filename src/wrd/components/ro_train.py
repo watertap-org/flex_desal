@@ -22,6 +22,7 @@ from idaes.models.unit_models import (
 )
 from idaes.core.util.scaling import calculate_scaling_factors
 
+from watertap.costing import WaterTAPCosting
 from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.core.solvers import get_solver
@@ -47,6 +48,7 @@ def build_system(num_stages=3, file="wrd_ro_inputs_8_19_21.yaml"):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
+    m.fs.costing = WaterTAPCosting()
     m.fs.properties = NaClParameterBlock()
 
     m.fs.feed = Feed(property_package=m.fs.properties)
@@ -58,6 +60,7 @@ def build_system(num_stages=3, file="wrd_ro_inputs_8_19_21.yaml"):
     )
 
     m.fs.product = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.product)
     m.fs.brine = Product(property_package=m.fs.properties)
 
     # Arcs to connect the unit models
@@ -225,6 +228,16 @@ def initialize_system(m):
     m.fs.brine.initialize()
 
 
+def add_ro_train_costing(blk, costing_package=None):
+
+    if costing_package is None:
+        m = blk.model()
+        costing_package = m.fs.costing
+
+    for i in blk.stages:
+        add_ro_stage_costing(blk.stage[i], costing_package=costing_package)
+
+
 def report_ro_train(blk, train_num=None, w=30):
 
     if train_num is None:
@@ -303,18 +316,33 @@ def main(Qin=2637, Cin=0.528, Tin=302, Pin=101325, file="wrd_ro_inputs_8_19_21.y
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
     set_ro_train_op_conditions(m.fs.ro_train)
+
     initialize_system(m)
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m, tee=True)
     assert_optimal_termination(results)
+
+    add_ro_train_costing(m.fs.ro_train)
+    m.fs.costing.cost_process()
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+    m.fs.costing.add_specific_energy_consumption(
+        m.fs.product.properties[0].flow_vol_phase["Liq"],
+        name="SEC",
+    )
+    # m.fs.costing.initialize()
+
+    assert degrees_of_freedom(m) == 0
+    results = solver.solve(m, tee=True)
+    assert_optimal_termination(results)
+
     report_ro_train(m.fs.ro_train, w=30)
 
     return m
 
 
 if __name__ == "__main__":
-    # m = main()
+    m = main()
 
-    m = main(
-        Qin=2452, Cin=0.503, Tin=295, Pin=101325, file="wrd_ro_inputs_3_13_21.yaml"
-    )
+    # m = main(
+    #     Qin=2452, Cin=0.503, Tin=295, Pin=101325, file="wrd_ro_inputs_3_13_21.yaml"
+    # )
