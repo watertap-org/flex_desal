@@ -52,6 +52,7 @@ __all__ = [
     "set_ro_op_conditions",
     "set_ro_scaling",
     "report_ro",
+    "add_ro_costing",
 ]
 
 solver = get_solver()

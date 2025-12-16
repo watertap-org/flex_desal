@@ -13,11 +13,12 @@ from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import StateJunction
 from idaes.core.util.scaling import calculate_scaling_factors
 
+from watertap.costing import WaterTAPCosting
 from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.core.solvers import get_solver
 
-from wrd.utilities import load_config, get_config_value, get_config_file
+from wrd.utilities import load_config, get_config_file
 from wrd.components.pump import *
 from wrd.components.ro import *
 from srp.utils import touch_flow_and_conc
@@ -28,6 +29,7 @@ __all__ = [
     "set_ro_stage_scaling",
     "initialize_ro_stage",
     "report_ro_stage",
+    "add_ro_stage_costing",
 ]
 
 solver = get_solver()
@@ -44,6 +46,7 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
+    m.fs.costing = WaterTAPCosting()
     m.fs.properties = NaClParameterBlock()
 
     m.fs.feed = Feed(property_package=m.fs.properties)
@@ -176,6 +179,11 @@ def report_ro_stage(blk, w=30):
     report_ro(blk.ro, w=w)
 
 
+def add_ro_stage_costing(blk):
+    add_pump_costing(blk.pump)
+    add_ro_costing(blk.ro)
+
+
 def main(
     Qin=2637,
     Cin=0.528,
@@ -190,6 +198,13 @@ def main(
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
     set_ro_stage_op_conditions(m.fs.ro_stage)
+
+    add_ro_stage_costing(m.fs.ro_stage)
+    m.fs.costing.cost_process()
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+    m.fs.costing.add_specific_energy_consumption(
+        m.fs.product.properties[0].flow_vol_phase["Liq"], name="SEC"
+    )
 
     initialize_system(m)
 
