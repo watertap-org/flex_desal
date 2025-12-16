@@ -73,25 +73,25 @@ ratio_in_solution_dict = {
 }
 
 
-class ChemicalType(StrEnum):
-    default = "default"
-    ammonia = "ammonia"
-    ammonium_sulfate = "ammonium_sulfate"
-    alum = "alum"
-    anti_scalant = "anti_scalant"
-    caustic = "caustic"
-    ferric_chloride = "ferric_chloride"
-    hydrochloric_acid = "hydrochloric_acid"
-    hydrazine = anti_scalant
-    sodium_hypochlorite = "sodium_hypochlorite"
-    hypochlorite = sodium_hypochlorite
-    lime = "lime"
-    polymer = "polymer"
-    scale_inhibitor = "scale_inhibitor"
-    sodium_bisulfite = "sodium_bisulfite"
-    sodium_hydroxide = "sodium_hydroxide"
-    soda_ash = "soda_ash"
-    sulfuric_acid = "sulfuric_acid"
+# class ChemicalType(StrEnum):
+#     default = "default"
+#     ammonia = "ammonia"
+#     ammonium_sulfate = "ammonium_sulfate"
+#     alum = "alum"
+#     anti_scalant = "anti_scalant"
+#     caustic = "caustic"
+#     ferric_chloride = "ferric_chloride"
+#     hydrochloric_acid = "hydrochloric_acid"
+#     hydrazine = anti_scalant
+#     sodium_hypochlorite = "sodium_hypochlorite"
+#     hypochlorite = sodium_hypochlorite
+#     lime = "lime"
+#     polymer = "polymer"
+#     scale_inhibitor = "scale_inhibitor"
+#     sodium_bisulfite = "sodium_bisulfite"
+#     sodium_hydroxide = "sodium_hydroxide"
+#     soda_ash = "soda_ash"
+#     sulfuric_acid = "sulfuric_acid"
 
 
 @declare_process_block_class("ChemicalAddition")
@@ -105,8 +105,18 @@ class ChemicalAdditionData(StateJunctionData):
     CONFIG.declare(
         "chemical",
         ConfigValue(
-            domain=In(ChemicalType),
+            domain=str,
             default=None,
+            description="Type of chemical addition",
+            doc="""Indicates the type of chemical addition to be modeled,
+    **default** = None.""",
+        ),
+    )
+    CONFIG.declare(
+        "chemical_data",
+        ConfigValue(
+            domain=dict,
+            default={},
             description="Type of chemical addition",
             doc="""Indicates the type of chemical addition to be modeled,
     **default** = None.""",
@@ -118,21 +128,50 @@ class ChemicalAdditionData(StateJunctionData):
         super().build()
 
         if self.config.chemical is None:
-            self.config.chemical = ChemicalType.default
+            # self.config.chemical = "default"
+            raise ConfigurationError("Must specify a chemical for addition.")
 
         self.solution_density = Param(
-            initialize=solution_dens_dict[self.config.chemical],
+            initialize=1,
             mutable=True,
             units=pyunits.g / pyunits.liter,
             doc=f"Density of {self.config.chemical} solution",
         )
 
         self.ratio_in_solution = Param(
-            initialize=ratio_in_solution_dict[self.config.chemical],
+            initialize=1,
             mutable=True,
             units=pyunits.dimensionless,
             doc=f"Mass fraction of {self.config.chemical} in solution",
         )
+
+        if "solution_density" in self.config.chemical_data.keys():
+            # Prefer user provided data
+            self.solution_density.set_value(
+                self.config.chemical_data["solution_density"]
+            )
+        elif self.config.chemical in solution_dens_dict.keys():
+            # Defer to default data
+            self.solution_density.set_value(solution_dens_dict[self.config.chemical])
+        else:
+            raise ConfigurationError(
+                f"Must provide solution density for {self.config.chemical} addition."
+            )
+
+        if "ratio_in_solution" in self.config.chemical_data.keys():
+            # Prefer user provided data
+            self.ratio_in_solution.set_value(
+                self.config.chemical_data["ratio_in_solution"]
+            )
+        elif self.config.chemical in solution_dens_dict.keys():
+            # Defer to default data
+            self.ratio_in_solution.set_value(
+                ratio_in_solution_dict[self.config.chemical]
+            )
+        else:
+            raise ConfigurationError(
+                f"Must provide ratio in solution for {self.config.chemical} addition."
+            )
 
         self.pump_head = Param(
             initialize=10,
