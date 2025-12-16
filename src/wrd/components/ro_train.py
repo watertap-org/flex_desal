@@ -5,7 +5,6 @@ from pyomo.environ import (
     assert_optimal_termination,
     units as pyunits,
     value,
-    Block,
     Set,
     TransformationFactory,
 )
@@ -13,37 +12,22 @@ from pyomo.network import Arc
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
-from idaes.models.unit_models import Feed, Product
 from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import (
-    MixingType,
+    Feed,
+    Product,
     MomentumMixingType,
     Mixer,
-    Separator,
     StateJunction,
 )
-import idaes.core.util.scaling as iscale
-from idaes.core.util.scaling import (
-    constraint_scaling_transform,
-    calculate_scaling_factors,
-    set_scaling_factor,
-)
+from idaes.core.util.scaling import calculate_scaling_factors
 
-from watertap.unit_models.reverse_osmosis_1D import (
-    ReverseOsmosis1D,
-    PressureChangeType,
-    MassTransferCoefficient,
-    ConcentrationPolarizationType,
-)
 from watertap.core.util.model_diagnostics.infeasible import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
-from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-
+from wrd.utilities import load_config, get_config_file
 from wrd.components.pump import *
-from wrd.utilities import load_config, get_config_value, get_config_file
-from models.head_loss import HeadLoss
 from wrd.components.ro import *
 from wrd.components.ro_stage import *
 from srp.utils import touch_flow_and_conc
@@ -145,9 +129,11 @@ def build_ro_train(
         expr=blk.product.properties[0].flow_vol_phase["Liq"]
         / blk.feed.properties[0].flow_vol_phase["Liq"]
     )
+    total_pump_power = 0
 
     for i in blk.stages:
         build_ro_stage(blk.stage[i], stage_num=i, file=file, prop_package=prop_package)
+        total_pump_power += blk.stage[i].pump.unit.work_mechanical[0]
 
     for i in blk.stages:
 
@@ -178,6 +164,8 @@ def build_ro_train(
         blk.add_component(f"stage_{i}_to_product", mix_arc)
 
     blk.mixer_to_product = Arc(source=blk.mixer.outlet, destination=blk.product.inlet)
+
+    blk.total_pump_power = Expression(expr=total_pump_power)
 
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
@@ -253,6 +241,12 @@ def report_ro_train(blk, train_num=None, w=30):
         side = int(((3 * w) - len(title)) / 2) - 1
         header = "_" * side + f" {title} " + "_" * side
         print(f"\n\n{header}\n")
+        print(
+            f'{f"Stage {i} Feed Flow":<{w}s}{value(pyunits.convert(blk.stage[i].feed.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Stage {i} Feed Conc.":<{w}s}{value(pyunits.convert(blk.stage[i].feed.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
         report_ro_stage(blk.stage[i], w=w)
 
     side = int(((3 * w) - len(title2)) / 2) - 1
