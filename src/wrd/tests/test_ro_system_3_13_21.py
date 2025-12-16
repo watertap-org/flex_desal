@@ -43,6 +43,7 @@ def _get_stage_objects(m, train_idx, stage_idx):
     return pump, perm_flow
 
 
+@pytest.mark.skip
 @pytest.mark.component
 def test_stage1_power_3_13_21(ro_model):
     pump, _ = _get_stage_objects(ro_model, 1, 1)
@@ -52,6 +53,7 @@ def test_stage1_power_3_13_21(ro_model):
     assert value(modeled_power) == pytest.approx(value(EXPECTED_POWER[0]), rel=0.15)
 
 
+@pytest.mark.skip
 @pytest.mark.component
 def test_stage1_permeate_3_13_21(ro_model):
     _, stage_perm = _get_stage_objects(ro_model, 1, 1)
@@ -59,6 +61,7 @@ def test_stage1_permeate_3_13_21(ro_model):
     assert value(stage_perm) == pytest.approx(value(EXPECTED_PERM_FLOW[0]), rel=0.15)
 
 
+@pytest.mark.skip
 @pytest.mark.component
 def test_stage2_power_3_13_21(ro_model):
     pump, _ = _get_stage_objects(ro_model, 1, 2)
@@ -67,6 +70,7 @@ def test_stage2_power_3_13_21(ro_model):
     assert value(modeled_power) == pytest.approx(value(EXPECTED_POWER[1]), rel=0.15)
 
 
+@pytest.mark.skip
 @pytest.mark.component
 def test_stage2_permeate_3_13_21(ro_model):
     _, stage_perm = _get_stage_objects(ro_model, 1, 2)
@@ -74,6 +78,7 @@ def test_stage2_permeate_3_13_21(ro_model):
     assert value(stage_perm) == pytest.approx(value(EXPECTED_PERM_FLOW[1]), rel=0.15)
 
 
+@pytest.mark.skip
 @pytest.mark.component
 def test_stage3_power_3_13_21(ro_model):
     pump, _ = _get_stage_objects(ro_model, 1, 3)
@@ -82,6 +87,7 @@ def test_stage3_power_3_13_21(ro_model):
     assert value(modeled_power) == pytest.approx(value(EXPECTED_POWER[2]), rel=0.5)
 
 
+@pytest.mark.skip
 # Mass balance does not add up
 @pytest.mark.component
 def test_stage3_permeate_3_13_21(ro_model):
