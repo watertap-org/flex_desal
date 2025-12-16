@@ -278,6 +278,12 @@ def report_ro_train(blk, train_num=None, w=30):
     for i, inlet in enumerate(blk.mixer.config.inlet_list, 1):
         sb = blk.mixer.find_component(f"{inlet}_state")
         print(
+            f'{f"  Stage {i} Feed Flow":<{w}s}{value(pyunits.convert(blk.stage[i].feed.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"  Stage {i} Feed Conc":<{w}s}{value(pyunits.convert(blk.stage[i].feed.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+        print(
             f'{f"  Stage {i} Perm Flow":<{w}s}{value(pyunits.convert(sb[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
         )
         print(
@@ -285,14 +291,12 @@ def report_ro_train(blk, train_num=None, w=30):
         )
 
 
-def main():
+def main(Qin=2637, Cin=0.528):
 
     m = build_system()
     set_ro_train_scaling(m.fs.ro_train)
-    m.fs.feed.properties[0].conc_mass_phase_comp
-    m.fs.feed.properties[0].flow_vol_phase
     calculate_scaling_factors(m)
-    set_inlet_conditions(m)
+    set_inlet_conditions(m, Qin=Qin, Cin=Cin)
     set_ro_train_op_conditions(m.fs.ro_train)
     initialize_system(m)
     assert degrees_of_freedom(m) == 0
