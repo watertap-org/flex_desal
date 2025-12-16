@@ -9,17 +9,12 @@ from pyomo.environ import (
     units as pyunits,
 )
 from pyomo.network import Arc
-from pyomo.util.check_units import assert_units_consistent
 
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
 from idaes.models.unit_models import StateJunction, Feed, Product
 from idaes.core.util.model_statistics import degrees_of_freedom
-from idaes.core.util.scaling import (
-    calculate_scaling_factors,
-    set_scaling_factor,
-    get_scaling_factor,
-)
+from idaes.core.util.scaling import calculate_scaling_factors, set_scaling_factor
 
 from watertap.costing import WaterTAPCosting
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
@@ -198,11 +193,12 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
 
 
 def set_pump_op_conditions(blk):
+
     Pout = get_config_value(
         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
     )
 
-    print(f"Setting pump {blk.stage_num} operating conditions, Pout={Pout}")
+    print(f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi")
     blk.unit.control_volume.properties_out[0].pressure.fix(Pout)
 
 
@@ -284,7 +280,9 @@ def add_pump_costing(blk, costing_package=None):
         costing_package = m.fs.costing
 
     # blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
-    costing_package.cost_flow(blk.unit.work_mechanical[0], "electricity")
+    costing_package.cost_flow(
+        pyunits.convert(blk.unit.work_mechanical[0], to_units=pyunits.kW), "electricity"
+    )
 
 
 def main(
@@ -321,6 +319,11 @@ def main(
 
 if __name__ == "__main__":
 
+    # August 19, 2021 Data
+    # Stage 1
     m = main()
+    # Stage 2
     m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
-    m = main(Qin=384, Pin=112.6 * pyunits.psi, stage_num=3)
+    # Stage 3
+    m = main(Qin=384, Pin=(112.6-41.9) * pyunits.psi, stage_num=3)
+    m.fs.costing.SEC.display()
