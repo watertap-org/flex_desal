@@ -21,6 +21,7 @@ from idaes.core.util.scaling import (
     get_scaling_factor,
 )
 
+from watertap.costing import WaterTAPCosting
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
@@ -34,6 +35,7 @@ __all__ = [
     "set_pump_op_conditions",
     "report_pump",
     "add_pump_scaling",
+    "add_pump_costing",
 ]
 
 solver = get_solver()
@@ -43,12 +45,15 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
+    m.fs.costing = WaterTAPCosting()
 
     m.fs.feed = Feed(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.feed)
     m.fs.pump = FlowsheetBlock(dynamic=False)
     build_pump(m.fs.pump, stage_num=stage_num, file=file, prop_package=m.fs.properties)
 
     m.fs.product = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.product)
 
     # Arcs to connect the unit models
     m.fs.feed_to_pump = Arc(
@@ -56,7 +61,7 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
         destination=m.fs.pump.feed.inlet,
     )
     m.fs.pump_to_product = Arc(
-        source=m.fs.pump.unit.outlet,
+        source=m.fs.pump.product.outlet,
         destination=m.fs.product.inlet,
     )
 
@@ -218,6 +223,17 @@ def add_pump_scaling(blk):
     set_scaling_factor(blk.unit.work_mechanical[0], 1e-3)
 
 
+def initialize_system(m):
+
+    m.fs.feed.initialize()
+    propagate_state(m.fs.feed_to_pump)
+
+    initialize_pump(m.fs.pump)
+
+    propagate_state(m.fs.pump_to_product)
+    m.fs.product.initialize()
+
+
 def initialize_pump(blk):
 
     blk.feed.initialize()
@@ -261,6 +277,16 @@ def report_pump(blk, w=30):
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.unit.efficiency_pump[0]):<{w}.3f}{"-"}')
 
 
+def add_pump_costing(blk, costing_package=None):
+
+    if costing_package is None:
+        m = blk.model()
+        costing_package = m.fs.costing
+
+    # blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
+    costing_package.cost_flow(blk.unit.work_mechanical[0], "electricity")
+
+
 def main(
     Qin=2637,
     Cin=0.5,
@@ -275,11 +301,21 @@ def main(
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
     set_pump_op_conditions(m.fs.pump)
-    initialize_pump(m.fs.pump)
+
+    add_pump_costing(m.fs.pump)
+    m.fs.costing.cost_process()
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+    m.fs.costing.add_specific_energy_consumption(
+        m.fs.product.properties[0].flow_vol_phase["Liq"],
+        name="SEC",
+    )
+
+    initialize_system(m)
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
     report_pump(m.fs.pump)
+
     return m
 
 
