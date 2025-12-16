@@ -265,7 +265,7 @@ def set_ro_op_conditions(blk):
         )
     )
 
-    blk.unit.recovery_mass_phase_comp[0, "Liq", "H2O"].fix(
+    blk.unit.recovery_vol_phase[0, "Liq"].set_value(
         get_config_value(
             blk.config_data,
             "water_recovery_mass_phase",
@@ -273,6 +273,8 @@ def set_ro_op_conditions(blk):
             f"stage_{blk.stage_num}",
         )
     )
+
+    blk.unit.mixed_permeate[0].pressure.fix(20 * pyunits.psi)
 
 
 def initialize_system(m):
@@ -377,6 +379,9 @@ def report_ro(blk, w=30):
     )
     print(
         f'{f"Membrane Length":<{w}s}{value(blk.unit.length):<{w}.3f}{f"{pyunits.get_units(blk.unit.length)}"}'
+    )
+    print(
+        f'{f"Perm Backpressure":<{w}s}{value(pyunits.convert(blk.unit.mixed_permeate[0].pressure, to_units=pyunits.psi)):<{w}.3f}{f"psi"}'
     )
 
 
