@@ -269,21 +269,12 @@ def run_march_stages():
     # Stage 3
     m = main(
         Qin=506.5,
-        Cin=2.2,
+        Cin=2.7,
         Tin=295,
         Pin=(106.3 - 59.3) * pyunits.psi,
         stage_num=3,
         file="wrd_ro_inputs_3_13_21.yaml",
     )
-    # Stage 3 actual (doesn't initialize)
-    # m = main(
-    #     Qin=506.5,
-    #     Cin=5.540 / 2,
-    #     Tin=295,
-    #     Pin=(106.3 - 59.3) * pyunits.psi,
-    #     stage_num=3,
-    #     file="wrd_ro_inputs_3_13_21.yaml",
-    # )
 
 
 if __name__ == "__main__":
