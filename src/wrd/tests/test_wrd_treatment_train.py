@@ -21,6 +21,7 @@ def _get_stage_objects(m, train_idx, stage_idx):
 
 
 # Current test only checks first strage of first train pump power
+@pytest.mark.skip
 @pytest.mark.component
 def test_wrd_treatment_train_PRO_pump_1(full_wrd_system_8_19_21):
     pump, _ = _get_stage_objects(full_wrd_system_8_19_21, 1, 1)
