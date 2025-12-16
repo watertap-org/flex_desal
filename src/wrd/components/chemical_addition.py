@@ -50,6 +50,7 @@ __all__ = [
     "set_chem_addition_op_conditions",
     "add_chem_addition_costing",
     "report_chem_addition",
+    "initialize_chem_addition",
 ]
 
 solver = get_solver()
@@ -191,13 +192,13 @@ def initialize_system(blk):
     blk.fs.feed.initialize()
     propagate_state(blk.fs.feed_to_chem_addition)
 
-    init_chem_addition(blk.fs.chem_addition)
+    initialize_chem_addition(blk.fs.chem_addition)
 
     propagate_state(blk.fs.chem_addition_to_product)
     blk.fs.product.initialize()
 
 
-def init_chem_addition(blk):
+def initialize_chem_addition(blk):
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
 
