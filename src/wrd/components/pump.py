@@ -13,7 +13,7 @@ from pyomo.util.check_units import assert_units_consistent
 
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
-from idaes.models.unit_models import StateJunction
+from idaes.models.unit_models import StateJunction, Feed, Product
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.scaling import (
     calculate_scaling_factors,
@@ -21,7 +21,7 @@ from idaes.core.util.scaling import (
     get_scaling_factor,
 )
 
-from watertap.property_models.NaCl_prop_pack import NaClParameterBlock
+from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
@@ -36,29 +36,57 @@ __all__ = [
     "add_pump_scaling",
 ]
 
+solver = get_solver()
 
-def build_system(**kwargs):
+
+def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-    m.fs.ro_properties = NaClParameterBlock()
-    m.fs.pump_system = FlowsheetBlock(dynamic=False)
-    build_pump(m.fs.pump_system, prop_package=m.fs.ro_properties, **kwargs)
+    m.fs.properties = NaClParameterBlock()
+
+    m.fs.feed = Feed(property_package=m.fs.properties)
+    m.fs.pump = FlowsheetBlock(dynamic=False)
+    build_pump(m.fs.pump, stage_num=stage_num, file=file, prop_package=m.fs.properties)
+
+    m.fs.product = Product(property_package=m.fs.properties)
+
+    # Arcs to connect the unit models
+    m.fs.feed_to_pump = Arc(
+        source=m.fs.feed.outlet,
+        destination=m.fs.pump.feed.inlet,
+    )
+    m.fs.pump_to_product = Arc(
+        source=m.fs.pump.unit.outlet,
+        destination=m.fs.product.inlet,
+    )
+
+    TransformationFactory("network.expand_arcs").apply_to(m)
+
+    m.fs.properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+    )
+    m.fs.properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    )
+
     return m
 
 
 def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None):
+
     if prop_package is None:
         m = blk.model()
         prop_package = m.fs.ro_properties
 
-    blk.feed = StateJunction(property_package=prop_package)
-    touch_flow_and_conc(blk.feed)
-    blk.product = StateJunction(property_package=prop_package)
-    config_file_name = get_config_file(file)
-    blk.config_data = load_config(config_file_name)
+    blk.config_data = load_config(get_config_file(file))
     blk.stage_num = stage_num
 
+    blk.feed = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.feed)
+
     blk.unit = Pump(property_package=prop_package)
+
+    blk.product = StateJunction(property_package=prop_package)
 
     # Create variable for the efficiency from the pump curves
     blk.unit.efficiency_fluid = Var(
@@ -160,6 +188,7 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
     # Add Arcs
     blk.feed_to_unit = Arc(source=blk.feed.outlet, destination=blk.unit.inlet)
     blk.unit_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
+
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
@@ -172,48 +201,16 @@ def set_pump_op_conditions(blk):
     blk.unit.control_volume.properties_out[0].pressure.fix(Pout)
 
 
-def set_inlet_conditions(blk):
-    """
-    Set the inlet conditions for the Pump
-    """
-    Qin = get_config_value(
-        blk.config_data,
-        "pump_flowrate",
-        "pumps",
-        f"pump_{blk.stage_num}",
-    )
+def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=302, Pin=101325):
 
-    Cin = get_config_value(
-        blk.config_data,
-        "feed_conductivity",
-        "pumps",
-        f"pump_{blk.stage_num}",
-    ) * get_config_value(blk.config_data, "feed_conductivity_conversion", "feed_stream")
-
-    Pin = get_config_value(
-        blk.config_data,
-        "pump_suction_pressure",
-        "pumps",
-        f"pump_{blk.stage_num}",
-    )
-    rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
-    feed_mass_flow_water = Qin * rho
-    feed_mass_flow_salt = Cin * Qin
-
-    blk.feed.properties[0].flow_mass_phase_comp["Liq", "H2O"].fix(feed_mass_flow_water)
-    blk.feed.properties[0].flow_mass_phase_comp["Liq", "NaCl"].fix(feed_mass_flow_salt)
-    blk.feed.properties[0].temperature.fix(298.15 * pyunits.K)  # 25 C
-    blk.feed.properties[0].pressure.fix(Pin)
-    # blk.feed.properties[0].flow_vol  # Touching
-    blk.unit.control_volume.properties_in[0].flow_vol  # Touching
-
-    # Scaling properties
-    m = blk.model()
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
-    )
-    m.fs.ro_properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+    m.fs.feed.properties.calculate_state(
+        var_args={
+            ("flow_vol_phase", ("Liq")): Qin * pyunits.gallons / pyunits.minute,
+            ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin * pyunits.g / pyunits.L,
+            ("pressure", None): Pin,
+            ("temperature", None): Tin,
+        },
+        hold_state=True,
     )
 
 
@@ -222,14 +219,12 @@ def add_pump_scaling(blk):
 
 
 def initialize_pump(blk):
-    # Touch Properties that are needed for later
-    blk.feed.properties[0].flow_vol_phase["Liq"]
-    blk.product.properties[0].flow_vol_phase["Liq"]
 
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
 
     blk.unit.initialize()
+
     propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
@@ -266,33 +261,30 @@ def report_pump(blk, w=30):
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.unit.efficiency_pump[0]):<{w}.3f}{"-"}')
 
 
-def main(stage_num=1, date="8_19_21"):
+def main(
+    Qin=2637,
+    Cin=0.5,
+    Tin=302,
+    Pin=101325,
+    stage_num=1,
+    file="wrd_ro_inputs_8_19_21.yaml",
+):
 
-    m = build_system(stage_num=stage_num, date=date)  # optional input of stage_num
-    set_inlet_conditions(m.fs.pump_system)
-    set_pump_op_conditions(m.fs.pump_system)
-    add_pump_scaling(m.fs.pump_system)
+    m = build_system(stage_num=stage_num, file=file)
+    add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
-    initialize_pump(m.fs.pump_system)
-    solver = get_solver()
+    set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
+    set_pump_op_conditions(m.fs.pump)
+    initialize_pump(m.fs.pump)
+    assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
+    report_pump(m.fs.pump)
     return m
 
 
 if __name__ == "__main__":
-    stage_num = 2
-    m = build_system(stage_num=stage_num)  # optional input of stage_num
-    assert_units_consistent(m)
-    print(f"{degrees_of_freedom(m)} degrees of freedom after build")
-    set_inlet_conditions(m.fs.pump_system)
-    set_pump_op_conditions(m.fs.pump_system)
-    print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
-    add_pump_scaling(m.fs.pump_system)
-    calculate_scaling_factors(m)
-    initialize_pump(m.fs.pump_system)
-    solver = get_solver()
-    results = solver.solve(m)
-    assert_optimal_termination(results)
-    # print(f"{iscale.jacobian_cond(m.fs.pump_system):.2e}")
-    report_pump(m.fs.pump_system)
+
+    m = main()
+    m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
+    m = main(Qin=384, Pin=112.6 * pyunits.psi, stage_num=3)
