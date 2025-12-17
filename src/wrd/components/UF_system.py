@@ -222,7 +222,7 @@ def initialize_uf_system(m):
 
     if m.standalone:
         m.fs.feed.initialize()
-    propagate_state(m.fs.uf_feed_to_separator)
+        propagate_state(m.fs.uf_feed_to_separator)
 
     m.fs.uf_feed_separator.initialize()
 

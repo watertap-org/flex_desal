@@ -131,7 +131,7 @@ def build_ro_system(
             expr=(m.fs.product.properties[0].flow_vol_phase["Liq"])
             / (m.fs.feed.properties[0].flow_vol_phase["Liq"])
         )
-        
+
         m.fs.ro_feed_to_separator = Arc(
             source=m.fs.feed.outlet,
             destination=m.fs.ro_feed_separator.inlet,
@@ -213,8 +213,7 @@ def initialize_ro_system(m):
 
     if m.standalone:
         m.fs.feed.initialize()
-
-    propagate_state(m.fs.ro_feed_to_separator)
+        propagate_state(m.fs.ro_feed_to_separator)
 
     m.fs.ro_feed_separator.initialize()
 
@@ -227,9 +226,11 @@ def initialize_ro_system(m):
         propagate_state(a)
         a = m.fs.find_component(f"train{i}_to_brine_mix")
         propagate_state(a)
+        print(f"Initialized RO Train {i}")
 
     m.fs.ro_product_mixer.initialize()
     m.fs.ro_brine_mixer.initialize()
+    # assert False
 
     if m.standalone:
         propagate_state(m.fs.product_mixer_to_product)
