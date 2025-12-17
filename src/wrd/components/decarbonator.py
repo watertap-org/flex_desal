@@ -28,9 +28,9 @@ solver = get_solver()
 def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
-    m.fs.ro_properties = NaClParameterBlock()
+    m.fs.properties = NaClParameterBlock()
     m.fs.decarb_system = FlowsheetBlock(dynamic=False)
-    build_decarbonator(m.fs.decarb_system, prop_package=m.fs.ro_properties, **kwargs)
+    build_decarbonator(m.fs.decarb_system, prop_package=m.fs.properties, **kwargs)
     return m
 
 
@@ -72,10 +72,10 @@ def set_inlet_conditions(blk, Qin=0.581, Cin=0, P_in=10.3):
     blk.feed.properties[0].flow_vol  # Touching
 
     m = blk.model()
-    m.fs.ro_properties.set_default_scaling(
+    m.fs.properties.set_default_scaling(
         "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
     )
-    m.fs.ro_properties.set_default_scaling(
+    m.fs.properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
     )
 
