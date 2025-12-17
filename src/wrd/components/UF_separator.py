@@ -11,10 +11,10 @@ from idaes.core import FlowsheetBlock
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.initialization import propagate_state
 import idaes.core.util.scaling as iscale
-from idaes.models.unit_models import Separator, StateJunction, Feed, Product, Mixer
+from idaes.models.unit_models import Separator, StateJunction, Feed, Product
 from idaes.models.unit_models.separator import SplittingType
 
-from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
+from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.core.solvers import get_solver
 
 from wrd.utilities import touch_flow_and_conc
@@ -37,7 +37,7 @@ def build_system(Qin=11343, Cin=1467, feed_temp=27, outlet_list=["outlet1", "out
     m.feed_temp = feed_temp
 
     m.fs = FlowsheetBlock(dynamic=False)
-    m.fs.properties = SeawaterParameterBlock()
+    m.fs.properties = NaClParameterBlock()
 
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -125,7 +125,7 @@ def set_system_scaling(m):
     m.fs.properties.set_default_scaling(
         "flow_mass_phase_comp",
         1 / value(pyunits.convert(m.Qin, to_units=pyunits.m**3 / pyunits.s)),
-        index=("Liq", "TDS"),
+        index=("Liq", "NaCl"),
     )
 
     iscale.calculate_scaling_factors(m)
@@ -136,7 +136,7 @@ def set_system_op_conditions(m):
     m.fs.feed.properties.calculate_state(
         var_args={
             ("flow_vol_phase", ("Liq")): m.Qin,
-            ("conc_mass_phase_comp", ("Liq", "TDS")): m.Cin,
+            ("conc_mass_phase_comp", ("Liq", "NaCl")): m.Cin,
             ("pressure", None): 101325,
             ("temperature", None): 273.15 + m.feed_temp,
         },
@@ -150,8 +150,8 @@ def set_separator_op_conditions(blk, split_fractions={}):
 
     split_fractions must take the form
         {
-            "outlet1": {"H2O": 0.3, "TDS": 0.3},
-            "outlet2": {"H2O": 0.1, "TDS": 0.1},
+            "outlet1": {"H2O": 0.3, "NaCl": 0.3},
+            "outlet2": {"H2O": 0.1, "NaCl": 0.1},
         }
     There should be one split fraction that is left unspecified to avoid over-specification.
     """
@@ -202,13 +202,12 @@ def init_separator(blk, name=None):
 
 def report_separator(blk, w=25):
 
-    fs = blk.flowsheet()
-    title = fs.name.replace("fs.", "").replace("_", " ").upper()
+    title = blk.name.replace("fs.", "").replace("_", " ").upper()
 
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
     print(f"\n{header}\n")
-    ms = blk.find_component("mixed_state")
+    ms = blk.unit.find_component("mixed_state")
     flow_in = value(
         pyunits.convert(
             ms[0].flow_vol_phase["Liq"],
@@ -217,26 +216,26 @@ def report_separator(blk, w=25):
     )
     conc_in = value(
         pyunits.convert(
-            ms[0].conc_mass_phase_comp["Liq", "TDS"],
+            ms[0].conc_mass_phase_comp["Liq", "NaCl"],
             to_units=pyunits.mg / pyunits.L,
         )
     )
     print(f'{"INLET Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
-    print(f'{"INLET TDS":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+    print(f'{"INLET NaCl":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
     tot_flow_out = sum(
         value(
             value(
                 pyunits.convert(
-                    blk.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
+                    blk.unit.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
                     to_units=pyunits.gallons / pyunits.minute,
                 )
             )
         )
-        for x in blk.config.outlet_list
+        for x in blk.unit.config.outlet_list
     )
     print(f'{"TOTAL OUTLET FLOW":<{w}s}{f"{tot_flow_out:<{w},.1f}"}{"gpm":<{w}s}')
-    for x in blk.config.outlet_list:
-        sb = blk.find_component(f"{x}_state")
+    for x in blk.unit.config.outlet_list:
+        sb = blk.unit.find_component(f"{x}_state")
         flow_out = value(
             pyunits.convert(
                 sb[0].flow_vol_phase["Liq"],
@@ -245,7 +244,7 @@ def report_separator(blk, w=25):
         )
         conc_out = value(
             pyunits.convert(
-                sb[0].conc_mass_phase_comp["Liq", "TDS"],
+                sb[0].conc_mass_phase_comp["Liq", "NaCl"],
                 to_units=pyunits.mg / pyunits.L,
             )
         )
@@ -253,7 +252,7 @@ def report_separator(blk, w=25):
             f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}'
         )
         print(
-            f'{"   TDS " + x.replace("_", " ").title():<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}'
+            f'{"   NaCl " + x.replace("_", " ").title():<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}'
         )
 
 
@@ -263,7 +262,7 @@ def main():
     set_system_scaling(m)
     set_system_op_conditions(m)
 
-    split_fractions = {"cats": {"H2O": 0.9, "TDS": 0.9}}
+    split_fractions = {"cats": {"H2O": 0.9, "NaCl": 0.9}}
 
     set_separator_op_conditions(
         m.fs.separator,
@@ -274,7 +273,7 @@ def main():
     results = solver.solve(m)
     assert_optimal_termination(results)
     print(f"dof = {degrees_of_freedom(m)}")
-    report_separator(m.fs.separator.unit)
+    report_separator(m.fs.separator)
 
     return m
 
