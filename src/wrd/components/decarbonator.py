@@ -3,7 +3,6 @@ from pyomo.environ import (
     value,
     TransformationFactory,
     Var,
-    Objective,
     NonNegativeReals,
     assert_optimal_termination,
     units as pyunits,
@@ -17,11 +16,13 @@ from idaes.core.util.scaling import (
     set_scaling_factor,
 )
 from idaes.models.unit_models import StateJunction
-from idaes.core.util.model_statistics import *
+from idaes.core.util.model_statistics import degrees_of_freedom
 
 from watertap.core.solvers import get_solver
-from watertap.core.util.initialization import *
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
+
+
+solver = get_solver()
 
 
 def build_system(**kwargs):
@@ -126,22 +127,20 @@ def report_decarbonator(blk, w=30):
     )
 
 
-if __name__ == "__main__":
-    m = build_system()  # optional input of stage_num
-    print(f"{degrees_of_freedom(m)} degrees of freedom after build")
+def main():
+
+    m = build_system()
     set_inlet_conditions(m.fs.decarb_system)
     set_decarbonator_op_conditions(m.fs.decarb_system)
     add_decarbonator_scaling(m.fs.decarb_system)
     calculate_scaling_factors(m)
-    print(
-        f"{degrees_of_freedom(m)} degrees of freedom after setting op and inlet conditions"
-    )
     initialize_decarbonator(m.fs.decarb_system)
+    results = solver.solve(m)
+    assert_optimal_termination(results)
     report_decarbonator(m.fs.decarb_system)
-    # cost_decarbonator(m.fs.decarb_system) # Haven't done any costing yet
-    # m.fs.obj = Objective(
-    #     expr=m.fs.decarb_system.feed.properties[0].flow_vol_phase["Liq"]
-    # )  # There is no D.o.f to optimize with
-    # solver = get_solver()
-    # results = solver.solve(m)
-    # assert_optimal_termination(results)
+
+    return m
+
+
+if __name__ == "__main__":
+    m = main()
