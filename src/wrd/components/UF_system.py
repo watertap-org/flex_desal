@@ -69,7 +69,7 @@ def build_uf_system(
         split_basis=SplittingType.componentFlow,
     )
     if split_fraction is None:
-        #Even Split
+        # Even Split
         m.fs.feed_separator.feed_split = 1.0 / len(outlet_list)
 
     perm_inlet_list = [f"perm_inlet{i}" for i in m.fs.trains]
@@ -88,7 +88,7 @@ def build_uf_system(
         inlet_list=brine_inlet_list,
     )
 
-    #Could delete this tbh
+    # Could delete this tbh
     m.fs.recovery_vol = Expression(
         expr=(m.fs.product.properties[0].flow_vol_phase["Liq"])
         / (m.fs.feed.properties[0].flow_vol_phase["Liq"])
@@ -262,12 +262,12 @@ def report_uf_system(m, w=30):
 
 def report_uf_system_pumps(m, w=30):
     for i in m.fs.trains:
-            pump = m.fs.train[i].pump
-            title = f"Train {i} Pump Report"
-            side = int(((3 * w) - len(title)) / 2) - 1
-            header = "*" * side + f" {title} " + "*" * side
-            print(f"\n{header}\n")
-            report_pump(pump, w=w)
+        pump = m.fs.train[i].pump
+        title = f"Train {i} Pump Report"
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "*" * side + f" {title} " + "*" * side
+        print(f"\n{header}\n")
+        report_pump(pump, w=w)
 
 
 def main(add_costing=False):
@@ -277,7 +277,7 @@ def main(add_costing=False):
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=2637, Cin=0.5)
     set_uf_system_op_conditions(m)
-    assert degrees_of_freedom(m)==0
+    assert degrees_of_freedom(m) == 0
     initialize_uf_system(m)
 
     if add_costing:
