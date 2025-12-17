@@ -106,6 +106,11 @@ def build_ro_train(
     blk, num_stages=3, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None
 ):
 
+    name = blk.name.split(".")[-1].replace("_", " ").replace("[", " ").replace("]", "").upper()
+
+    
+    print(f'\n{f"=======> BUILDING {name} <=======":^60}\n')
+
     if prop_package is None:
         m = blk.model()
         prop_package = m.fs.properties

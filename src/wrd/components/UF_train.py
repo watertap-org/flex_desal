@@ -83,9 +83,14 @@ def build_system(file="wrd_uf_inputs_8_19_21.yaml"):
 
 
 def build_uf_train(blk, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None):
+
     if prop_package is None:
         m = blk.model()
         prop_package = m.fs.properties
+
+    name = blk.name.split(".")[-1].replace("_", " ").replace("[", " ").replace("]", "").upper()
+
+    print(f'\n{f"=======> BUILDING {name} <=======":^60}\n')
 
     blk.config_data = load_config(get_config_file(file))
 

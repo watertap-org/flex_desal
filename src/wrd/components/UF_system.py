@@ -72,9 +72,12 @@ def build_uf_system(
         outlet_list=outlet_list,
         split_basis=SplittingType.componentFlow,
     )
+    
     if split_fraction is None:
         # Even Split
-        m.fs.uf_feed_separator.feed_split = 1.0 / len(outlet_list)
+        m.fs.uf_feed_separator.even_split = 1.0 / len(outlet_list)
+    else:
+        raise NotImplementedError("Custom split fractions not yet implemented.")
 
     perm_inlet_list = [f"uf_prod_inlet{i}" for i in m.fs.uf_trains]
 
@@ -142,14 +145,14 @@ def build_uf_system(
             destination=m.fs.disposal.inlet,
         )
 
-    TransformationFactory("network.expand_arcs").apply_to(m)
-
-    m.fs.properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
-    )
-    m.fs.properties.set_default_scaling(
-        "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
-    )
+        TransformationFactory("network.expand_arcs").apply_to(m)
+        
+        m.fs.properties.set_default_scaling(
+            "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
+        )
+        m.fs.properties.set_default_scaling(
+            "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
+        )
 
     return m
 
@@ -182,17 +185,17 @@ def set_uf_system_op_conditions(m):
         set_uf_train_op_conditions(m.fs.uf_train[i])
         if i != m.fs.uf_trains.first():
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "H2O"].fix(
-                m.fs.uf_feed_separator.feed_split
+                m.fs.uf_feed_separator.even_split
             )
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "NaCl"].fix(
-                m.fs.uf_feed_separator.feed_split
+                m.fs.uf_feed_separator.even_split
             )
         else:
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "H2O"].set_value(
-                m.fs.uf_feed_separator.feed_split
+                m.fs.uf_feed_separator.even_split
             )
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "NaCl"].set_value(
-                m.fs.uf_feed_separator.feed_split
+                m.fs.uf_feed_separator.even_split
             )
 
     m.fs.uf_product_mixer.outlet.pressure[0].fix(101325)
