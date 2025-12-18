@@ -1,7 +1,150 @@
 import yaml
 import os
-from pyomo.environ import units as pyunits
+from pyomo.environ import value, units as pyunits
 from idaes.models.unit_models import Mixer, Separator
+
+
+__all__ = [
+    "report_sj",
+    "report_separator",
+    "report_mixer",
+    "get_config_value",
+    "load_config",
+    "get_config_file",
+]
+
+
+def report_sj(sj, w=25):
+
+    title = sj.name.replace("fs.", "").replace("_", " ").upper()
+
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    flow_in = value(
+        pyunits.convert(
+            sj.properties[0].flow_vol_phase["Liq"],
+            to_units=pyunits.gallons / pyunits.minute,
+        )
+    )
+    conc_in = value(
+        pyunits.convert(
+            sj.properties[0].conc_mass_phase_comp["Liq", "NaCl"],
+            to_units=pyunits.mg / pyunits.L,
+        )
+    )
+    print(f'{"INLET/OUTLET Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
+    print(f'{"INLET/OUTLET NaCl":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+
+
+def report_mixer(mixer, w=25):
+
+    ms = mixer.find_component("mixed_state")
+    title = mixer.name.replace("fs.", "").replace("_", " ").upper()
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    tot_flow_in = sum(
+        value(
+            pyunits.convert(
+                mixer.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
+                to_units=pyunits.gallons / pyunits.minute,
+            )
+        )
+        for x in mixer.config.inlet_list
+    )
+    print(f'{"TOTAL INLET FLOW":<{w}s}{f"{tot_flow_in:<{w},.1f}"}{"gpm":<{w}s}')
+    for x in mixer.config.inlet_list:
+        sb = mixer.find_component(f"{x}_state")
+        flow_in = value(
+            pyunits.convert(
+                sb[0].flow_vol_phase["Liq"],
+                to_units=pyunits.gallons / pyunits.minute,
+            )
+        )
+        tot_flow_in += flow_in
+        conc_in = value(
+            pyunits.convert(
+                sb[0].conc_mass_phase_comp["Liq", "NaCl"],
+                to_units=pyunits.mg / pyunits.L,
+            )
+        )
+        print(
+            f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}'
+        )
+        print(
+            f'{"   NaCl " + x.replace("_", " ").title():<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}'
+        )
+    flow_out = value(
+        pyunits.convert(
+            ms[0].flow_vol_phase["Liq"],
+            to_units=pyunits.gallons / pyunits.minute,
+        )
+    )
+    conc_out = value(
+        pyunits.convert(
+            ms[0].conc_mass_phase_comp["Liq", "NaCl"],
+            to_units=pyunits.mg / pyunits.L,
+        )
+    )
+    print(f'{"Outlet Flow":<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}')
+    print(f'{"Outlet NaCl":<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}')
+
+
+def report_separator(sep, w=25):
+
+    title = sep.name.replace("fs.", "").replace("_", " ").upper()
+
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    ms = sep.find_component("mixed_state")
+    flow_in = value(
+        pyunits.convert(
+            ms[0].flow_vol_phase["Liq"],
+            to_units=pyunits.gallons / pyunits.minute,
+        )
+    )
+    conc_in = value(
+        pyunits.convert(
+            ms[0].conc_mass_phase_comp["Liq", "NaCl"],
+            to_units=pyunits.mg / pyunits.L,
+        )
+    )
+    print(f'{"INLET Flow":<{w}s}{f"{flow_in:<{w},.1f}"}{"gpm":<{w}s}')
+    print(f'{"INLET NaCl":<{w}s}{f"{conc_in:<{w},.1f}"}{"mg/L":<{w}s}')
+    tot_flow_out = sum(
+        value(
+            value(
+                pyunits.convert(
+                    sep.find_component(f"{x}_state")[0].flow_vol_phase["Liq"],
+                    to_units=pyunits.gallons / pyunits.minute,
+                )
+            )
+        )
+        for x in sep.config.outlet_list
+    )
+    print(f'{"TOTAL OUTLET FLOW":<{w}s}{f"{tot_flow_out:<{w},.1f}"}{"gpm":<{w}s}')
+    for x in sep.config.outlet_list:
+        sb = sep.find_component(f"{x}_state")
+        flow_out = value(
+            pyunits.convert(
+                sb[0].flow_vol_phase["Liq"],
+                to_units=pyunits.gallons / pyunits.minute,
+            )
+        )
+        conc_out = value(
+            pyunits.convert(
+                sb[0].conc_mass_phase_comp["Liq", "NaCl"],
+                to_units=pyunits.mg / pyunits.L,
+            )
+        )
+        print(
+            f'{"   Flow " + x.replace("_", " ").title():<{w}s}{f"{flow_out:<{w},.1f}"}{"gpm":<{w}s}'
+        )
+        print(
+            f'{"   NaCl " + x.replace("_", " ").title():<{w}s}{f"{conc_out:<{w},.1f}"}{"mg/L":<{w}s}'
+        )
 
 
 def load_config(config):
