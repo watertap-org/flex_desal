@@ -84,7 +84,7 @@ def build_ro_system(
 
     m.fs.ro_product_mixer = Mixer(
         property_package=m.fs.properties,
-        momentum_mixing_type=MomentumMixingType.none,
+        momentum_mixing_type = MomentumMixingType.none,
         inlet_list=perm_inlet_list,
     )
 
@@ -92,7 +92,7 @@ def build_ro_system(
 
     m.fs.ro_brine_mixer = Mixer(
         property_package=m.fs.properties,
-        momentum_mixing_type=MomentumMixingType.none,
+        momentum_mixing_type=MomentumMixingType.minimize,
         inlet_list=brine_inlet_list,
     )
     touch_flow_and_conc(m.fs.ro_brine_mixer)
@@ -181,7 +181,6 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5):
 
 
 def set_ro_system_scaling(m):
-
     for i in m.fs.trains:
         set_ro_train_scaling(m.fs.train[i])
 
@@ -204,10 +203,7 @@ def set_ro_system_op_conditions(m):
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "NaCl"].set_value(
                 m.fs.ro_feed_separator.even_split
             )
-
     m.fs.ro_product_mixer.outlet.pressure[0].fix(101325)
-    m.fs.ro_brine_mixer.outlet.pressure[0].fix(101325)
-
 
 def initialize_ro_system(m):
 
@@ -230,8 +226,7 @@ def initialize_ro_system(m):
 
     m.fs.ro_product_mixer.initialize()
     m.fs.ro_brine_mixer.initialize()
-    # assert False
-
+    
     if m.standalone:
         propagate_state(m.fs.product_mixer_to_product)
         m.fs.product.initialize()
@@ -241,7 +236,6 @@ def initialize_ro_system(m):
 
 
 def add_ro_system_costing(m, costing_package=None):
-
     if costing_package is None:
         # costing_package = m.fs.costing
         m.fs.costing = costing_package = WaterTAPCosting()
@@ -294,12 +288,12 @@ def report_ro_system_pumps(m, w=30):
 
 def main(add_costing=False):
 
-    m = build_ro_system(num_trains=4, num_stages=3)
+    m = build_ro_system(num_trains=4, num_stages=2)
     set_ro_system_scaling(m)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=2637, Cin=0.5)
     set_ro_system_op_conditions(m)
-
+    assert degrees_of_freedom(m) == 0
     initialize_ro_system(m)
 
     if add_costing:
@@ -315,8 +309,8 @@ def main(add_costing=False):
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
-    # report_ro_system(m, w=40)
-    report_ro_system_pumps(m, w=20)
+    report_ro_system(m, w=40)
+    # report_ro_system_pumps(m, w=20)
 
     return m
 

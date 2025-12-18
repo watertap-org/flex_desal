@@ -92,14 +92,15 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     for t in m.fs.tsro_trains:
         build_ro_stage(m.fs.tsro_train[t], stage_num=3, prop_package=m.fs.properties)
 
-    m.fs.tsro_product_mixer = Mixer(
-        property_package=m.fs.properties,
-        inlet_list=[f"tsro{i}_to_product" for i in m.fs.tsro_trains],
-        momentum_mixing_type=MomentumMixingType.none,
-    )
+    # Connections by pass this mixer, so can be removed
+    # m.fs.tsro_product_mixer = Mixer(
+    #     property_package=m.fs.properties,
+    #     inlet_list=[f"tsro{i}_to_product" for i in m.fs.tsro_trains],
+    #     momentum_mixing_type=MomentumMixingType.none,
+    # )
 
     ro_system_prod_mixer_inlet_list = ["from_pro_product"] + [
-        f"tsro{i}_to_ro_product" for i in m.fs.tsro_trains
+        f"tsro{t}_to_ro_product" for t in m.fs.tsro_trains
     ]
 
     m.fs.ro_system_product_mixer = Mixer(
@@ -110,7 +111,7 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
 
     m.fs.tsro_brine_mixer = Mixer(
         property_package=m.fs.properties,
-        inlet_list=[f"tsro{i}_to_brine" for i in m.fs.tsro_trains],
+        inlet_list=[f"tsro{t}_to_brine" for t in m.fs.tsro_trains],
         momentum_mixing_type=MomentumMixingType.none,
     )
 
@@ -125,7 +126,7 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     # Post-Treatment chemical addition units - ZO Models
     m.fs.post_treat_chem_list = [
         "calcium_hydroxide",
-        "caustic",
+        "sodium_hydroxide",
         "sodium_hypochlorite",
         "sodium_bisulfite",
     ]
@@ -234,10 +235,11 @@ def add_wrd_connections(m):
         source=m.fs.uf_disposal_mixer.outlet,
         destination=m.fs.disposal_mixer.from_uf_disposal,
     )
-    m.fs.pro_to_disposal_mixer = Arc(
-        source=m.fs.ro_brine_mixer.outlet,
-        destination=m.fs.disposal_mixer.from_pro_brine,
-    )
+    # There is no direct line from pro to brine
+    # m.fs.pro_to_disposal_mixer = Arc(
+    #     source=m.fs.ro_brine_mixer.outlet,
+    #     destination=m.fs.disposal_mixer.from_pro_brine,
+    # )
     m.fs.ro_system_product_mixer_to_uv = Arc(
         source=m.fs.ro_system_product_mixer.outlet, destination=m.fs.UV_aop.feed.inlet
     )
@@ -303,23 +305,27 @@ def set_wrd_operating_conditions(m):
         set_chem_addition_op_conditions(
             blk=m.fs.find_component(chem_name + "_addition"), dose=0.1
         )
-
+        if chem_name == "sodium_hypochlorite":
+            set_chem_addition_op_conditions(
+            blk=m.fs.find_component(chem_name + "_addition_post"), dose=0.1
+        )
+    print(degrees_of_freedom(m))
     set_uf_system_op_conditions(m)
     set_ro_system_op_conditions(m)
 
     for t in m.fs.tsro_trains:
-        if t == m.fs.tsro_trains.first():
-            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].set_value(
+        if t != m.fs.tsro_trains.first():
+            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
                 1 / len(m.fs.tsro_trains)
             )
-            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].set_value(
+            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].fix(
                 1 / len(m.fs.tsro_trains)
             )
         else:
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
                 1 / len(m.fs.tsro_trains)
             )
-            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].fix(
+            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].set_value(
                 1 / len(m.fs.tsro_trains)
             )
         set_ro_stage_op_conditions(m.fs.tsro_train[t])
@@ -327,9 +333,12 @@ def set_wrd_operating_conditions(m):
     set_uv_aop_op_conditions(m.fs.UV_aop)
     set_decarbonator_op_conditions(m.fs.decarbonator)
 
-    m.fs.tsro_product_mixer.outlet.pressure[0].fix(101325)
+    # m.fs.tsro_product_mixer.outlet.pressure[0].fix(101325) #Removed mixer  
     m.fs.ro_system_product_mixer.outlet.pressure[0].fix(101325)
     m.fs.tsro_brine_mixer.outlet.pressure[0].fix(101325)
+    m.fs.disposal_mixer.outlet.pressure[0].fix(101325)
+
+    
 
 
 def set_wrd_system_scaling(m):
@@ -340,20 +349,13 @@ def set_wrd_system_scaling(m):
     m.fs.properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
     )
-    # Does ZO property block also require scaling?
-    # for chem_name in m.fs.chemical_list:
-    #     set_chem_addition_scaling(blk=m.fs.find_component(chem_name + "_addition"))
-
+    # NO Chem Addition Scaling?
     set_uf_system_scaling(m)
     set_ro_system_scaling(m)
-    # for t in m.fs.tsro_trains:
-    #     set_ro_stage_scaling(m.fs.tsro_train[t])
-    # # add_UF_pump_scaling(m.fs.UF_pumps)
-    # # add_pump_scaling(m.fs.UF_pumps)
-    # # # add_separator_scaling(m.fs.UF) # Nothing to scale?
-    # # add_ro_scaling(m.fs.ro_system)
-    # add_uv_aop_scaling(m.fs.UV_aop)
-    # add_decarbonator_scaling(m.fs.decarbonator)
+    for t in m.fs.tsro_trains:
+        set_ro_stage_scaling(m.fs.tsro_train[t])
+    add_uv_aop_scaling(m.fs.UV_aop)
+    add_decarbonator_scaling(m.fs.decarbonator)
 
 
 def initialize_wrd_system(m):
@@ -383,7 +385,7 @@ def initialize_wrd_system(m):
     # propagate_state(m.fs.ro_to_disposal)
     # m.fs.disposal.initialize()
     propagate_state(m.fs.pro_to_ro_system_product_mixer)
-    propagate_state(m.fs.pro_to_disposal_mixer)
+    # propagate_state(m.fs.pro_to_disposal_mixer)
     propagate_state(m.fs.pro_to_tsro_header)
     m.fs.tsro_header.initialize()
     propagate_state(m.fs.tsro_header_to_tsro_separator)
@@ -398,7 +400,7 @@ def initialize_wrd_system(m):
         propagate_state(a)
 
     m.fs.tsro_brine_mixer.initialize()
-    propagate_state(m.fs.tsro_brine_mixer_to_disposal)
+    propagate_state(m.fs.tsro_brine_mixer_to_disposal) # This mixer could be removed?
 
     m.fs.uf_disposal_mixer.initialize()
     propagate_state(m.fs.uf_disposal_to_disposal_mixer)
@@ -649,7 +651,7 @@ def report_wrd(m, w=30):
     report_sj(m.fs.tsro_header)
 
 
-def main(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
+def main(num_pro_trains=1, num_tsro_trains=1, num_stages=2):
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
         num_tsro_trains=num_tsro_trains,
@@ -657,12 +659,13 @@ def main(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     )
     # assert_units_consistent(m)
     add_wrd_connections(m)
-    # print(f"{degrees_of_freedom(m)} degrees of freedom after build")
-    # set_inlet_conditions(m)
-    set_inlet_conditions(m)
+    print(f"{degrees_of_freedom(m)} degrees of freedom after build")
+    set_inlet_conditions(m,Qin=2637*num_pro_trains)
     set_wrd_operating_conditions(m)
+    print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     set_wrd_system_scaling(m)
     calculate_scaling_factors(m)
+    assert degrees_of_freedom(m) == 0
     initialize_wrd_system(m)
 
     # print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
