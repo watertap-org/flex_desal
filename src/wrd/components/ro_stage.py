@@ -129,7 +129,9 @@ def build_ro_stage(
     build_ro(blk.ro, stage_num=stage_num, file=file, prop_package=prop_package)
 
     blk.product = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.feed)
     blk.disposal = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.feed)
 
     # Arcs to connect the unit models
     blk.feed_to_pump = Arc(source=blk.feed.outlet, destination=blk.pump.feed.inlet)
