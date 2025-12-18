@@ -55,7 +55,7 @@ def build_ro_system(
         touch_flow_and_conc(m.fs.product)
         m.fs.disposal = Product(property_package=m.fs.properties)
         touch_flow_and_conc(m.fs.disposal)
-    
+
     else:
         m.standalone = False
 
@@ -95,6 +95,7 @@ def build_ro_system(
         momentum_mixing_type=MomentumMixingType.none,
         inlet_list=brine_inlet_list,
     )
+    touch_flow_and_conc(m.fs.ro_brine_mixer)
 
     for i in m.fs.trains:
         build_ro_train(
@@ -124,7 +125,6 @@ def build_ro_system(
             destination=brine_mix_in,
         )
         m.fs.add_component(f"train{i}_to_brine_mix", a)
-
 
     if m.standalone:
         m.fs.recovery_vol_ro = Expression(

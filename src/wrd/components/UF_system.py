@@ -82,7 +82,7 @@ def build_uf_system(
         outlet_list=outlet_list,
         split_basis=SplittingType.componentFlow,
     )
-    
+
     if split_fraction is None:
         # Even Split
         m.fs.uf_feed_separator.even_split = 1.0 / len(outlet_list)
@@ -104,7 +104,6 @@ def build_uf_system(
         momentum_mixing_type=MomentumMixingType.none,
         inlet_list=brine_inlet_list,
     )
-
 
     for i in m.fs.uf_trains:
         build_uf_train(
@@ -134,7 +133,6 @@ def build_uf_system(
         )
         m.fs.add_component(f"uf{i}_to_disp_mix", a)
 
-
     if m.standalone:
         m.fs.uf_feed_to_separator = Arc(
             source=m.fs.feed.outlet,
@@ -156,7 +154,7 @@ def build_uf_system(
         )
 
         TransformationFactory("network.expand_arcs").apply_to(m)
-        
+
         m.fs.properties.set_default_scaling(
             "flow_mass_phase_comp", 1e-1, index=("Liq", "H2O")
         )
@@ -168,7 +166,6 @@ def build_uf_system(
             expr=(m.fs.uf_product_mixer.mixed_state[0].flow_vol_phase["Liq"])
             / (m.fs.uf_feed_separator.mixed_state[0].flow_vol_phase["Liq"])
         )
-
 
     return m
 
