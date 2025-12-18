@@ -18,7 +18,6 @@ from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import Product, Feed
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
-from watertap.core.zero_order_properties import WaterParameterBlock
 
 from wrd.components.chemical_addition import *
 from wrd.components.ro_system import *
@@ -32,6 +31,7 @@ from wrd.components.pump import *
 from wrd.components.UF_system import *
 from wrd.components.ro_system import *
 from wrd.components.ro_stage import *
+from wrd.components.ro import report_ro
 from wrd.components.chemical_addition import *
 from wrd.utilities import load_config, get_config_file, get_config_value
 from srp.utils import touch_flow_and_conc
@@ -152,7 +152,7 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     # Products and Disposal
     m.fs.disposal_mixer = Mixer(
         property_package=m.fs.properties,
-        inlet_list=["from_uf_disposal", "from_pro_brine", "from_tsro_brine"],
+        inlet_list=["from_uf_disposal", "from_tsro_brine"],
         momentum_mixing_type=MomentumMixingType.none,
     )
 
@@ -274,18 +274,15 @@ def add_wrd_connections(m):
     m.fs.disposal_mixer_to_disposal = Arc(
         source=m.fs.disposal_mixer.outlet, destination=m.fs.disposal.inlet
     )
-    #####
+    ##### Is this TSRO Bypass?
     # m.fs.ro_to_disposal = Arc(
     #     source=m.fs.tsro_header.outlet, destination=m.fs.disposal.inlet
-    # )
-    # m.fs.ro_to_product = Arc(
-    #     source=m.fs.ro_product_mixer.outlet, destination=m.fs.product.inlet
     # )
 
     TransformationFactory("network.expand_arcs").apply_to(m)
 
 
-def set_inlet_conditions(m, Qin=2637 * 4, Cin=0.5, file="wrd_ro_inputs_8_19_21.yaml"):
+def set_inlet_conditions(m, Qin=2637*4, Cin=0.5, file="wrd_ro_inputs_8_19_21.yaml"):
 
     m.fs.feed.properties.calculate_state(
         var_args={
@@ -296,12 +293,13 @@ def set_inlet_conditions(m, Qin=2637 * 4, Cin=0.5, file="wrd_ro_inputs_8_19_21.y
         },
         hold_state=True,
     )
+    print(degrees_of_freedom(m))
 
 
 def set_wrd_operating_conditions(m):
-
     # Operating conditions
     for chem_name in m.fs.chemical_list:
+        # Load dose from yaml??
         set_chem_addition_op_conditions(
             blk=m.fs.find_component(chem_name + "_addition"), dose=0.1
         )
@@ -311,8 +309,9 @@ def set_wrd_operating_conditions(m):
         )
     print(degrees_of_freedom(m))
     set_uf_system_op_conditions(m)
+    print(degrees_of_freedom(m))
     set_ro_system_op_conditions(m)
-
+    print(degrees_of_freedom(m))
     for t in m.fs.tsro_trains:
         if t != m.fs.tsro_trains.first():
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
@@ -322,16 +321,18 @@ def set_wrd_operating_conditions(m):
                 1 / len(m.fs.tsro_trains)
             )
         else:
-            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
+            m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].set_value(
                 1 / len(m.fs.tsro_trains)
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].set_value(
                 1 / len(m.fs.tsro_trains)
             )
         set_ro_stage_op_conditions(m.fs.tsro_train[t])
-
+    print(degrees_of_freedom(m))
     set_uv_aop_op_conditions(m.fs.UV_aop)
+    print(degrees_of_freedom(m))
     set_decarbonator_op_conditions(m.fs.decarbonator)
+    print(degrees_of_freedom(m))
 
     # m.fs.tsro_product_mixer.outlet.pressure[0].fix(101325) #Removed mixer  
     m.fs.ro_system_product_mixer.outlet.pressure[0].fix(101325)
@@ -383,7 +384,7 @@ def initialize_wrd_system(m):
     # propagate_state(m.fs.ro_to_product)
     # m.fs.product.initialize()
     # propagate_state(m.fs.ro_to_disposal)
-    # m.fs.disposal.initialize()
+    
     propagate_state(m.fs.pro_to_ro_system_product_mixer)
     # propagate_state(m.fs.pro_to_disposal_mixer)
     propagate_state(m.fs.pro_to_tsro_header)
@@ -427,8 +428,6 @@ def initialize_wrd_system(m):
             propagate_state(a)
             initialize_chem_addition(unit)
         prev = chem_name
-
-    last_chem = m.fs.find_component(f"{prev}_addition")
     propagate_state(m.fs.post_chem_to_product)
     # m.fs.post_chem_to_product = Arc(
     #     source=last_chem.product.outlet, destination=m.fs.product.inlet
@@ -442,7 +441,7 @@ def initialize_wrd_system(m):
 
 
 def report_sj(sj, w=25):
-
+    #sj = state junction
     title = sj.name.replace("fs.", "").replace("_", " ").upper()
 
     side = int(((3 * w) - len(title)) / 2) - 1
@@ -588,6 +587,16 @@ def report_separator(sep, w=25):
         )
 
 
+def report_tsro(m, w=30):
+    title = "TSRO Report"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "=" * side + f" {title} " + "=" * side
+    print(f"\n{header}\n")
+    for t in m.fs.tsro_trains:
+        tsro_stage = m.fs.m.fs.sro_train[t]
+        report_pump(tsro_stage.pump)
+        report_ro(tsro_stage.ro, w=w)
+
 def report_wrd(m, w=30):
 
     feed_flow = pyunits.convert(
@@ -649,15 +658,15 @@ def report_wrd(m, w=30):
     report_ro_system(m, w=w)
     report_mixer(m.fs.ro_brine_mixer)
     report_sj(m.fs.tsro_header)
+    report_tsro(m,w=w)
 
 
-def main(num_pro_trains=1, num_tsro_trains=1, num_stages=2):
+def main(num_pro_trains=4, num_tsro_trains=4, num_stages=2):
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
         num_tsro_trains=num_tsro_trains,
         num_stages=num_stages,
     )
-    # assert_units_consistent(m)
     add_wrd_connections(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after build")
     set_inlet_conditions(m,Qin=2637*num_pro_trains)
@@ -667,11 +676,6 @@ def main(num_pro_trains=1, num_tsro_trains=1, num_stages=2):
     calculate_scaling_factors(m)
     assert degrees_of_freedom(m) == 0
     initialize_wrd_system(m)
-
-    # print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
-    print(f"dof = {degrees_of_freedom(m)}")
-
-    # initialize_wrd_system(m)
     # try:
     #     results = solve(m)
     #     assert_optimal_termination(results)
@@ -683,7 +687,6 @@ def main(num_pro_trains=1, num_tsro_trains=1, num_stages=2):
 
 if __name__ == "__main__":
     num_stages = 2
-
     m = main(num_stages=num_stages)
     solver = get_solver()
     results = solver.solve(m)
