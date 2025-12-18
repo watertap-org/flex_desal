@@ -688,7 +688,7 @@ def main(num_pro_trains = 1, num_tsro_trains = 1, num_pro_stages=2):
 
 if __name__ == "__main__":
     num_stages = 2
-    m = main(num_stages=num_stages)
+    m = main(num_pro_stages=num_stages)
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)

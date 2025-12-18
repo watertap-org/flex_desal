@@ -82,7 +82,7 @@ def build_system(file="wrd_uf_inputs_8_19_21.yaml"):
     return m
 
 
-def build_uf_train(blk, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None):
+def build_uf_train(blk, file="wrd_uf_pump_inputs_8_19_21.yaml", prop_package=None):
 
     if prop_package is None:
         m = blk.model()
