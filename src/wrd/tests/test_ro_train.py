@@ -35,7 +35,7 @@ def test_ro_train1_3_13_21():
     )
 
     m = main(
-        Qin=2452, Cin=0.503, Tin=295, Pin=101325, file="wrd_ro_inputs_3_13_21.yaml"
+        Qin=2452, Cin=0.503, Tin=295, Pin=101325, file="wrd_inputs_3_13_21.yaml"
     )
 
     actual_power = pyunits.convert(m.fs.ro_train.total_pump_power, to_units=pyunits.kW)
