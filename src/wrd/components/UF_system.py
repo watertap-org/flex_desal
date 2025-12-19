@@ -286,7 +286,9 @@ def report_uf_system(m, w=30):
         f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
     )
     print(f'{f"Overall Recovery":<{w}s}{value(m.fs.recovery_vol_uf)*100:<{w}.3f}{"%"}')
-    print(f'{f"Total UF Pump Power":<{w}s}{value(pyunits.convert(m.fs.total_uf_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}')
+    print(
+        f'{f"Total UF Pump Power":<{w}s}{value(pyunits.convert(m.fs.total_uf_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+    )
 
 
 def report_uf_system_pumps(m, w=30):
