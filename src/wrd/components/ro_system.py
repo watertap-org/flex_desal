@@ -105,6 +105,10 @@ def build_ro_system(
             file=file,
         )
 
+    m.fs.total_ro_pump_power = Expression(
+        expr=sum(m.fs.train[i].total_pump_power for i in m.fs.trains)
+    )
+
     for i, outlet in enumerate(outlet_list, start=1):
 
         sep_out = m.fs.ro_feed_separator.find_component(f"{outlet}")
@@ -273,6 +277,7 @@ def report_ro_system(m, w=30):
         f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
     )
     print(f'{f"Overall Recovery":<{w}s}{value(m.fs.recovery_vol_ro)*100:<{w}.3f}{"%"}')
+    print(f'{f"Total RO Pump Power":<{w}s}{value(pyunits.convert(m.fs.total_ro_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}')
 
 
 def report_ro_system_pumps(m, w=30):
