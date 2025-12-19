@@ -50,7 +50,7 @@ def build_uf_system(
     num_trains=3,
     split_fraction=None,
     prop_package=None,
-    file="wrd_uf_pumps_inputs_8_19_21.yaml",
+    file="wrd_inputs_8_19_21.yaml",
 ):
 
     if m is None:
@@ -318,7 +318,6 @@ def main(add_costing=False):
     assert_optimal_termination(results)
     report_uf_system(m)
     report_uf_system_pumps(m)
-
     return m
 
 

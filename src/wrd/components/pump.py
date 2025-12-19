@@ -36,7 +36,7 @@ __all__ = [
 solver = get_solver()
 
 
-def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
+def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -72,7 +72,7 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
     return m
 
 
-def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None):
+def build_pump(blk, stage_num=1, file="wrd_inputs_8_19_21.yaml", prop_package=None):
 
     if prop_package is None:
         m = blk.model()
@@ -192,14 +192,18 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk):
-
-    Pout = get_config_value(
-        blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
-    )
-    print(
-        f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
-    )
+def set_pump_op_conditions(blk,uf=False):
+    if uf:
+        Pout = get_config_value(
+            blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump_{blk.stage_num}"
+        )
+    else:
+        Pout = get_config_value(
+            blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
+        )
+        print(
+            f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
+        )
     blk.unit.control_volume.properties_out[0].pressure.fix(Pout)
 
 
@@ -292,7 +296,7 @@ def main(
     Tin=302,
     Pin=101325,
     stage_num=1,
-    file="wrd_ro_inputs_8_19_21.yaml",
+    file="wrd_inputs_8_19_21.yaml",
 ):
 
     m = build_system(stage_num=stage_num, file=file)
