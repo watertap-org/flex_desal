@@ -34,6 +34,28 @@ def _get_stage_objects(m, train_idx, stage_idx):
 # @pytest.mark.component
 # def test_with_4_train():
 #     m = main(num_pro_trains=4, num_tsro_trains=4, num_pro_stages=2)
+    return m
+
+
+def _get_stage_objects(m, train_idx, stage_idx):
+    if stage_idx < 3:
+        train = m.fs.train[train_idx]
+        stage = train.stage[stage_idx]
+    else:
+        stage = m.fs.tsro_train[train_idx]
+    pump = stage.pump
+    perm_flow = stage.ro.unit.mixed_permeate[0].flow_vol_phase["Liq"]
+    return pump, perm_flow
+
+
+# @pytest.mark.component
+# def test_with_1_train():
+#     m = main(num_pro_trains=1, num_tsro_trains=1, num_pro_stages=2)
+
+
+# @pytest.mark.component
+# def test_with_4_train():
+#     m = main(num_pro_trains=4, num_tsro_trains=4, num_pro_stages=2)
 
 
 # Current test only checks first stage of first train pump power and perm flow

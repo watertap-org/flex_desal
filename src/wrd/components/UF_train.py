@@ -41,7 +41,6 @@ solver = get_solver()
 
 
 def build_system(file="wrd_inputs_8_19_21.yaml"):
-def build_system(file="wrd_inputs_8_19_21.yaml"):
     # Will want to combine all inputs into one yaml instead of having separate ones
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)

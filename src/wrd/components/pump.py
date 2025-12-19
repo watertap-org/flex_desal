@@ -37,7 +37,6 @@ solver = get_solver()
 
 
 def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
-def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
