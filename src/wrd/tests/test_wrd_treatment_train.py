@@ -3,12 +3,14 @@ from pyomo.environ import value, units as pyunits
 from wrd.wrd_treatment_train import main
 from pyomo.util.check_units import assert_units_consistent
 
+
 # Parametrized fixture for model creation
 @pytest.fixture(params=[4, 3, 2])
 def wrd_treatment_train_model(request):
     num_pro_trains = request.param
     m = main(num_pro_trains=num_pro_trains)
     return m, num_pro_trains
+
 
 @pytest.mark.component
 def test_wrd_treatment_train(wrd_treatment_train_model):
@@ -25,6 +27,7 @@ def _get_stage_objects(m, train_idx, stage_idx):
     pump = stage.pump
     perm_flow = stage.ro.unit.mixed_permeate[0].flow_vol_phase["Liq"]
     return pump, perm_flow
+
 
 # Current test only checks first stage of first train pump power and perm flow
 @pytest.mark.component

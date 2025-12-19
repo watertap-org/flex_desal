@@ -277,21 +277,23 @@ def add_wrd_connections(m):
 
 def set_wrd_inlet_conditions(m, Qin=None, Cin=None, file="wrd_inputs_8_19_21.yaml"):
     # IMO it makes sense Qin to be from the yaml for the wrd flowsheet so all case study inputs are in one place.
-    # Other component files Q and C can be hard coded for testing.    
+    # Other component files Q and C can be hard coded for testing.
     if Qin is None:
         Qin = get_config_value(m.fs.config_data, "feed_flow_water", "feed_stream")
     else:
         Qin = Qin * pyunits.gallons / pyunits.minute
 
     if Cin is None:
-        Cin = (get_config_value(m.fs.config_data, "feed_conductivity", "feed_stream") *
-                get_config_value(m.fs.config_data, "feed_conductivity_conversion", "feed_stream"))
+        Cin = get_config_value(
+            m.fs.config_data, "feed_conductivity", "feed_stream"
+        ) * get_config_value(
+            m.fs.config_data, "feed_conductivity_conversion", "feed_stream"
+        )
     else:
         Cin = Cin * pyunits.g / pyunits.L
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains)
-           ,
+            ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains),
             ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin,
             ("pressure", None): 101325,
             ("temperature", None): 273.15 + 27,
@@ -538,7 +540,7 @@ def report_wrd(m, w=30):
     )
 
 
-def main(num_pro_trains=1, num_tsro_trains=None, num_pro_stages=2):
+def main(num_pro_trains=4, num_tsro_trains=None, num_pro_stages=2):
 
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
