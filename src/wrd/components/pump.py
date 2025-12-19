@@ -192,7 +192,7 @@ def build_pump(blk, stage_num=1, file="wrd_inputs_8_19_21.yaml", prop_package=No
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk,uf=False):
+def set_pump_op_conditions(blk, uf=False):
     if uf:
         Pout = get_config_value(
             blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump_{blk.stage_num}"
