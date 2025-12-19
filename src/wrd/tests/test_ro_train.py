@@ -34,9 +34,7 @@ def test_ro_train1_3_13_21():
         expected_power / expected_product_flow, to_units=pyunits.kWh / pyunits.m**3
     )
 
-    m = main(
-        Qin=2452, Cin=0.503, Tin=295, Pin=101325, file="wrd_inputs_3_13_21.yaml"
-    )
+    m = main(Qin=2452, Cin=0.503, Tin=295, Pin=101325, file="wrd_inputs_3_13_21.yaml")
 
     actual_power = pyunits.convert(m.fs.ro_train.total_pump_power, to_units=pyunits.kW)
     assert pytest.approx(value(actual_power), rel=0.15) == value(expected_power)

@@ -5,7 +5,7 @@ from pyomo.util.check_units import assert_units_consistent
 
 
 # Parametrized fixture for model creation
-@pytest.fixture(params=[4, 3, 2])
+@pytest.fixture(params=[4, 3, 2], scope="module")
 def wrd_treatment_train_model(request):
     num_pro_trains = request.param
     m = main(num_pro_trains=num_pro_trains)
@@ -55,12 +55,11 @@ def test_wrd_treatment_train_PRO1(wrd_treatment_train_model):
     assert value(perm_flow) == pytest.approx(value(expected_perm_flow), rel=0.15)
 
 
-# Will eventually add more tests for other pumps and total system power, etc.
+# Not currently working as total system power hasn't been cacluated from data.
 @pytest.mark.skip
 def test_wrd_treatment_train_total_power(wrd_treatment_train_model):
     m, _ = wrd_treatment_train_model
-    pump, _ = _get_stage_objects(m, 1, 1)
-    power = pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)
+    power = pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)
     expected_power = 196.25 * pyunits.kW
     # Units check
     assert_units_consistent(power + expected_power)
