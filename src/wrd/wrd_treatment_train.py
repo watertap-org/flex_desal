@@ -79,6 +79,7 @@ def build_wrd_system(
         prop_package=m.fs.properties,
     )
 
+    # Isn't this missing the TSRO system? Maybe add in with the Headloss component.
     m.fs.total_system_pump_power = Expression(
         expr=pyunits.convert(
             m.fs.total_uf_pump_power + m.fs.total_ro_pump_power, to_units=pyunits.kW

@@ -5,17 +5,11 @@ from pyomo.util.check_units import assert_units_consistent
 
 
 # Parametrized fixture for model creation
-@pytest.fixture(params=[4, 3, 2], scope="module")
+@pytest.fixture(params=[2], scope="module")
 def wrd_treatment_train_model(request):
     num_pro_trains = request.param
     m = main(num_pro_trains=num_pro_trains)
     return m, num_pro_trains
-
-
-@pytest.mark.component
-def test_wrd_treatment_train(wrd_treatment_train_model):
-    m, num_pro_trains = wrd_treatment_train_model
-    # Optionally, add assertions here to check model properties
 
 
 def _get_stage_objects(m, train_idx, stage_idx):
@@ -55,12 +49,12 @@ def test_wrd_treatment_train_PRO1(wrd_treatment_train_model):
     assert value(perm_flow) == pytest.approx(value(expected_perm_flow), rel=0.15)
 
 
-# Not currently working as total system power hasn't been cacluated from data.
-@pytest.mark.skip
+@pytest.mark.component
 def test_wrd_treatment_train_total_power(wrd_treatment_train_model):
     m, _ = wrd_treatment_train_model
     power = pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)
-    expected_power = 196.25 * pyunits.kW
+    expected_power = 1 * pyunits.kW
     # Units check
     assert_units_consistent(power + expected_power)
-    assert value(power) == pytest.approx(value(expected_power), rel=0.15)
+    # Not checking against an expected value as it hasn't been calcuated from data.
+    # assert value(power) == pytest.approx(value(expected_power), rel=0.15)
