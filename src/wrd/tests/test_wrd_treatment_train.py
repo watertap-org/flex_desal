@@ -5,7 +5,7 @@ from pyomo.util.check_units import assert_units_consistent
 
 
 # Parametrized fixture for model creation
-@pytest.fixture(params=[2], scope="module")
+@pytest.fixture(params=[4, 3, 2, 1], scope="module")
 def wrd_treatment_train_model(request):
     num_pro_trains = request.param
     m = main(num_pro_trains=num_pro_trains)
