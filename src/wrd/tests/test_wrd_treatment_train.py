@@ -1,50 +1,9 @@
 import pytest
 from pyomo.environ import value, units as pyunits
-from pyomo.util.check_units import assert_units_consistent
 from wrd.wrd_treatment_train import main
-from wrd.utilities import load_config, get_config_value, get_config_file
-
-# @pytest.fixture(scope="module")
-# def full_wrd_system_8_19_21():
-#     m = main(num_pro_trains = 1, num_tsro_trains = 1, num_pro_stages=2)
-#     return m
-
-# def _get_stage_objects(m, train_idx, stage_idx):
-#     train = m.fs.ro_system.find_component(f"train_{train_idx}")
-#     pump = train.find_component(f"pump{stage_idx}")
-#     stage = train.find_component(f"ro_stage_{stage_idx}")
-#     perm_flow = stage.mixed_permeate[0].flow_vol_phase["Liq"]
-#     return pump, perm_flow
 
 
+@pytest.mark.parametrize("num_pro_trains", [4, 3, 2])
 @pytest.mark.component
-def test_with_1_train():
-    m = main(num_pro_trains=1, num_tsro_trains=1, num_pro_stages=2)
-
-
-@pytest.mark.component
-def test_with_4_train():
-    m = main(num_pro_trains=4, num_tsro_trains=4, num_pro_stages=2)
-
-
-# Current test only checks first strage of first train pump power
-@pytest.mark.skip
-@pytest.mark.component
-def test_wrd_treatment_train_PRO_pump_1(full_wrd_system_8_19_21):
-    pump, _ = _get_stage_objects(full_wrd_system_8_19_21, 1, 1)
-    power = pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)
-    expected_power = 196.25 * pyunits.kW
-    # Units check
-    assert_units_consistent(power + expected_power)
-    assert value(power) == pytest.approx(value(expected_power), rel=0.15)
-
-
-# Will eventually add more tests for other pumps and total system power, etc.
-@pytest.mark.skip
-def test_wrd_treatment_train_total_power(full_wrd_system_8_19_21):
-    pump, _ = _get_stage_objects(full_wrd_system_8_19_21, 1, 1)
-    power = pyunits.convert(pump.pump.work_mechanical[0], to_units=pyunits.kW)
-    expected_power = 196.25 * pyunits.kW
-    # Units check
-    assert_units_consistent(power + expected_power)
-    assert value(power) == pytest.approx(value(expected_power), rel=0.15)
+def test_wrd_treatment_train(num_pro_trains):
+    m = main(num_pro_trains=num_pro_trains)
