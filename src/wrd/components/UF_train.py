@@ -110,7 +110,7 @@ def build_uf_train(blk, file="wrd_uf_pump_inputs_8_19_21.yaml", prop_package=Non
     touch_flow_and_conc(blk.disposal)
 
     blk.pump = FlowsheetBlock(dynamic=False)
-    build_pump(blk.pump, file=file, prop_package=prop_package,uf=True)
+    build_pump(blk.pump, file=file, prop_package=prop_package, uf=True)
     blk.pump.config_data = (
         blk.config_data
     )  # Will need to revist how config data is being handled
@@ -223,6 +223,7 @@ def report_uf_train(blk, train_num=0, w=30):
         f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(blk.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
     )
     report_pump(blk.pump, w=w)
+
 
 def main(
     Qin=2637,
