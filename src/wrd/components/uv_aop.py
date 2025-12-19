@@ -105,7 +105,7 @@ def build_uv_aop(blk, prop_package=None):
         doc="Linear fit to data",
     )
 
-    blk.feed_to_unit = Arc(source=blk.feed.inlet, destination=blk.unit.inlet)
+    blk.feed_to_unit = Arc(source=blk.feed.outlet, destination=blk.unit.inlet)
     blk.unit_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
 
     TransformationFactory("network.expand_arcs").apply_to(blk)

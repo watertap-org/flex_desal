@@ -72,7 +72,9 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
     return m
 
 
-def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None):
+def build_pump(
+    blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None, uf=False
+):
 
     if prop_package is None:
         m = blk.model()
@@ -97,7 +99,12 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
     )
 
     # Load Values for surrogate model
-    if stage_num == 1:
+    if uf:
+        a_0 = 0.0677
+        a_1 = 5.357
+        a_2 = -4.475
+        a_3 = -19.578
+    elif stage_num == 1:
         a_0 = 0.389
         a_1 = -0.535
         a_2 = 41.373
@@ -108,34 +115,35 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
         a_2 = -133.157
         a_3 = -234.386
     else:
+        # Still missing TSRO pump curves
         a_0 = 0.067
         a_1 = 21.112
         a_2 = -133.157
         a_3 = -234.386
 
     # Create Variables for simple "surrogate"
-    blk.unit.efficiency_eq_constant = Param(
+    blk.unit.efficiency_constant = Param(
         initialize=a_0,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Constant term of Efficiency equation",
     )
 
-    blk.unit.efficiency_eq_linear = Param(
+    blk.unit.efficiency_linear_coeff = Param(
         initialize=a_1,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -1,
         doc="Linear term of Efficiency equation",
     )
 
-    blk.unit.efficiency_eq_squared = Param(
+    blk.unit.efficiency_squared_coeff = Param(
         initialize=a_2,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -2,
         doc="Squared term of Efficiency equation",
     )
 
-    blk.unit.efficiency_eq_cubed = Param(
+    blk.unit.efficiency_cubed_coeff = Param(
         initialize=a_3,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -3,
@@ -144,12 +152,12 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
 
     flow = blk.feed.properties[0].flow_vol_phase["Liq"]
 
-    blk.unit.efficiency_surr_eq = Constraint(
+    blk.unit.eq_efficiency_surr = Constraint(
         expr=blk.unit.efficiency_fluid
-        == blk.unit.efficiency_eq_cubed * flow**3
-        + blk.unit.efficiency_eq_squared * flow**2
-        + blk.unit.efficiency_eq_linear * flow
-        + blk.unit.efficiency_eq_constant,
+        == blk.unit.efficiency_cubed_coeff * flow**3
+        + blk.unit.efficiency_squared_coeff * flow**2
+        + blk.unit.efficiency_linear_coeff * flow
+        + blk.unit.efficiency_constant,
         doc="Efficiency surrogate equation",
     )
     blk.unit.efficiency_pump.bounds = (0, 1)
@@ -175,7 +183,7 @@ def build_pump(blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package
         doc="Loss factor due to heat, age, wear, etc.",
     )
 
-    blk.unit.efficiency_electrical = Constraint(
+    blk.unit.eq_efficiency_electrical = Constraint(
         expr=blk.unit.efficiency_pump[0]
         == (
             blk.unit.efficiency_motor
@@ -197,7 +205,6 @@ def set_pump_op_conditions(blk):
     Pout = get_config_value(
         blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
     )
-
     print(
         f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
     )

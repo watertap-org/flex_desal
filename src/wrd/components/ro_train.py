@@ -62,6 +62,7 @@ def build_system(num_stages=3, file="wrd_ro_inputs_8_19_21.yaml"):
     m.fs.product = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.product)
     m.fs.brine = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.brine)
 
     # Arcs to connect the unit models
     m.fs.feed_to_train = Arc(
@@ -106,6 +107,16 @@ def build_ro_train(
     blk, num_stages=3, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None
 ):
 
+    name = (
+        blk.name.split(".")[-1]
+        .replace("_", " ")
+        .replace("[", " ")
+        .replace("]", "")
+        .upper()
+    )
+
+    print(f'\n{f"=======> BUILDING {name} <=======":^60}\n')
+
     if prop_package is None:
         m = blk.model()
         prop_package = m.fs.properties
@@ -145,17 +156,20 @@ def build_ro_train(
         if i == blk.stages.first():
             ain = Arc(source=blk.feed.outlet, destination=blk.stage[i].feed.inlet)
             blk.add_component(f"feed_to_stage_{i}", ain)
+            print(f"feed_to_stage_{i}")
             aout = Arc(
                 source=blk.stage[i].disposal.outlet,
                 destination=blk.stage[i + 1].feed.inlet,
             )
             blk.add_component(f"stage_{i}_to_stage_{i+1}", aout)
+            print(f"stage_{i}_to_stage_{i+1}")
 
         elif i == blk.stages.last():
             aout_brine = Arc(
                 source=blk.stage[i].disposal.outlet, destination=blk.disposal.inlet
             )
             blk.add_component(f"stage_{i}_to_brine", aout_brine)
+            print(f"stage_{i}_to_brine")
 
         else:
             aout = Arc(
@@ -163,10 +177,13 @@ def build_ro_train(
                 destination=blk.stage[i + 1].feed.inlet,
             )
             blk.add_component(f"stage_{i}_to_stage_{i+1}", aout)
+            print(f"stage_{i}_to_stage_{i+1}")
 
         mix_in = blk.mixer.find_component(f"stage_{i}_to_product")
         mix_arc = Arc(source=blk.stage[i].product.outlet, destination=mix_in)
         blk.add_component(f"stage_{i}_to_product", mix_arc)
+        print(f"stage_{i}_to_product")
+    # assert False
 
     blk.mixer_to_product = Arc(source=blk.mixer.outlet, destination=blk.product.inlet)
 
@@ -203,6 +220,7 @@ def initialize_ro_train(blk):
             a = blk.find_component(f"stage_{i}_to_product")
             propagate_state(a)
             a = blk.find_component(f"stage_{i}_to_brine")
+            propagate_state(a)
         else:
             initialize_ro_stage(blk.stage[i])
             a = blk.find_component(f"stage_{i}_to_stage_{i+1}")

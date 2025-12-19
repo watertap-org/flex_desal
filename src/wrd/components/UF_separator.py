@@ -66,13 +66,6 @@ def build_system(Qin=11343, Cin=1467, feed_temp=27, outlet_list=["outlet1", "out
 
 def build_separator(blk, name=None, prop_package=None, outlet_list=None):
 
-    if name is None:
-        name = blk.name.split(".")[-1]
-
-    name = name.replace("_", " ").upper()
-
-    print(f'\n{f"=======> BUILDING {name} UNIT <=======":^60}\n')
-
     if prop_package is None:
         m = blk.model()
         prop_package = m.fs.properties

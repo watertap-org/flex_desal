@@ -20,7 +20,7 @@ from idaes.core.util.model_statistics import degrees_of_freedom
 
 from watertap.core.solvers import get_solver
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
-
+from srp.utils import touch_flow_and_conc
 
 solver = get_solver()
 
@@ -37,6 +37,7 @@ def build_system(**kwargs):
 def build_decarbonator(blk, prop_package):
 
     blk.feed = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.feed)
     blk.product = StateJunction(property_package=prop_package)
     blk.unit = StateJunction(property_package=prop_package)
 
@@ -113,7 +114,7 @@ def report_decarbonator(blk, w=30):
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
 
-    total_flow = blk.feed.properties[0].flow_vol
+    total_flow = blk.feed.properties[0].flow_vol_phase["Liq"]
     power = blk.unit.power_consumption
     print(
         f'{f"Total Flow Rate (MGD)":<{w}s}{value(pyunits.convert(total_flow, to_units=pyunits.Mgallons /pyunits.day)):<{w}.3f}{"MGD"}'
