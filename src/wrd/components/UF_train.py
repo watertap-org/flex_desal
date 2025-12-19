@@ -41,6 +41,7 @@ solver = get_solver()
 
 
 def build_system(file="wrd_inputs_8_19_21.yaml"):
+def build_system(file="wrd_inputs_8_19_21.yaml"):
     # Will want to combine all inputs into one yaml instead of having separate ones
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -148,7 +149,7 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=298, Pin=101325):
 
 
 def set_uf_train_op_conditions(blk, split_fractions=None):
-    set_pump_op_conditions(blk.pump, uf=True)
+    set_pump_op_conditions(blk.pump,uf=True)
     if split_fractions is None:
         split_fractions = {
             "product": {"H2O": 0.99, "NaCl": 0.99},
@@ -223,7 +224,6 @@ def report_uf_train(blk, train_num=0, w=30):
         f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(blk.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
     )
     report_pump(blk.pump, w=w)
-
 
 def main(
     Qin=2637,

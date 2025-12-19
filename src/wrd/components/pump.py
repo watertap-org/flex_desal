@@ -37,6 +37,7 @@ solver = get_solver()
 
 
 def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
+def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -72,9 +73,7 @@ def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     return m
 
 
-def build_pump(
-    blk, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml", prop_package=None, uf=False
-):
+def build_pump(blk, stage_num=1, file="wrd_inputs_8_19_21.yaml", prop_package=None):
 
     if prop_package is None:
         m = blk.model()
@@ -200,7 +199,7 @@ def build_pump(
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk, uf=False):
+def set_pump_op_conditions(blk,uf=False):
     if uf:
         Pout = get_config_value(
             blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump_{blk.stage_num}"
