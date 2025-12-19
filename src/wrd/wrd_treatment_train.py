@@ -275,7 +275,7 @@ def add_wrd_connections(m):
     TransformationFactory("network.expand_arcs").apply_to(m)
 
 
-def set_inlet_conditions(m, Qin=2637 * 4, Cin=0.5, file="wrd_inputs_8_19_21.yaml"):
+def set_wrd_inlet_conditions(m, Qin=2637 * 4, Cin=0.5, file="wrd_inputs_8_19_21.yaml"):
     m.fs.feed.properties.calculate_state(
         var_args={
             ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains)
@@ -527,12 +527,12 @@ def report_wrd(m, w=30):
     )
 
 
-def main(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
+def main(num_pro_trains=2, num_tsro_trains=None, num_pro_stages=2):
 
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
         num_tsro_trains=num_tsro_trains,
-        num_stages=num_stages,
+        num_stages=num_pro_stages,
     )
     add_wrd_connections(m)
     set_wrd_system_scaling(m)
@@ -554,12 +554,6 @@ def main(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
 
 
 if __name__ == "__main__":
-    num_stages = 2
-    m = main(num_pro_stages=num_stages)
+    num_pro_stages = 2
+    m = main(num_pro_stages=num_pro_stages)
     report_wrd(m)
-    return m
-
-
-if __name__ == "__main__":
-
-    m = main()

@@ -72,7 +72,7 @@ def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     return m
 
 
-def build_pump(blk, stage_num=1, file="wrd_inputs_8_19_21.yaml", prop_package=None):
+def build_pump(blk, stage_num=1, file="wrd_inputs_8_19_21.yaml", prop_package=None,uf=False):
 
     if prop_package is None:
         m = blk.model()
