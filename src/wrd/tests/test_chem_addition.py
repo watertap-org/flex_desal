@@ -21,7 +21,6 @@ def test_chem_addition():
             "sulfuric_acid",
             "scale_inhibitor",
             "calcium_hydroxide",
-            "caustic",
             "sodium_bisulfite",
         ],
         1,

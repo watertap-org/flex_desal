@@ -10,7 +10,7 @@ from pyomo.environ import (
 )
 from pyomo.network import Arc
 
-from idaes.core import FlowsheetBlock, UnitModelCostingBlock
+from idaes.core import FlowsheetBlock
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.scaling import calculate_scaling_factors
 from idaes.models.unit_models import Product, Feed, StateJunction
@@ -22,6 +22,7 @@ from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 
 from models import ChemicalAddition
 from srp.utils import touch_flow_and_conc
+from wrd.utilities import get_config_value, load_config, get_config_file
 
 __all__ = [
     "build_chem_addition",
@@ -33,7 +34,7 @@ __all__ = [
 
 solver = get_solver()
 
-
+# What's this doing here?
 current_script_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_script_path)
 parent_directory = os.path.dirname(current_directory)
@@ -42,12 +43,41 @@ default_chem_addition_config_file = os.path.join(
 )
 
 
+def get_chem_data(chem_data, chemical_name, default=None):
+    chem_config = {}
+
+    chem_config["ratio_in_solution"] = get_config_value(
+        chem_data,
+        "ratio_in_solution",
+        chemical_name,
+    )
+
+    chem_config["solution_density"] = get_config_value(
+        chem_data,
+        "solution_density",
+        chemical_name,
+    )
+
+    chem_config["unit_cost"] = get_config_value(
+        chem_data,
+        "unit_cost",
+        chemical_name,
+    )
+
+    return chem_config
+
+
 def build_system(chemical_name=None):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.costing = WaterTAPCosting()
     m.fs.properties = NaClParameterBlock()
+
+    #will need to add to wrd flowsheet too
+    config_file_name = "chemical_addition.yaml"
+    config = get_config_file(config_file_name)
+    m.fs.chem_data = load_config(config)
 
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -80,41 +110,30 @@ def build_system(chemical_name=None):
 
 
 def build_chem_addition(blk, chemical_name=None, prop_package=None, file=None):
-
-    if chemical_name is None:
-        # raise ValueError("chemical_name must be provided to build_chem_addition")
-        name = "default_chemical"
-    else:
-        name = chemical_name.replace("_", " ").upper()
-
-    if file is None:
-        file = default_chem_addition_config_file
-
-    with open(file, "r") as f:
-        data = yaml.safe_load(f)
-
-    blk.chem_data = data.get(chemical_name, {})
-
-    config_data = {}
-
-    if blk.chem_data != {}:
-        config_data["solution_density"] = blk.chem_data["solution_density"]["value"]
-        config_data["ratio_in_solution"] = blk.chem_data["ratio_in_solution"]["value"]
-
-    print(f'\n{f"=======> BUILDING {name} ADDITION UNIT <=======":^60}\n')
+    
+    print(f'\n{f"=======> BUILDING {chemical_name} ADDITION UNIT <=======":^60}\n')
 
     m = blk.model()
     if prop_package is None:
         prop_package = m.fs.properties
 
+    if chemical_name is None:
+        # raise ValueError("chemical_name must be provided to build_chem_addition")
+        name = "default_chemical"
+    else:
+        name = chemical_name.replace("_", " ").upper() # Why is this here?
+ 
     blk.feed = StateJunction(property_package=prop_package)
     touch_flow_and_conc(blk.feed)
 
+    blk.chem_config = get_chem_data(m.fs.chem_data, chemical_name, None)
+    # should dose also be set here?
     blk.unit = ChemicalAddition(
         property_package=prop_package,
         chemical=chemical_name,
-        chemical_data=config_data,
+        chemical_data=blk.chem_config,
     )
+
     blk.product = StateJunction(property_package=prop_package)
 
     blk.feed_to_unit = Arc(
@@ -208,15 +227,14 @@ def initialize_chem_addition(blk):
 
 
 def add_chem_addition_costing(
-    blk, costing_package=None, chem_cost=None, chem_purity=None, chem_cost_units=None
-):
+    blk, costing_package=None, chem_cost=None, chem_purity=None):
     if chem_cost is None:
-        chem_cost = blk.chem_data["unit_cost"]["value"]
+        chem_cost = blk.chem_config["unit_cost"]["value"]
         if chem_cost is None:
             raise ValueError("chem_cost must be provided to add_chem_addition_costing")
 
     if chem_purity is None:
-        chem_purity = blk.chem_data.get("purity", None)
+        chem_purity = blk.chem_config.get("purity", None)
         if chem_purity is None:
             chem_purity = 1.0  # assume 100% purity if not provided
 
@@ -224,19 +242,9 @@ def add_chem_addition_costing(
         m = blk.model()
         costing_package = m.fs.costing
 
-    if chem_cost_units is None:
-        try:
-            chem_cost_units = blk.chem_data["unit_cost"]["units"]
-            num = getattr(pyunits, chem_cost_units.split("/")[0])
-            den = getattr(pyunits, chem_cost_units.split("/")[1])
-            chem_cost_units = num / den
-        except:
-            chem_cost_units = costing_package.base_currency / pyunits.kg
-
     if blk.unit.config.chemical not in costing_package._registered_flows.keys():
         blk.unit.cost = Param(
             initialize=chem_cost,
-            units=chem_cost_units,
             mutable=True,
             doc=f"{blk.unit.config.chemical.replace('_', ' ').title()} cost",
         )
@@ -282,7 +290,7 @@ def main(
 
 
 if __name__ == "__main__":
-    chem = "caustic"
+    chem = "ammonium_sulfate"
     m = main(chemical_name=chem)
 
     # import yaml
