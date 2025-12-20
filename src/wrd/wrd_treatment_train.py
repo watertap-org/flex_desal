@@ -16,6 +16,7 @@ from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import Product, Feed
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
+from watertap.costing import WaterTAPCosting
 
 from wrd.components.chemical_addition import *
 from wrd.components.ro_system import *
@@ -49,6 +50,7 @@ def build_wrd_system(
     config_file_name = "wrd_inputs_" + date + ".yaml"
     config = get_config_file(config_file_name)
     m.fs.config_data = load_config(config)
+
     m.fs.properties = NaClParameterBlock()
 
     # Add units
@@ -437,6 +439,24 @@ def initialize_wrd_system(m):
     m.fs.disposal.initialize()
 
 
+def add_wrd_system_costing(m):
+    m.fs.costing = WaterTAPCosting()
+    cost_uf_system(m.fs.uf_system)
+    cost_ro_system(m.fs.ro_system)
+    cost_uv_aop(m.fs.UV_aop)
+    cost_decarbonator(m.fs.decarbonator)
+    for chem_name in m.fs.chemical_list:
+        cost_chem_addition(blk=m.fs.find_component(chem_name + "_addition"), costing_package=m.fs.zo_costing)
+
+    m.fs.costing.cost_process()
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+    m.fs.costing.add_specific_energy_consumption(
+        m.fs.product.properties[0].flow_vol_phase["Liq"],
+        name="SEC",
+    )
+    m.fs.costing.initialize()
+
+
 def report_tsro(m, w=30):
     title = "TSRO Report"
     side = int(((3 * w) - len(title)) / 2) - 1
@@ -557,6 +577,8 @@ def main(num_pro_trains=4, num_tsro_trains=None, num_pro_stages=2):
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     assert degrees_of_freedom(m) == 0
     initialize_wrd_system(m)
+    add_wrd_system_costing(m)
+
     solver = get_solver()
     try:
         results = solver.solve(m)
