@@ -64,6 +64,12 @@ def get_chem_data(chem_data, chemical_name, default=None):
         chemical_name,
     )
 
+    chem_config["chemical_dosage"] = get_config_value(
+        chem_data,
+        "chemical_dosage",
+        chemical_name,
+    )
+    
     return chem_config
 
 
@@ -165,13 +171,9 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5):
 def set_chem_addition_op_conditions(blk, dose=None):
 
     if dose is None:
-        dose = blk.chem_data.get("chemical_dosage", None)
-        if dose is not None:
-            dose = dose.get("value", None)
-        elif dose is None:
-            raise ValueError(
-                "dose must be provided to set_chem_addition_op_conditions or in the config file"
-            )
+        dose = blk.chem_config["chemical_dosage"]
+        if dose is None:
+            raise ValueError("dose must be provided to set_chem_addition_op_conditions")
 
     blk.unit.dose.fix(dose)
 
@@ -203,10 +205,10 @@ def report_chem_addition(blk, w=30):
     )
     m = blk.model()
     print(
-        f'{"Chem Addition Capital Cost":<{w}s}{f"${m.fs.costing.total_capital_cost():<{w}.3f}"}'
+        f'{"Chem Addition Capital Cost":<{w}s}{f"${m.fs.costing.total_capital_cost():<{w}.3f}$"}'
     )
     print(
-        f'{"Chem Addition Operating Cost":<{w}s}{f"${m.fs.costing.total_operating_cost():<{w}.3f}"}'
+        f'{"Chem Addition Operating Cost":<{w}s}{f"${m.fs.costing.total_operating_cost():<{w}.3f}$/year"}'
     )
 
 
@@ -232,6 +234,7 @@ def initialize_chem_addition(blk):
 
 def add_chem_addition_costing(
     blk, costing_package=None, chem_cost=None, chem_purity=None):
+
     if chem_cost is None:
         chem_cost = blk.chem_config["unit_cost"]
         if chem_cost is None:
@@ -259,9 +262,14 @@ def add_chem_addition_costing(
             mutable=True,
             doc=f"{blk.unit.config.chemical.replace('_', ' ').title()} purity",
         )
+        # Plz review
         costing_package.register_flow_type(
             blk.unit.config.chemical, blk.unit.cost / blk.unit.purity
         )
+
+        chem_name = blk.unit.config.chemical
+        cost_var = getattr(m.fs.costing, f"{chem_name}_cost")
+        cost_var.set_value(blk.unit.cost)
 
     costing_package.cost_flow(blk.unit.chemical_flow_mass, blk.unit.config.chemical)
     costing_package.cost_flow(blk.unit.pumping_power, "electricity")
@@ -271,8 +279,8 @@ def main(
     chemical_name = "ammonium_sulfate",
     Qin=2637,
     Cin=0.5,
-    dose=0.01,
     # If hard coding, need to pass units somewhere
+    # dose=0.01,
     # chem_cost=0.5,
     # chem_purity=0.9,
 ):
@@ -281,14 +289,13 @@ def main(
         m.fs.chem_addition)#, chem_cost=chem_cost, chem_purity=chem_purity)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin)
-    set_chem_addition_op_conditions(m.fs.chem_addition, dose=dose)
+    set_chem_addition_op_conditions(m.fs.chem_addition)
     initialize_system(m)
     m.fs.costing.cost_process()
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
     report_chem_addition(m.fs.chem_addition, w=40)
-
     return m
 
 
