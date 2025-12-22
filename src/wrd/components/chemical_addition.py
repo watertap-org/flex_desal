@@ -201,9 +201,13 @@ def report_chem_addition(blk, w=30):
     print(
         f'{f"{chem_name} Pumping Power":<{w}s}{value(blk.unit.pumping_power):<{w}.3e}{f"{pyunits.get_units(blk.unit.pumping_power)}"}'
     )
-    # print(
-    #     f'{"Chem Addition Capital Cost":<{w}s}{f"${blk.unit.costing.capital_cost():<{w}.3f}"}'
-    # )
+    m = blk.model()
+    print(
+        f'{"Chem Addition Capital Cost":<{w}s}{f"${m.fs.costing.total_capital_cost():<{w}.3f}"}'
+    )
+    print(
+        f'{"Chem Addition Operating Cost":<{w}s}{f"${m.fs.costing.total_operating_cost():<{w}.3f}"}'
+    )
 
 
 def initialize_system(blk):
@@ -229,12 +233,12 @@ def initialize_chem_addition(blk):
 def add_chem_addition_costing(
     blk, costing_package=None, chem_cost=None, chem_purity=None):
     if chem_cost is None:
-        chem_cost = blk.chem_config["unit_cost"]["value"]
+        chem_cost = blk.chem_config["unit_cost"]
         if chem_cost is None:
             raise ValueError("chem_cost must be provided to add_chem_addition_costing")
 
     if chem_purity is None:
-        chem_purity = blk.chem_config.get("purity", None)
+        chem_purity = blk.chem_config["ratio_in_solution"]
         if chem_purity is None:
             chem_purity = 1.0  # assume 100% purity if not provided
 
@@ -245,12 +249,13 @@ def add_chem_addition_costing(
     if blk.unit.config.chemical not in costing_package._registered_flows.keys():
         blk.unit.cost = Param(
             initialize=chem_cost,
+            units=pyunits.get_units(chem_cost),
             mutable=True,
             doc=f"{blk.unit.config.chemical.replace('_', ' ').title()} cost",
         )
         blk.unit.purity = Param(
             initialize=chem_purity,
-            units=pyunits.dimensionless,
+            units=pyunits.get_units(chem_purity),
             mutable=True,
             doc=f"{blk.unit.config.chemical.replace('_', ' ').title()} purity",
         )
@@ -263,24 +268,22 @@ def add_chem_addition_costing(
 
 
 def main(
-    chemical_name="ammonia",
+    chemical_name = "ammonium_sulfate",
     Qin=2637,
     Cin=0.5,
     dose=0.01,
-    chem_cost=0.5,
-    chem_purity=0.9,
+    # If hard coding, need to pass units somewhere
+    # chem_cost=0.5,
+    # chem_purity=0.9,
 ):
-
     m = build_system(chemical_name=chemical_name)
     add_chem_addition_costing(
-        m.fs.chem_addition, chem_cost=chem_cost, chem_purity=chem_purity
-    )
+        m.fs.chem_addition)#, chem_cost=chem_cost, chem_purity=chem_purity)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin)
     set_chem_addition_op_conditions(m.fs.chem_addition, dose=dose)
     initialize_system(m)
     m.fs.costing.cost_process()
-
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)

@@ -97,28 +97,28 @@ scale_inhibitor:
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
     value: 2.30
     units: USD_2021/kg # What is the difference between a ton and dry ton?
-calcium_chloride: # This chemical seems to have only been used for part of 2021
-  chemical_dosage:
-    value: 10
-    units: mg/L
-  solution_density:
-    value: 1781
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
-    units: dimensionless
-  capital_cost:
-    basis: chemical_flow_mass
-    cost_factor: TPEC
-    capital_a_parameter:
-      value: 900.97
-      units: USD_2007
-    capital_b_parameter:
-      value: 0.6179
-      units: dimensionless 
-  unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 637.55
-    units: USD_2021/ton # Not sure if year is valid
+# calcium_chloride: # This chemical seems to have only been used for part of 2021
+#   chemical_dosage:
+#     value: 10
+#     units: mg/L
+#   solution_density:
+#     value: 1781
+#     units: kg/m^3
+#   ratio_in_solution:
+#     value: 1
+#     units: dimensionless
+#   capital_cost:
+#     basis: chemical_flow_mass
+#     cost_factor: TPEC
+#     capital_a_parameter:
+#       value: 900.97
+#       units: USD_2007
+#     capital_b_parameter:
+#       value: 0.6179
+#       units: dimensionless 
+#   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
+#     value: 637.55
+#     units: USD_2021/ton # Not sure if year is valid
 calcium_hydroxide: 
   chemical_dosage:
     value: 47
