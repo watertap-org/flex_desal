@@ -1,6 +1,6 @@
 import pytest
 
-from pyomo.environ import assert_optimal_termination, value
+from pyomo.environ import assert_optimal_termination, value, units as pyunits
 
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.exceptions import ConfigurationError
@@ -13,7 +13,34 @@ solver = get_solver()
 
 
 @pytest.mark.component
-def test_chem_addition():
+def test_chem_addition_chem_flow():
+    # These costs are based directly on Qin=2637 and yaml inputs, so values should agree very closely
+    mass_flow_rates= {
+            "ammonium_sulfate": 8.32e-5,
+            "sodium_hypochlorite": 6.65e-4,
+            "sulfuric_acid": 1.60e-2,
+            "scale_inhibitor": 7.49e-4,
+            "calcium_hydroxide": 7.82e-3,
+            "sodium_hydroxide": 4.99e-4,
+            "sodium_bisulfite": 6.65e-4,
+    }
+    for i, chem in enumerate(mass_flow_rates.keys(), 1):
+        m = ca.main(
+            chemical_name=chem,
+            Qin=2637,
+            Cin=0.5,
+            dose=None,
+            chem_cost=None,
+            chem_purity=None,
+            )
+
+        chem_mass_flow = m.fs.costing.find_component(f"aggregate_flow_{chem}")
+        expected_mass_flow = mass_flow_rates[chem] * pyunits.kg / pyunits.s
+        assert  pytest.approx(value(chem_mass_flow), rel=.15) == value(expected_mass_flow)  # $/yr
+
+
+@pytest.mark.component
+def test_chem_addition_costs():
     # These costs are based directly on Qin=2637 and yaml inputs, so values should agree very closely (But they don't)
     # Once resolved, these should be switched to provided monthly data.
     annual_costs = {
