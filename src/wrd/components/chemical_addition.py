@@ -178,7 +178,7 @@ def set_chem_addition_op_conditions(blk, dose=None):
     blk.unit.dose.fix(dose)
 
 
-def report_chem_addition(blk, w=30):
+def report_chem_addition(blk, w=35):
     chem_name = blk.unit.config.chemical.replace("_", " ").title()
     feed_flow = pyunits.convert(
         blk.unit.properties[0].flow_vol_phase["Liq"],
@@ -201,14 +201,11 @@ def report_chem_addition(blk, w=30):
         f'{f"{chem_name} Vol. Flow":<{w}s}{value(blk.unit.chemical_soln_flow_vol):<{w}.3e}{f"{pyunits.get_units(blk.unit.chemical_soln_flow_vol)}"}'
     )
     print(
-        f'{f"{chem_name} Pumping Power":<{w}s}{value(blk.unit.pumping_power):<{w}.3e}{f"{pyunits.get_units(blk.unit.pumping_power)}"}'
+        f'{f"{chem_name} Pump":<{w}s}{value(blk.unit.pumping_power):<{w}.3e}{f"{pyunits.get_units(blk.unit.pumping_power)}"}'
     )
     m = blk.model()
     print(
-        f'{"Chem Addition Capital Cost":<{w}s}{f"${m.fs.costing.total_capital_cost():<{w}.3f}$"}'
-    )
-    print(
-        f'{"Chem Addition Operating Cost":<{w}s}{f"${m.fs.costing.total_operating_cost():<{w}.3f}$/year"}'
+        f'{"Chem Addition Operating Cost":<{w}s}{f"${value(m.fs.costing.aggregate_flow_costs[blk.unit.config.chemical]):<{w}.3f}$/year"}'
     )
 
 

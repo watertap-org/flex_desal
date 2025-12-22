@@ -51,8 +51,12 @@ def build_wrd_system(
     config = get_config_file(config_file_name)
     m.fs.config_data = load_config(config)
 
-    m.fs.properties = NaClParameterBlock()
+    config = get_config_file("chemical_addition.yaml")
+    m.fs.chem_data = load_config(config)
 
+    m.fs.properties = NaClParameterBlock()
+    m.fs.costing = WaterTAPCosting()
+    
     # Add units
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -310,8 +314,7 @@ def set_wrd_operating_conditions(m):
     # Operating conditions
     for chem_name in m.fs.chemical_list:
         set_chem_addition_op_conditions(
-            blk=m.fs.find_component(chem_name + "_addition"), dose=0.1
-        )
+            blk=m.fs.find_component(chem_name + "_addition"))
 
     set_uf_system_op_conditions(m)
 
@@ -440,13 +443,13 @@ def initialize_wrd_system(m):
 
 
 def add_wrd_system_costing(m):
-    m.fs.costing = WaterTAPCosting()
-    cost_uf_system(m.fs.uf_system)
-    cost_ro_system(m.fs.ro_system)
+    # uf and UV don't have same convention for costing
+    add_uf_system_costing(m)
+    add_ro_system_costing(m)
     cost_uv_aop(m.fs.UV_aop)
     cost_decarbonator(m.fs.decarbonator)
     for chem_name in m.fs.chemical_list:
-        cost_chem_addition(blk=m.fs.find_component(chem_name + "_addition"), costing_package=m.fs.zo_costing)
+        add_chem_addition_costing(blk=m.fs.find_component(chem_name + "_addition"), costing_package=m.fs.costing)
 
     m.fs.costing.cost_process()
     m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
@@ -559,9 +562,15 @@ def report_wrd(m, w=30):
     print(
         f'{f"Total Pumping Power":<{w}s}{value(pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+    print(
+        f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+    )
+    print(
+        f'{f"Electricity Cost":<{w}s}{value(pyunits.convert(m.fs.costing.aggregate_flow_costs["electricity"], to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
+    )
 
 
-def main(num_pro_trains=4, num_tsro_trains=None, num_pro_stages=2):
+def main(num_pro_trains=1, num_tsro_trains=None, num_pro_stages=2):
 
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
