@@ -3,7 +3,7 @@ from pyomo.environ import value, units as pyunits
 from wrd.wrd_treatment_train import main
 
 
-@pytest.mark.parametrize("num_pro_trains", [4, 3, 2, 1])
+@pytest.mark.parametrize("num_pro_trains", [1, 2, 3, 4])
 @pytest.mark.component
 def test_wrd_treatment_train(num_pro_trains):
     m = main(num_pro_trains=num_pro_trains)

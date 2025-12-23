@@ -35,7 +35,7 @@ from models import HeadLoss
 
 
 def build_wrd_system(
-    num_pro_trains=4, num_tsro_trains=None, num_stages=2, date="8_19_21"
+    num_pro_trains=4, num_tsro_trains=None, num_stages=2, file="wrd_inputs_8_19_21.yaml"
 ):
 
     if num_tsro_trains is None:
@@ -47,8 +47,7 @@ def build_wrd_system(
     m.num_stages = num_stages
     m.fs = FlowsheetBlock(dynamic=False)
 
-    config_file_name = "wrd_inputs_" + date + ".yaml"
-    config = get_config_file(config_file_name)
+    config = get_config_file(file)
     m.fs.config_data = load_config(config)
 
     config = get_config_file("chemical_addition.yaml")

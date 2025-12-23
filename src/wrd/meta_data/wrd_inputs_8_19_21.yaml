@@ -127,7 +127,7 @@ reverse_osmosis_1d:
       value: -41.9
       units: psi
 uf_pumps:
-  number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
+  number_trains: 1 # This number is unused for now. Assuming PRO trains = UF trains
   pump_1:
     pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
       value: 35.4
