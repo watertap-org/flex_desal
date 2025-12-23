@@ -119,12 +119,12 @@ def build_chem_addition(blk, chemical_name=None, prop_package=None, file=None):
 
     name = chemical_name.replace("_", " ").upper()
     print(f'\n{f"=======> BUILDING {name} ADDITION UNIT <=======":^60}\n')
-    
+
     blk.feed = StateJunction(property_package=prop_package)
     touch_flow_and_conc(blk.feed)
 
     blk.chem_config = get_chem_data(m.fs.chem_data, chemical_name, None)
-    
+
     blk.unit = ChemicalAddition(
         property_package=prop_package,
         chemical=chemical_name,
@@ -202,7 +202,7 @@ def add_chem_addition_costing(
         chem_purity = blk.chem_config["ratio_in_solution"]
         if chem_purity is None:
             chem_purity = 1.0  # assume 100% purity if not provided
-    
+
     m = blk.model()
     if costing_package is None:
         costing_package = m.fs.costing
@@ -220,7 +220,7 @@ def add_chem_addition_costing(
             mutable=True,
             doc=f"{blk.unit.config.chemical.replace('_', ' ').title()} purity",
         )
-        
+
         costing_package.register_flow_type(
             blk.unit.config.chemical, blk.unit.cost / blk.unit.purity
         )

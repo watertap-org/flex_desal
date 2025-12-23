@@ -256,7 +256,7 @@ def add_ro_train_costing(blk, costing_package=None):
         add_ro_stage_costing(blk.stage[i], costing_package=costing_package)
 
 
-def report_ro_train(blk, train_num=None, w=30,add_costing=True):
+def report_ro_train(blk, train_num=None, w=30, add_costing=True):
 
     if train_num is None:
         title = "RO Train Report"
@@ -280,7 +280,7 @@ def report_ro_train(blk, train_num=None, w=30,add_costing=True):
         print(
             f'{f"Stage {i} Feed Conc.":<{w}s}{value(pyunits.convert(blk.stage[i].feed.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
         )
-        report_ro_stage(blk.stage[i], w=w,add_costing=add_costing)
+        report_ro_stage(blk.stage[i], w=w, add_costing=add_costing)
 
     side = int(((3 * w) - len(title2)) / 2) - 1
     header = "(" * side + f" {title2} " + ")" * side
@@ -362,7 +362,7 @@ def main(
         results = solver.solve(m, tee=True)
         assert_optimal_termination(results)
 
-    report_ro_train(m.fs.ro_train, w=30,add_costing=add_costing)
+    report_ro_train(m.fs.ro_train, w=30, add_costing=add_costing)
 
     return m
 

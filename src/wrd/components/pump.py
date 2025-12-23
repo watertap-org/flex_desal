@@ -265,7 +265,7 @@ def add_pump_costing(blk, costing_package=None):
     )
 
 
-def report_pump(blk, w=30,add_costing=True):
+def report_pump(blk, w=30, add_costing=True):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -326,15 +326,15 @@ def main(
         m.fs.costing.cost_process()
         m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
         m.fs.costing.add_specific_energy_consumption(
-        m.fs.product.properties[0].flow_vol_phase["Liq"],
-        name="SEC",
-    )
+            m.fs.product.properties[0].flow_vol_phase["Liq"],
+            name="SEC",
+        )
 
     initialize_system(m)
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_pump(m.fs.pump,add_costing=add_costing)
+    report_pump(m.fs.pump, add_costing=add_costing)
 
     return m
 
@@ -348,4 +348,3 @@ if __name__ == "__main__":
     m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
     # Stage 3
     m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)
-    
