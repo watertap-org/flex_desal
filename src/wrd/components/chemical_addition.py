@@ -78,6 +78,8 @@ def build_system(chemical_name=None):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.costing = WaterTAPCosting()
+    m.fs.costing.base_currency = pyunits.USD_2021
+    m.fs.costing.base_period = pyunits.month
     m.fs.properties = NaClParameterBlock()
 
     # will need to add to wrd flowsheet too
@@ -205,7 +207,7 @@ def report_chem_addition(blk, w=35):
     )
     m = blk.model()
     print(
-        f'{"Chem Addition Operating Cost":<{w}s}{f"${value(m.fs.costing.aggregate_flow_costs[blk.unit.config.chemical]):<{w}.3f}$/year"}'
+        f'{"Chem Addition Operating Cost":<{w}s}{f"${value(m.fs.costing.aggregate_flow_costs[blk.unit.config.chemical]):<{w}.3f}$/month"}'
     )
 
 

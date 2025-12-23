@@ -36,25 +36,24 @@ def test_chem_addition_chem_flow():
 
         chem_mass_flow = m.fs.costing.find_component(f"aggregate_flow_{chem}")
         expected_mass_flow = mass_flow_rates[chem] * pyunits.kg / pyunits.s
-        assert pytest.approx(value(chem_mass_flow), rel=0.15) == value(
+        assert pytest.approx(value(chem_mass_flow), rel=0.05) == value(
             expected_mass_flow
-        )  # $/yr
+        )  # kg/s
 
 
 @pytest.mark.component
 def test_chem_addition_costs():
-    # These costs are based directly on Qin=2637 and yaml inputs, so values should agree very closely (But they don't)
-    # Once resolved, these should be switched to provided monthly data.
-    annual_costs = {
-        "ammonium_sulfate": 2662,
-        "sodium_hypochlorite": 27074,
-        "sulfuric_acid": 106556,
-        "scale_inhibitor": 54393,
-        "calcium_hydroxide": 567705,
-        "sodium_hydroxide": 37373,
-        "sodium_bisulfite": 29499,
+    # These costs are based directly on Qin=2637 and yaml inputs, so values should agree very closely
+    monthly_costs = {
+        "ammonium_sulfate": 222,
+        "sodium_hypochlorite": 2256,
+        "sulfuric_acid": 8880,
+        "scale_inhibitor": 4533,
+        "calcium_hydroxide": 47309,
+        "sodium_hydroxide": 3114,
+        "sodium_bisulfite": 2458,
     }
-    for i, chem in enumerate(annual_costs.keys(), 1):
+    for i, chem in enumerate(monthly_costs.keys(), 1):
         # All of this stuff should be in main??
 
         # Dummy data just for testing
@@ -92,9 +91,9 @@ def test_chem_addition_costs():
             chem_purity=None,
         )
 
-        operational_cost = m.fs.costing.total_operating_cost()
-        expected_cost = annual_costs[chem]
-        assert pytest.approx(value(operational_cost), rel=0.15) == expected_cost  # $/yr
+        operational_cost = value(m.fs.costing.aggregate_flow_costs[chem])
+        expected_cost = monthly_costs[chem]
+        assert pytest.approx(value(operational_cost), rel=0.05) == expected_cost  # $/month
 
 
 # Don't understand what this is testing-->

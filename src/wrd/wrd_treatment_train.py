@@ -56,6 +56,7 @@ def build_wrd_system(
 
     m.fs.properties = NaClParameterBlock()
     m.fs.costing = WaterTAPCosting()
+    m.fs.costing.base_currency = pyunits.USD_2021
 
     # Add units
     m.fs.feed = Feed(property_package=m.fs.properties)
