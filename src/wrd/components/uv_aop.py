@@ -12,7 +12,7 @@ from pyomo.environ import (
 )
 from pyomo.network import Arc
 
-from idaes.core import FlowsheetBlock, UnitModelCostingBlock
+from idaes.core import FlowsheetBlock
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.scaling import (
     calculate_scaling_factors,
@@ -23,6 +23,7 @@ from idaes.core.util.model_statistics import degrees_of_freedom
 
 from watertap.core.solvers import get_solver
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
+from watertap.costing import WaterTAPCosting
 
 from srp.utils import touch_flow_and_conc
 
@@ -31,6 +32,7 @@ def build_system(**kwargs):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
+    m.fs.costing = WaterTAPCosting()
 
     m.fs.feed = Feed(property_package=m.fs.properties)
 
@@ -160,8 +162,15 @@ def add_uv_aop_scaling(blk):
     set_scaling_factor(blk.unit.power_consumption, 1e-3)
 
 
-def cost_uv_aop(blk):
-    blk.costing_package.cost_flow(blk.unit.power_consumption, "electricity")
+def cost_uv_aop(blk, costing_package=None):
+    if costing_package is None:
+        m = blk.model()
+        costing_package = m.fs.costing
+
+    # Using this method to cost electricity consumption because it is a ZO model
+    costing_package.cost_flow(
+        pyunits.convert(blk.unit.power_consumption, to_units=pyunits.kW), "electricity"
+    )
 
 
 def report_uv(blk, w=30):
@@ -184,6 +193,11 @@ def report_uv(blk, w=30):
     print(
         f'{f"Power Consumption (kW)":<{w}s}{value(pyunits.convert(power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+    m = blk.model()
+    SEC = m.fs.costing.SEC
+    print(
+        f'{f"Specific Energy (SEC)":<{w}s}{value(pyunits.convert(SEC, to_units=pyunits.kWh / pyunits.m**3)):<{w}.3f}{"kWh/m3"}'
+    )
 
 
 def main():
@@ -194,12 +208,16 @@ def main():
     add_uv_aop_scaling(m.fs.uv_aop_system)
     calculate_scaling_factors(m)
     initialize_system(m)
-
+    cost_uv_aop(m.fs.uv_aop_system)
+    m.fs.costing.cost_process()
+    m.fs.costing.add_specific_energy_consumption(
+        m.fs.product.properties[0].flow_vol_phase["Liq"],
+        name="SEC",
+    )
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
     report_uv(m.fs.uv_aop_system, w=40)
-
     return m
 
 

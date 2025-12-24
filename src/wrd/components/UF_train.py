@@ -191,7 +191,8 @@ def add_uf_train_costing(blk, costing_package=None):
         costing_package = m.fs.costing
 
     add_pump_costing(blk.pump, costing_package=costing_package)
-    # add_separator_costing(blk.ro,costing_package=costing_package) # Don't think there's anything to cost here required
+    # This doesn't exist at the moment - Don't think there's anything to cost here
+    # add_separator_costing(blk.ro,costing_package=costing_package)
 
 
 def report_uf_train(blk, train_num=0, w=30):

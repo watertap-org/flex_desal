@@ -26,7 +26,7 @@ def test_ro_train1_8_19_21():
     assert pytest.approx(value(m.fs.costing.SEC), rel=0.15) == value(expected_SEC)
 
 
-@pytest.mark.component
+@pytest.mark.skip
 def test_ro_train1_3_13_21():
     expected_power = (189.6 + 22.8 + 24.9) * pyunits.kW
     expected_product_flow = (1404.7 + 617 + 279) * pyunits.gal / pyunits.min

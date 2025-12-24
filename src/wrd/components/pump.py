@@ -254,7 +254,16 @@ def initialize_pump(blk):
     blk.product.initialize()
 
 
-def report_pump(blk, w=30):
+def add_pump_costing(blk, costing_package=None):
+
+    if costing_package is None:
+        m = blk.model()
+        costing_package = m.fs.costing
+
+    blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
+
+
+def report_pump(blk, w=30, add_costing=True):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
@@ -267,6 +276,7 @@ def report_pump(blk, w=30):
     pin = blk.unit.control_volume.properties_in[0].pressure
     deltaP = blk.unit.deltaP[0]
     pout = blk.unit.control_volume.properties_out[0].pressure
+
     print(
         f'{f"Inlet Flow":<{w}s}{value(pyunits.convert(flow_in, to_units=pyunits.gallons /pyunits.minute)):<{w}.3f}{"gpm"}'
     )
@@ -284,18 +294,13 @@ def report_pump(blk, w=30):
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.unit.efficiency_pump[0]):<{w}.3f}{"-"}')
-
-
-def add_pump_costing(blk, costing_package=None):
-
-    if costing_package is None:
+    if add_costing:
         m = blk.model()
-        costing_package = m.fs.costing
-
-    # blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
-    costing_package.cost_flow(
-        pyunits.convert(blk.unit.work_mechanical[0], to_units=pyunits.kW), "electricity"
-    )
+        # Is SEC not appearing on m.fs.costing.display a known issue?
+        SEC = m.fs.costing.SEC
+        print(
+            f'{f"Specific Energy (SEC)":<{w}s}{value(pyunits.convert(SEC, to_units=pyunits.kWh / pyunits.m**3)):<{w}.3f}{"kWh/m3"}'
+        )
 
 
 def main(
@@ -305,6 +310,7 @@ def main(
     Pin=101325,
     stage_num=1,
     file="wrd_inputs_8_19_21.yaml",
+    add_costing=True,
 ):
 
     m = build_system(stage_num=stage_num, file=file)
@@ -313,19 +319,20 @@ def main(
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
     set_pump_op_conditions(m.fs.pump)
 
-    add_pump_costing(m.fs.pump)
-    m.fs.costing.cost_process()
-    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
-    m.fs.costing.add_specific_energy_consumption(
-        m.fs.product.properties[0].flow_vol_phase["Liq"],
-        name="SEC",
-    )
+    if add_costing:
+        add_pump_costing(m.fs.pump)
+        m.fs.costing.cost_process()
+        m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+        m.fs.costing.add_specific_energy_consumption(
+            m.fs.product.properties[0].flow_vol_phase["Liq"],
+            name="SEC",
+        )
 
     initialize_system(m)
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_pump(m.fs.pump)
+    report_pump(m.fs.pump, add_costing=add_costing)
 
     return m
 
@@ -339,4 +346,3 @@ if __name__ == "__main__":
     m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
     # Stage 3
     m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)
-    m.fs.costing.SEC.display()

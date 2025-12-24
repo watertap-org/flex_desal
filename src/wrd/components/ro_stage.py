@@ -172,12 +172,12 @@ def initialize_ro_stage(blk):
     blk.disposal.initialize()
 
 
-def report_ro_stage(blk, w=30):
+def report_ro_stage(blk, w=30, add_costing=True):
     # title = "RO Stage Report"
     # side = int(((3 * w) - len(title)) / 2) - 1
     # header = "=" * side + f" {title} " + "=" * side
     # print(f"\n{header}\n")
-    report_pump(blk.pump, w=w)
+    report_pump(blk.pump, w=w, add_costing=add_costing)
     report_ro(blk.ro, w=w)
 
 
