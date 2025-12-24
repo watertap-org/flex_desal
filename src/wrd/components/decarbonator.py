@@ -112,6 +112,7 @@ def cost_decarbonator(blk, costing_package=None):
         m = blk.model()
         costing_package = m.fs.costing
 
+    # Using this method to cost electricity consumption because it is a ZO model
     costing_package.cost_flow(
         pyunits.convert(blk.unit.power_consumption, to_units=pyunits.kW), "electricity"
     )
