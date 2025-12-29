@@ -26,6 +26,8 @@ def test_ro_train1_8_19_21():
     assert pytest.approx(value(m.fs.costing.SEC), rel=0.15) == value(expected_SEC)
 
 
+# NOTE: without the headloss prior to stage 3, this test will result
+# in a negative deltaP for third stage pump and fail with costing
 @pytest.mark.skip
 def test_ro_train1_3_13_21():
     expected_power = (189.6 + 22.8 + 24.9) * pyunits.kW
