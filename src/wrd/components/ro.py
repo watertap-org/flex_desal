@@ -101,7 +101,7 @@ def build_system():
 
 
 def build_ro(
-    blk, prop_package=None, config=None, stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"
+    blk, prop_package=None, config=None, stage_num=1, file="wrd_inputs_8_19_21.yaml"
 ):
 
     if config is None:
@@ -145,7 +145,7 @@ def build_ro(
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_inlet_conditions(m, Qin=2637, Cin=0.5, file="wrd_ro_inputs_8_19_21.yaml"):
+def set_inlet_conditions(m, Qin=2637, Cin=0.5, file="wrd_inputs_8_19_21.yaml"):
 
     config_data = load_config(get_config_file(file))
 
@@ -394,7 +394,7 @@ def add_ro_costing(blk, costing_package=None):
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
 
 
-def main(file="wrd_ro_inputs_8_19_21.yaml"):
+def main(file="wrd_inputs_8_19_21.yaml"):
 
     m = build_system()
     set_ro_scaling(m.fs.ro)

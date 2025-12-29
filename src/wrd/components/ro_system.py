@@ -41,7 +41,7 @@ def build_ro_system(
     num_stages=3,
     split_fractions=None,
     prop_package=None,
-    file="wrd_ro_inputs_8_19_21.yaml",
+    file="wrd_inputs_8_19_21.yaml",
 ):
 
     if m is None:
@@ -249,14 +249,14 @@ def add_ro_system_costing(m, costing_package=None):
         add_ro_train_costing(m.fs.train[i], costing_package=costing_package)
 
 
-def report_ro_system(m, w=30):
+def report_ro_system(m, w=30, add_costing=True):
 
     for i in m.fs.trains:
         # title = f"RO Train {i} Report"
         # side = int(((3 * w) - len(title)) / 2) - 1
         # header = "*" * side + f" {title} " + "*" * side
         # print(f"\n{header}\n")
-        report_ro_train(m.fs.train[i], train_num=i, w=w)
+        report_ro_train(m.fs.train[i], train_num=i, w=w, add_costing=add_costing)
 
     title = f"Overall System Performance"
     side = int(((3 * w) - len(title)) / 2) - 1
@@ -282,7 +282,7 @@ def report_ro_system(m, w=30):
     )
 
 
-def report_ro_system_pumps(m, w=30):
+def report_ro_system_pumps(m, w=30, add_costing=True):
 
     for i in m.fs.trains:
         for j in m.fs.train[i].stages:
@@ -291,7 +291,7 @@ def report_ro_system_pumps(m, w=30):
             side = int(((3 * w) - len(title)) / 2) - 1
             header = "*" * side + f" {title} " + "*" * side
             print(f"\n{header}\n")
-            report_pump(pump, w=w)
+            report_pump(pump, w=w, add_costing=add_costing)
 
 
 def main(add_costing=False):
@@ -317,9 +317,8 @@ def main(add_costing=False):
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_ro_system(m, w=40)
-    # report_ro_system_pumps(m, w=20)
-
+    report_ro_system(m, w=40, add_costing=add_costing)
+    # report_ro_system_pumps(m, w=20, add_costing=add_costing)
     return m
 
 

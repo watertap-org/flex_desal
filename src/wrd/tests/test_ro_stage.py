@@ -13,7 +13,7 @@ def test_ro_stages_8_19_21():
         Tin=302,
         Pin=101325,
         stage_num=1,
-        file="wrd_ro_inputs_8_19_21.yaml",
+        file="wrd_inputs_8_19_21.yaml",
     )
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW
@@ -29,7 +29,7 @@ def test_ro_stages_8_19_21():
         Tin=302,
         Pin=131.2 * pyunits.psi,
         stage_num=2,
-        file="wrd_ro_inputs_8_19_21.yaml",
+        file="wrd_inputs_8_19_21.yaml",
     )
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW
@@ -45,7 +45,7 @@ def test_ro_stages_8_19_21():
         Tin=302,
         Pin=(112.6 - 41.9) * pyunits.psi,
         stage_num=3,
-        file="wrd_ro_inputs_8_19_21.yaml",
+        file="wrd_inputs_8_19_21.yaml",
     )
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW

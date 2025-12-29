@@ -1,21 +1,19 @@
 from os import path
 from pyomo.environ import (
     ConcreteModel,
-    Param,
-    check_optimal_termination,
     value,
     assert_optimal_termination,
     units as pyunits,
     value,
     TransformationFactory,
 )
-from idaes.core.util.model_diagnostics import DiagnosticsToolbox
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import Product, Feed
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
+from watertap.costing import WaterTAPCosting
 
 from wrd.components.chemical_addition import *
 from wrd.components.ro_system import *
@@ -33,7 +31,9 @@ from srp.utils import touch_flow_and_conc
 from models import HeadLoss
 
 
-def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
+def build_wrd_system(
+    num_pro_trains=4, num_tsro_trains=None, num_stages=2, file="wrd_inputs_8_19_21.yaml"
+):
 
     if num_tsro_trains is None:
         num_tsro_trains = num_pro_trains
@@ -44,9 +44,15 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     m.num_stages = num_stages
     m.fs = FlowsheetBlock(dynamic=False)
 
-    config_file_name = get_config_file("wrd_feed_flow.yaml")
-    m.fs.config_data = load_config(config_file_name)
+    config = get_config_file(file)
+    m.fs.config_data = load_config(config)
+
+    config = get_config_file("chemical_addition.yaml")
+    m.fs.chem_data = load_config(config)
+
     m.fs.properties = NaClParameterBlock()
+    m.fs.costing = WaterTAPCosting()
+    m.fs.costing.base_currency = pyunits.USD_2021
 
     # Add units
     m.fs.feed = Feed(property_package=m.fs.properties)
@@ -76,12 +82,6 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
         prop_package=m.fs.properties,
     )
 
-    m.fs.total_system_pump_power = Expression(
-        expr=pyunits.convert(
-            m.fs.total_uf_pump_power + m.fs.total_ro_pump_power, to_units=pyunits.kW
-        )
-    )
-
     # TSRO System
     m.fs.tsro_trains = Set(initialize=range(1, num_tsro_trains + 1))
     m.fs.tsro_header = StateJunction(property_package=m.fs.properties)
@@ -95,6 +95,7 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     m.fs.tsro_feed_separator.even_split = 1 / len(m.fs.tsro_trains)
     touch_flow_and_conc(m.fs.tsro_feed_separator)
     m.fs.tsro_train = FlowsheetBlock(m.fs.tsro_trains, dynamic=False)
+
     for t in m.fs.tsro_trains:
         build_ro_stage(m.fs.tsro_train[t], stage_num=3, prop_package=m.fs.properties)
 
@@ -115,6 +116,12 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
         momentum_mixing_type=MomentumMixingType.none,
     )
     touch_flow_and_conc(m.fs.tsro_brine_mixer)
+
+    m.fs.total_tsro_pump_power = Expression(
+        expr=sum(
+            m.fs.tsro_train[i].pump.unit.work_mechanical[0] for i in m.fs.tsro_trains
+        )
+    )
 
     # UV AOP
     m.fs.UV_aop = FlowsheetBlock(dynamic=False)
@@ -152,9 +159,19 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     m.fs.disposal = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.disposal)
 
+    # Overall System Metrics
     m.fs.system_recovery = Expression(
         expr=m.fs.product.properties[0].flow_vol_phase["Liq"]
         / m.fs.feed.properties[0].flow_vol_phase["Liq"]
+    )
+
+    m.fs.total_system_pump_power = Expression(
+        expr=pyunits.convert(
+            m.fs.total_uf_pump_power
+            + m.fs.total_ro_pump_power
+            + m.fs.total_tsro_pump_power,
+            to_units=pyunits.kW,
+        )
     )
 
     return m
@@ -272,14 +289,26 @@ def add_wrd_connections(m):
     TransformationFactory("network.expand_arcs").apply_to(m)
 
 
-def set_wrd_inlet_conditions(m, Qin=2637, Cin=0.5, file="wrd_ro_inputs_8_19_21.yaml"):
+def set_wrd_inlet_conditions(m, Qin=None, Cin=None, file="wrd_inputs_8_19_21.yaml"):
+    # IMO it makes sense Qin to be from the yaml for the wrd flowsheet so all case study inputs are in one place.
+    # Other component files Q and C can be hard coded for testing.
+    if Qin is None:
+        Qin = get_config_value(m.fs.config_data, "feed_flow_water", "feed_stream")
+    else:
+        Qin = Qin * pyunits.gallons / pyunits.minute
 
+    if Cin is None:
+        Cin = get_config_value(
+            m.fs.config_data, "feed_conductivity", "feed_stream"
+        ) * get_config_value(
+            m.fs.config_data, "feed_conductivity_conversion", "feed_stream"
+        )
+    else:
+        Cin = Cin * pyunits.g / pyunits.L
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains)
-            * pyunits.gallons
-            / pyunits.minute,
-            ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin * pyunits.g / pyunits.L,
+            ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains),
+            ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin,
             ("pressure", None): 101325,
             ("temperature", None): 273.15 + 27,
         },
@@ -292,7 +321,7 @@ def set_wrd_operating_conditions(m):
     # Operating conditions
     for chem_name in m.fs.chemical_list:
         set_chem_addition_op_conditions(
-            blk=m.fs.find_component(chem_name + "_addition"), dose=0.1
+            blk=m.fs.find_component(chem_name + "_addition")
         )
 
     set_uf_system_op_conditions(m)
@@ -421,6 +450,27 @@ def initialize_wrd_system(m):
     m.fs.disposal.initialize()
 
 
+def add_wrd_system_costing(m):
+    # uf and UV don't have same convention for costing
+    add_uf_system_costing(m)
+    add_ro_system_costing(m)
+    cost_uv_aop(m.fs.UV_aop)
+    cost_decarbonator(m.fs.decarbonator)
+    for chem_name in m.fs.chemical_list:
+        add_chem_addition_costing(
+            blk=m.fs.find_component(chem_name + "_addition"),
+            costing_package=m.fs.costing,
+        )
+
+    m.fs.costing.cost_process()
+    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+    m.fs.costing.add_specific_energy_consumption(
+        m.fs.product.properties[0].flow_vol_phase["Liq"],
+        name="SEC",
+    )
+    m.fs.costing.initialize()
+
+
 def report_tsro(m, w=30):
     title = "TSRO Report"
     side = int(((3 * w) - len(title)) / 2) - 1
@@ -523,14 +573,20 @@ def report_wrd(m, w=30):
     print(
         f'{f"Total Pumping Power":<{w}s}{value(pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+    print(
+        f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+    )
+    print(
+        f'{f"Electricity Cost":<{w}s}{value(pyunits.convert(m.fs.costing.aggregate_flow_costs["electricity"], to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
+    )
 
 
-def main(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
+def main(num_pro_trains=1, num_tsro_trains=None, num_pro_stages=2):
 
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
         num_tsro_trains=num_tsro_trains,
-        num_stages=num_stages,
+        num_stages=num_pro_stages,
     )
     add_wrd_connections(m)
     set_wrd_system_scaling(m)
@@ -540,16 +596,20 @@ def main(num_pro_trains=4, num_tsro_trains=None, num_stages=2):
     set_wrd_operating_conditions(m)
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     assert degrees_of_freedom(m) == 0
-
-    # dt = DiagnosticsToolbox(m)
     initialize_wrd_system(m)
+    add_wrd_system_costing(m)
+
     solver = get_solver()
-    results = solver.solve(m)
-    assert_optimal_termination(results)
-    report_wrd(m)
+    try:
+        results = solver.solve(m)
+        assert_optimal_termination(results)
+    except:
+        print_infeasible_constraints(m)
+        print("\n--------- Failed to Solve ---------\n")
     return m
 
 
 if __name__ == "__main__":
-
-    m = main()
+    num_pro_stages = 2
+    m = main(num_pro_stages=num_pro_stages)
+    report_wrd(m)

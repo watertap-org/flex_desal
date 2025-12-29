@@ -16,8 +16,8 @@ feed_stream:
     value: 298.15
     units: K
   feed_pressure: 
-    value: 2.4
-    units: bar
+    value: 14.5
+    units: psi 
 
 # Pump pressure for Train 1 data on 3/13/21.  
 pumps:
@@ -60,7 +60,6 @@ pumps:
     pump_outlet_pressure: 
       value: 153.3 
       units: psi
-
 # A and B coefficients for the RO system from Josh estimates
 reverse_osmosis_1d:
   number_of_trains: 4  # unitless
@@ -84,7 +83,6 @@ reverse_osmosis_1d:
     pressure_drop: 
       value: -10.0
       units: psi
-
   stage_2:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -104,8 +102,6 @@ reverse_osmosis_1d:
     pressure_drop: 
       value: -6.9
       units: psi
-    
-
   stage_3:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -129,3 +125,21 @@ reverse_osmosis_1d:
     add_head_loss:
       value: -50 #-59.3 --> high drop causes solver issues
       units: psi      
+uf_pumps:
+  number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
+  pump_1:
+    pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
+      value: 35.4
+      units: psi 
+  pump_2:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi  
+  pump_3:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi
+  pump_4:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi

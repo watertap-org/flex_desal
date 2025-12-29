@@ -110,7 +110,7 @@ def set_ro_stage_scaling(blk):
 def build_ro_stage(
     blk,
     stage_num=1,
-    file="wrd_ro_inputs_8_19_21.yaml",
+    file="wrd_inputs_8_19_21.yaml",
     prop_package=None,
 ):
     if prop_package is None:
@@ -172,12 +172,12 @@ def initialize_ro_stage(blk):
     blk.disposal.initialize()
 
 
-def report_ro_stage(blk, w=30):
+def report_ro_stage(blk, w=30, add_costing=True):
     # title = "RO Stage Report"
     # side = int(((3 * w) - len(title)) / 2) - 1
     # header = "=" * side + f" {title} " + "=" * side
     # print(f"\n{header}\n")
-    report_pump(blk.pump, w=w)
+    report_pump(blk.pump, w=w, add_costing=add_costing)
     report_ro(blk.ro, w=w)
 
 
@@ -197,7 +197,7 @@ def main(
     Tin=302,
     Pin=101325,
     stage_num=1,
-    file="wrd_ro_inputs_8_19_21.yaml",
+    file="wrd_inputs_8_19_21.yaml",
 ):
 
     m = build_system(stage_num=stage_num, file=file)
@@ -234,7 +234,7 @@ def run_august_stages():
         Tin=302,
         Pin=131.2 * pyunits.psi,
         stage_num=2,
-        file="wrd_ro_inputs_8_19_21.yaml",
+        file="wrd_inputs_8_19_21.yaml",
     )
     # Stage 3
     m = main(
@@ -243,7 +243,7 @@ def run_august_stages():
         Tin=302,
         Pin=(112.6 - 41.9) * pyunits.psi,
         stage_num=3,
-        file="wrd_ro_inputs_8_19_21.yaml",
+        file="wrd_inputs_8_19_21.yaml",
     )
 
 
@@ -257,7 +257,7 @@ def run_march_stages():
         Tin=295,
         Pin=101325,
         stage_num=1,
-        file="wrd_ro_inputs_3_13_21.yaml",
+        file="wrd_inputs_3_13_21.yaml",
     )
     # Stage 2
     m = main(
@@ -266,7 +266,7 @@ def run_march_stages():
         Tin=295,
         Pin=143.5 * pyunits.psi,
         stage_num=2,
-        file="wrd_ro_inputs_3_13_21.yaml",
+        file="wrd_inputs_3_13_21.yaml",
     )
     # Stage 3
     m = main(

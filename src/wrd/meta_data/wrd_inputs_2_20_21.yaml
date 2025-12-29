@@ -1,13 +1,13 @@
-# Feed stream for Train 1 data on 8/19/21
+# Feed stream for Train 2 data on 2/20/21
 feed_stream:
   feed_flow_water: 
-    value: 0.166
-    units: m**3/s
+    value: 2449.8 
+    units: gal / min
   feed_density_water: 
     value: 1000
     units: kg/m**3
   feed_conductivity: 
-    value: 1055
+    value: 1082.1
     units: uS/cm
   feed_conductivity_conversion: 
     value: 0.5
@@ -16,55 +16,53 @@ feed_stream:
     value: 298.15
     units: K
   feed_pressure: 
-    value: 35.4
+    value: 35.15
     units: psi
-
-# Pump pressure for Train 1 data on 8/19/21.  
+# Pump pressure for Train 2 data on 2/20/21.  
 pumps:
   pump_1:
     pump_flowrate: # Currently only used for pump tests
-      value: 2637.1
+      value: 2449.8
       units: gal / min
-    feed_conductivity: # Currently only used for pump tests
-      value: 1054.9
+    feed_conductivity: 
+      value: 1082.1
       units: uS/cm
-    pump_suction_pressure: # Currently only used for pump tests
-      value: 35.4
+    pump_suction_pressure:
+      value: 35.15
       units: psi
     pump_outlet_pressure: 
-      value: 141.9 
+      value: 153.5 
       units: psi 
   pump_2:
     pump_flowrate: # Currently only used for pump tests
-      value: 1028.9
+      value: 983.2
       units: gal /min
     feed_conductivity: 
-      value: 2495.8
+      value: 3054.5
       units: uS/cm
     pump_suction_pressure:
-      value: 131.2
+      value: 143.3
       units: psi
     pump_outlet_pressure: 
-      value: 160.5 
+      value: 157.8 
       units: psi  
   pump_3:
     pump_flowrate: # Currently only used for pump tests
-      value: 383.6
+      value: 493.1
       units: gal / min
     feed_conductivity: 
-      value: 4847
+      value: 6346.2
       units: uS/cm
     pump_suction_pressure:
-      value: 112.6
+      value: 107.6
       units: psi
     pump_outlet_pressure: 
-      value: 164.38 
+      value: 156.8 
       units: psi
-
-# PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
+# Haven't double checked pressure drops against raw data for this day
 # A and B coefficients for the RO system from Josh estimates
 reverse_osmosis_1d:
-  number_of_trains: 1  # unitless
+  number_of_trains: 4  # unitless
   stage_1:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -81,11 +79,10 @@ reverse_osmosis_1d:
     number_of_vessels: 72 # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.610  # unitless
+    water_recovery_mass_phase: 0.599  # unitless
     pressure_drop: 
-      value: -10.7
+      value: -8.84
       units: psi
-
   stage_2:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -101,12 +98,10 @@ reverse_osmosis_1d:
     number_of_vessels: 30 # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.617  # unitless
+    water_recovery_mass_phase: 0.659  # unitless
     pressure_drop: 
-      value: -6
+      value: -6.54
       units: psi
-    
-
   stage_3:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -123,11 +118,28 @@ reverse_osmosis_1d:
     number_of_vessels: 15  # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.516  # unitless
+    water_recovery_mass_phase: 0.508  # unitless
     pressure_drop: 
-      value: -10.98
+      value: -6.98
       units: psi
     add_head_loss:
-      value: -41.9
+      value: -43.7
+      units: psi    
+uf_pumps:
+  number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
+  pump_1:
+    pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
+      value: 35.4
+      units: psi 
+  pump_2:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi  
+  pump_3:
+    pump_outlet_pressure: 
+      value: 35.4
       units: psi
-        
+  pump_4:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi

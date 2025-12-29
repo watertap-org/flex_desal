@@ -1,7 +1,6 @@
-# Feed stream for Train 2 data on 2/20/21
 feed_stream:
   feed_flow_water: 
-    value: 2449.8 
+    value: 2637
     units: gal / min
   feed_density_water: 
     value: 1000
@@ -16,55 +15,55 @@ feed_stream:
     value: 298.15
     units: K
   feed_pressure: 
-    value: 35.15
-    units: psi
+    value: 14.5
+    units: psi 
 
-# Pump pressure for Train 2 data on 2/20/21.  
+# Pump pressure for Train 1 data on 8/19/21.  
 pumps:
   pump_1:
     pump_flowrate: # Currently only used for pump tests
-      value: 2449.8
+      value: 2637.1
       units: gal / min
-    feed_conductivity: 
-      value: 1082.1
+    feed_conductivity: # Currently only used for pump tests
+      value: 1054.9
       units: uS/cm
-    pump_suction_pressure:
-      value: 35.15
+    pump_suction_pressure: # Currently only used for pump tests
+      value: 35.4
       units: psi
     pump_outlet_pressure: 
-      value: 153.5 
+      value: 141.9 
       units: psi 
   pump_2:
     pump_flowrate: # Currently only used for pump tests
-      value: 983.2
+      value: 1028.9
       units: gal /min
     feed_conductivity: 
-      value: 3054.5
+      value: 2495.8
       units: uS/cm
     pump_suction_pressure:
-      value: 143.3
+      value: 131.2
       units: psi
     pump_outlet_pressure: 
-      value: 157.8 
+      value: 160.5 
       units: psi  
   pump_3:
     pump_flowrate: # Currently only used for pump tests
-      value: 493.1
+      value: 383.6
       units: gal / min
     feed_conductivity: 
-      value: 6346.2
+      value: 4847
       units: uS/cm
     pump_suction_pressure:
-      value: 107.6
+      value: 112.6
       units: psi
     pump_outlet_pressure: 
-      value: 156.8 
+      value: 164.38 
       units: psi
 
-# Haven't double checked pressure drops against raw data for this day
+# PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
 # A and B coefficients for the RO system from Josh estimates
 reverse_osmosis_1d:
-  number_of_trains: 4  # unitless
+  number_of_trains: 1  # unitless
   stage_1:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -81,11 +80,10 @@ reverse_osmosis_1d:
     number_of_vessels: 72 # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.599  # unitless
+    water_recovery_mass_phase: 0.610  # unitless
     pressure_drop: 
-      value: -8.84
+      value: -10.7
       units: psi
-
   stage_2:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -101,11 +99,10 @@ reverse_osmosis_1d:
     number_of_vessels: 30 # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.659  # unitless
+    water_recovery_mass_phase: 0.617  # unitless
     pressure_drop: 
-      value: -6.54
+      value: -6
       units: psi
-    
   stage_3:
     A_comp: 0.66306e-11  # m/s/Pa
     B_comp: 1.3019e-8  # m/s
@@ -122,10 +119,28 @@ reverse_osmosis_1d:
     number_of_vessels: 15  # unitless
     number_of_elements_per_vessel: 7  # unitless
     # For Train 2 data on 2/20/21
-    water_recovery_mass_phase: 0.508  # unitless
+    water_recovery_mass_phase: 0.516  # unitless
     pressure_drop: 
-      value: -6.98
+      value: -10.98
       units: psi
     add_head_loss:
-      value: -43.7
-      units: psi    
+      value: -41.9
+      units: psi
+uf_pumps:
+  number_trains: 1 # This number is unused for now. Assuming PRO trains = UF trains
+  pump_1:
+    pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
+      value: 35.4
+      units: psi 
+  pump_2:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi  
+  pump_3:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi
+  pump_4:
+    pump_outlet_pressure: 
+      value: 35.4
+      units: psi

@@ -61,6 +61,32 @@ def build_alum_cost_param_block(blk):
     costing.register_flow_type("alum", blk.cost / blk.purity)
 
 
+def build_ammonium_sulfate_cost_param_block(blk):
+    blk.cost = pyo.Var(
+        initialize=1.02,
+        doc="Ammonium sulfate cost",
+        units=pyo.units.USD_2021 / pyo.units.kg,
+    )
+    blk.purity = pyo.Var(
+        initialize=1,
+        doc="Ammonium sulfate purity",
+        units=pyo.units.dimensionless,
+    )
+    blk.capital_A_parameter = pyo.Var(
+        initialize=6699.1,
+        doc="Ammonium sulfate addition capital cost A parameter",
+        units=pyo.units.USD_2007,
+    )
+    blk.capital_b_parameter = pyo.Var(
+        initialize=0.4219,
+        doc="Ammonium sulfate addition capital cost b parameter",
+        units=pyo.units.dimensionless,
+    )
+
+    costing = blk.parent_block()
+    costing.register_flow_type("ammonium_sulfate", blk.cost / blk.purity)
+
+
 def build_ammonia_cost_param_block(blk):
     # CatCost v 1.1.1
     # Ammonia, US Gulf, spot c.f.r. Tampa
@@ -94,7 +120,7 @@ def build_calcium_hydroxide_param_block(blk):
     blk.cost = pyo.Var(
         initialize=2.3,
         doc="Calcium hydroxide cost",
-        units=pyo.units.USD_2020 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.kg,
     )
     blk.purity = pyo.Var(
         initialize=1,  # assumed
@@ -113,35 +139,35 @@ def build_calcium_hydroxide_param_block(blk):
     )
 
     costing = blk.parent_block()
-    costing.register_flow_type("caustic_soda", blk.cost / blk.purity)
+    costing.register_flow_type("calcium_hydroxide", blk.cost / blk.purity)
 
 
-def build_caustic_cost_param_block(blk):
+def build_sodium_hydroxide_cost_param_block(blk):
     # CatCost v 1.1.1
     # Caustic soda (sodium hydroxide), liq., dst contract f.o.b.
     blk.cost = pyo.Var(
-        initialize=0.92,
-        doc="Caustic soda cost",
-        units=pyo.units.USD_2020 / pyo.units.kg,
+        initialize=2.37,
+        doc="Sodium hydroxide cost",
+        units=pyo.units.USD_2021 / pyo.units.kg,
     )
     blk.purity = pyo.Var(
-        initialize=0.5,  # assumed
-        doc="Caustic soda purity",
+        initialize=1,  # assumed
+        doc="Sodium hydroxide purity",
         units=pyo.units.dimensionless,
     )
     blk.capital_A_parameter = pyo.Var(
         initialize=2262.8,
-        doc="Caustic soda addition capital cost A parameter",
+        doc="Sodium hydroxide addition capital cost A parameter",
         units=pyo.units.USD_2007,
     )
     blk.capital_b_parameter = pyo.Var(
         initialize=0.6195,
-        doc="Caustic soda addition capital cost b parameter",
+        doc="Sodium hydroxide addition capital cost b parameter",
         units=pyo.units.dimensionless,
     )
 
     costing = blk.parent_block()
-    costing.register_flow_type("caustic_soda", blk.cost / blk.purity)
+    costing.register_flow_type("sodium_hydroxide", blk.cost / blk.purity)
 
 
 def build_ferric_chloride_cost_param_block(blk):
@@ -287,9 +313,9 @@ def build_soda_ash_cost_param_block(blk):
 def build_sodium_bisulfite_cost_param_block(blk):
 
     blk.cost = pyo.Var(
-        initialize=0.17,
+        initialize=1.405,
         doc="Sodium bisulfite cost",
-        units=pyo.units.USD_2020 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.kg,
     )
     blk.purity = pyo.Var(
         initialize=1,
@@ -314,9 +340,9 @@ def build_sodium_bisulfite_cost_param_block(blk):
 def build_sodium_hypochlorite_cost_param_block(blk):
 
     blk.cost = pyo.Var(
-        initialize=0.17,
+        initialize=1.29,
         doc="Sodium hypochlorite cost",
-        units=pyo.units.USD_2020 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.kg,
     )
     blk.purity = pyo.Var(
         initialize=1,
@@ -365,18 +391,48 @@ def build_sulfuric_acid_cost_param_block(blk):
     costing.register_flow_type("sulfuric_acid", blk.cost / blk.purity)
 
 
+def build_scale_inhibitor_cost_param_block(blk):
+
+    blk.cost = pyo.Var(
+        initialize=2,
+        doc="Scale inhibitor cost",
+        units=pyo.units.USD_2020 / pyo.units.kg,
+    )
+    blk.purity = pyo.Var(
+        initialize=1,
+        doc="Scale inhibitor purity",
+        units=pyo.units.dimensionless,
+    )
+    blk.capital_A_parameter = pyo.Var(
+        initialize=900.97,
+        doc="Scale inhibitor addition capital cost A parameter",
+        units=pyo.units.USD_2007,
+    )
+    blk.capital_b_parameter = pyo.Var(
+        initialize=0.6179,
+        doc="Scale inhibitor addition capital cost b parameter",
+        units=pyo.units.dimensionless,
+    )
+
+    costing = blk.parent_block()
+    costing.register_flow_type("scale_inhibitor", blk.cost / blk.purity)
+
+
 def cost_chemical_addition(blk, cost_capital=False):
 
     chem_build_rule_dict = {
         "default": build_default_chem_cost_param_block,
         "ammonia": build_ammonia_cost_param_block,
+        "ammonium_sulfate": build_ammonium_sulfate_cost_param_block,
         "lime": build_lime_cost_param_block,
         "ferric_chloride": build_ferric_chloride_cost_param_block,
         "soda_ash": build_soda_ash_cost_param_block,
         "alum": build_alum_cost_param_block,
         # "polymer": build_polymer_cost_param_block,
-        "caustic": build_caustic_cost_param_block,
+        "calcium_hydroxide": build_calcium_hydroxide_param_block,
+        "sodium_hydroxide": build_sodium_hydroxide_cost_param_block,
         "sulfuric_acid": build_sulfuric_acid_cost_param_block,
+        "scale_inhibitor": build_scale_inhibitor_cost_param_block,
         "sodium_hypochlorite": build_sodium_hypochlorite_cost_param_block,
         "sodium_bisulfite": build_sodium_bisulfite_cost_param_block,
         "hydrochloric_acid": build_hydrochloric_acid_cost_param_block,
