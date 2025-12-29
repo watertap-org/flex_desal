@@ -8,15 +8,12 @@ from pyomo.environ import (
 )
 from pyomo.network import Arc
 
+from idaes.core.util.exceptions import ConfigurationError
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 import idaes.core.util.scaling as iscale
 from idaes.core.util.testing import initialization_tester
-from idaes.core.util.initialization import propagate_state
-from idaes.models.unit_models import Feed, Product
-from idaes.core.util.model_statistics import degrees_of_freedom
 
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
-from watertap.core.control_volume_isothermal import ControlVolume0DBlock
 from watertap.core.solvers import get_solver
 from watertap.costing import WaterTAPCosting
 
@@ -49,6 +46,13 @@ def build_chem_addition_model(chemical="ammonia"):
     iscale.calculate_scaling_factors(m)
 
     return m
+
+
+@pytest.mark.unit
+def test_chem_addition_missing_data():
+    msg = "Must specify a chemical for addition."
+    with pytest.raises(ConfigurationError, match=msg):
+        _ = build_chem_addition_model(chemical=None)
 
 
 @pytest.mark.component
