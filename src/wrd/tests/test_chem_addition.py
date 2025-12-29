@@ -1,15 +1,16 @@
 import pytest
 
-from pyomo.environ import assert_optimal_termination, value, units as pyunits
-
-from idaes.core.util.model_statistics import degrees_of_freedom
-from idaes.core.util.exceptions import ConfigurationError
-
-from watertap.core.solvers import get_solver
+from pyomo.environ import value, units as pyunits
+from pyomo.util.check_units import assert_units_equivalent
 
 import wrd.components.chemical_addition as ca
 
-solver = get_solver()
+
+@pytest.mark.unit
+def test_chem_addition_missing_data():
+    msg = "Must specify a chemical for addition."
+    with pytest.raises(ValueError, match=msg):
+        _ = ca.build_system(chemical_name=None)
 
 
 @pytest.mark.component
@@ -24,7 +25,7 @@ def test_chem_addition_chem_flow():
         "sodium_hydroxide": 4.99e-4,
         "sodium_bisulfite": 6.65e-4,
     }
-    for i, chem in enumerate(mass_flow_rates.keys(), 1):
+    for chem, flow in mass_flow_rates.items():
         m = ca.main(
             chemical_name=chem,
             Qin=2637,
@@ -35,7 +36,7 @@ def test_chem_addition_chem_flow():
         )
 
         chem_mass_flow = m.fs.costing.find_component(f"aggregate_flow_{chem}")
-        expected_mass_flow = mass_flow_rates[chem] * pyunits.kg / pyunits.s
+        expected_mass_flow = flow * pyunits.kg / pyunits.s
         assert pytest.approx(value(chem_mass_flow), rel=0.05) == value(
             expected_mass_flow
         )  # kg/s
@@ -53,7 +54,7 @@ def test_chem_addition_costs():
         "sodium_hydroxide": 3114,
         "sodium_bisulfite": 2458,
     }
-    for i, chem in enumerate(monthly_costs.keys(), 1):
+    for chem, cost in monthly_costs.items():
         m = ca.main(
             chemical_name=chem,
             Qin=2637,
@@ -63,16 +64,8 @@ def test_chem_addition_costs():
             chem_purity=None,
         )
 
-        operational_cost = value(m.fs.costing.aggregate_flow_costs[chem])
-        expected_cost = monthly_costs[chem]
-        assert (
-            pytest.approx(value(operational_cost), rel=0.05) == expected_cost
-        )  # $/month
-
-
-# Don't understand what this is testing-->
-@pytest.mark.skip
-def test_chem_addition_missing_data():
-    msg = "Must specify a chemical for addition."
-    with pytest.raises(ConfigurationError, match=msg):
-        m = ca.build_system(chemical_name=None)
+        operational_cost = m.fs.costing.aggregate_flow_costs[chem]
+        assert_units_equivalent(
+            operational_cost, m.fs.costing.base_currency / m.fs.costing.base_period
+        )
+        assert pytest.approx(value(operational_cost), rel=0.05) == cost  # $/month
