@@ -259,15 +259,12 @@ def main(
     # If hard coding, need to pass units somewhere
     dose=None,  # 0.01,
     chem_cost=None,  # 0.5,
-    chem_purity=None,  # 0.9,
 ):
     m = build_system(chemical_name=chemical_name)
     # Add units to chem_cost after costing system defines currency units
     # if chem_cost is not None:
     #     chem_cost = chem_cost * pyunits.USD_2021 / pyunits.kg
-    add_chem_addition_costing(
-        m.fs.chem_addition, chem_cost=chem_cost, chem_purity=chem_purity
-    )
+    add_chem_addition_costing(m.fs.chem_addition, chem_cost=chem_cost)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin)
     set_chem_addition_op_conditions(m.fs.chem_addition, dose=dose)
