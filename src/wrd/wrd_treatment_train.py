@@ -1,15 +1,12 @@
 from os import path
 from pyomo.environ import (
     ConcreteModel,
-    Param,
-    check_optimal_termination,
     value,
     assert_optimal_termination,
     units as pyunits,
     value,
     TransformationFactory,
 )
-from idaes.core.util.model_diagnostics import DiagnosticsToolbox
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
@@ -85,13 +82,6 @@ def build_wrd_system(
         prop_package=m.fs.properties,
     )
 
-    # Isn't this missing the TSRO system? Maybe add in with the Headloss component.
-    m.fs.total_system_pump_power = Expression(
-        expr=pyunits.convert(
-            m.fs.total_uf_pump_power + m.fs.total_ro_pump_power, to_units=pyunits.kW
-        )
-    )
-
     # TSRO System
     m.fs.tsro_trains = Set(initialize=range(1, num_tsro_trains + 1))
     m.fs.tsro_header = StateJunction(property_package=m.fs.properties)
@@ -105,6 +95,7 @@ def build_wrd_system(
     m.fs.tsro_feed_separator.even_split = 1 / len(m.fs.tsro_trains)
     touch_flow_and_conc(m.fs.tsro_feed_separator)
     m.fs.tsro_train = FlowsheetBlock(m.fs.tsro_trains, dynamic=False)
+
     for t in m.fs.tsro_trains:
         build_ro_stage(m.fs.tsro_train[t], stage_num=3, prop_package=m.fs.properties)
 
@@ -125,6 +116,12 @@ def build_wrd_system(
         momentum_mixing_type=MomentumMixingType.none,
     )
     touch_flow_and_conc(m.fs.tsro_brine_mixer)
+
+    m.fs.total_tsro_pump_power = Expression(
+        expr=sum(
+            m.fs.tsro_train[i].pump.unit.work_mechanical[0] for i in m.fs.tsro_trains
+        )
+    )
 
     # UV AOP
     m.fs.UV_aop = FlowsheetBlock(dynamic=False)
@@ -162,9 +159,19 @@ def build_wrd_system(
     m.fs.disposal = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.disposal)
 
+    # Overall System Metrics
     m.fs.system_recovery = Expression(
         expr=m.fs.product.properties[0].flow_vol_phase["Liq"]
         / m.fs.feed.properties[0].flow_vol_phase["Liq"]
+    )
+
+    m.fs.total_system_pump_power = Expression(
+        expr=pyunits.convert(
+            m.fs.total_uf_pump_power
+            + m.fs.total_ro_pump_power
+            + m.fs.total_tsro_pump_power,
+            to_units=pyunits.kW,
+        )
     )
 
     return m
