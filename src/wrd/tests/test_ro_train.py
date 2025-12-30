@@ -56,6 +56,7 @@ def test_ro_train_main_no_costing():
     m = main(add_costing=False)
     assert not hasattr(m.fs, "costing")
 
+
 # @pytest.mark.component
 # def test_TSRO():
 # 8_19 power, 29.3

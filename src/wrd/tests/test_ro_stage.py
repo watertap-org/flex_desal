@@ -23,7 +23,7 @@ def test_ro_stages_8_19_21():
     # Stage 2
     expected_power = 22.71 * pyunits.kW
     m = m = main(
-        Qin= 1175,#1029 -> measure value. 1175 is flow in modeled in wrd_treatment flowsheet, 
+        Qin=1175,  # 1029 -> measure value. 1175 is flow in modeled in wrd_treatment flowsheet,
         Cin=1.2479,
         Tin=302,
         Pin=131.2 * pyunits.psi,
@@ -45,7 +45,7 @@ def test_TSRO_8_19_21():
         Qin=384,
         Cin=4.847 / 2,
         Tin=302,
-        Pin=112.6 * pyunits.psi, # Suction pressure (includes headloss)
+        Pin=112.6 * pyunits.psi,  # Suction pressure (includes headloss)
         stage_num=3,
         file="wrd_inputs_8_19_21.yaml",
     )
@@ -75,8 +75,8 @@ def test_ro_stages_3_13_21():
     # Stage 2
     expected_power = 22.8 * pyunits.kW
     m = m = main(
-        Qin= 1047.4, 
-        Cin= 1.2479,
+        Qin=1047.4,
+        Cin=1.2479,
         Tin=302,
         Pin=131.2 * pyunits.psi,
         stage_num=2,
@@ -94,9 +94,9 @@ def test_TSRO_3_13_21():
     expected_power = 24.9 * pyunits.kW
     m = main(
         Qin=506.5,
-        Cin=4.847/2,
+        Cin=4.847 / 2,
         Tin=302,
-        Pin=106.3 * pyunits.psi, # Suction pressure (includes headloss)
+        Pin=106.3 * pyunits.psi,  # Suction pressure (includes headloss)
         stage_num=3,
         file="wrd_inputs_3_13_21.yaml",
     )

@@ -347,7 +347,8 @@ def set_wrd_operating_conditions(m):
 
     set_decarbonator_op_conditions(m.fs.decarbonator)
     m.fs.tsro_header.TSRO_header_loss = get_config_value(
-        m.fs.config_data, "header_loss", "reverse_osmosis_1d","stage_3")
+        m.fs.config_data, "header_loss", "reverse_osmosis_1d", "stage_3"
+    )
     m.fs.tsro_header.control_volume.deltaP[0].fix(m.fs.tsro_header.TSRO_header_loss)
     m.fs.ro_system_product_mixer.outlet.pressure[0].fix(101325)
     m.fs.tsro_brine_mixer.outlet.pressure[0].fix(101325)
@@ -592,7 +593,12 @@ def report_wrd(m, w=30):
         )
 
 
-def main(num_pro_trains=1, num_tsro_trains=None, num_pro_stages=2,file="wrd_inputs_8_19_21.yaml"):
+def main(
+    num_pro_trains=1,
+    num_tsro_trains=None,
+    num_pro_stages=2,
+    file="wrd_inputs_8_19_21.yaml",
+):
 
     m = build_wrd_system(
         num_pro_trains=num_pro_trains,
