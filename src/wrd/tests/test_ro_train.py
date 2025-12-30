@@ -5,8 +5,8 @@ from wrd.components.ro_train import main
 
 @pytest.mark.component
 def test_ro_train1_8_19_21():
-    expected_power = (196.25 + 22.7 + 29.3) * pyunits.kW
-    expected_product_flow = (1608 + 635 + 198) * pyunits.gal / pyunits.min
+    expected_power = (196.25 + 22.7) * pyunits.kW
+    expected_product_flow = (1608 + 635) * pyunits.gal / pyunits.min
     expected_SEC = pyunits.convert(
         expected_power / expected_product_flow, to_units=pyunits.kWh / pyunits.m**3
     )
@@ -28,10 +28,10 @@ def test_ro_train1_8_19_21():
 
 # NOTE: without the headloss prior to stage 3, this test will result
 # in a negative deltaP for third stage pump and fail with costing
-@pytest.mark.skip
+@pytest.mark.component
 def test_ro_train1_3_13_21():
-    expected_power = (189.6 + 22.8 + 24.9) * pyunits.kW
-    expected_product_flow = (1404.7 + 617 + 279) * pyunits.gal / pyunits.min
+    expected_power = (189.6 + 22.8) * pyunits.kW
+    expected_product_flow = (1404.7 + 617) * pyunits.gal / pyunits.min
     expected_SEC = pyunits.convert(
         expected_power / expected_product_flow, to_units=pyunits.kWh / pyunits.m**3
     )
@@ -55,3 +55,10 @@ def test_ro_train1_3_13_21():
 def test_ro_train_main_no_costing():
     m = main(add_costing=False)
     assert not hasattr(m.fs, "costing")
+
+# @pytest.mark.component
+# def test_TSRO():
+# 8_19 power, 29.3
+# 8_19 flowrate, 198
+# 3_13 power, 24.9
+# 3_13 flowrate, 279
