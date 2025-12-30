@@ -70,7 +70,9 @@ def build_wrd_system(
         )
 
     # UF
-    build_uf_system(m=m, num_trains=num_pro_trains, prop_package=m.fs.properties)
+    build_uf_system(
+        m=m, num_trains=num_pro_trains, prop_package=m.fs.properties, file=file
+    )
 
     # PRO System
     build_ro_system(
@@ -78,6 +80,7 @@ def build_wrd_system(
         num_trains=num_pro_trains,
         num_stages=num_stages,
         prop_package=m.fs.properties,
+        file=file,
     )
 
     # TSRO System
@@ -95,7 +98,9 @@ def build_wrd_system(
     m.fs.tsro_train = FlowsheetBlock(m.fs.tsro_trains, dynamic=False)
 
     for t in m.fs.tsro_trains:
-        build_ro_stage(m.fs.tsro_train[t], stage_num=3, prop_package=m.fs.properties)
+        build_ro_stage(
+            m.fs.tsro_train[t], stage_num=3, prop_package=m.fs.properties, file=file
+        )
 
     ro_system_prod_mixer_inlet_list = ["from_pro_product"] + [
         f"tsro{t}_to_ro_product" for t in m.fs.tsro_trains
@@ -129,7 +134,7 @@ def build_wrd_system(
     m.fs.decarbonator = FlowsheetBlock(dynamic=False)
     build_decarbonator(m.fs.decarbonator, prop_package=m.fs.properties)
 
-    # Post-Treatment chemical addition units - ZO Models
+    # Post-Treatment chemical addition units
     m.fs.post_treat_chem_list = [
         "calcium_hydroxide",
         "sodium_hydroxide",
