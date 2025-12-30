@@ -1,7 +1,8 @@
+# Feed stream for Train 1 data on 8/19/21
 feed_stream:
   feed_flow_water: 
-    value: 2637
-    units: gal / min
+    value: 2663
+    units: gal/min
   feed_density_water: 
     value: 1000
     units: kg/m**3
@@ -12,7 +13,7 @@ feed_stream:
     value: 0.5
     units: mg/L/(uS/cm)
   feed_temperature: 
-    value: 298.15
+    value: 302.2
     units: K
   feed_pressure: 
     value: 14.5
@@ -23,7 +24,7 @@ pumps:
   pump_1:
     pump_flowrate: # Currently only used for pump tests
       value: 2637.1
-      units: gal / min
+      units: gal/min
     feed_conductivity: # Currently only used for pump tests
       value: 1054.9
       units: uS/cm
@@ -49,7 +50,7 @@ pumps:
   pump_3:
     pump_flowrate: # Currently only used for pump tests
       value: 383.6
-      units: gal / min
+      units: gal/min
     feed_conductivity: 
       value: 4847
       units: uS/cm
@@ -123,7 +124,7 @@ reverse_osmosis_1d:
     pressure_drop: 
       value: -10.98
       units: psi
-    add_head_loss:
+    header_loss:
       value: -41.9
       units: psi
 uf_pumps:

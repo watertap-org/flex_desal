@@ -1,8 +1,8 @@
 # Feed stream for Train 1 data on 3/13/21
 feed_stream:
   feed_flow_water: 
-    value: 2452.2
-    units: gal /min
+    value: 2476
+    units: gal/min
   feed_density_water: 
     value: 1000
     units: kg/m**3
@@ -13,7 +13,7 @@ feed_stream:
     value: 0.5
     units: mg/L/(uS/cm)
   feed_temperature: 
-    value: 298.15
+    value: 295.52
     units: K
   feed_pressure: 
     value: 14.5
@@ -24,7 +24,7 @@ pumps:
   pump_1:
     pump_flowrate: # Currently only used for pump tests
       value: 2452.2
-      units: gal /min
+      units: gal/min
     feed_conductivity: # Currently only used for pump tests
       value: 1007.0
       units: uS/cm
@@ -37,7 +37,7 @@ pumps:
   pump_2:
     pump_flowrate: 
       value: 1047.4
-      units: gal /min
+      units: gal/min
     feed_conductivity: 
       value: 2239.3
       units: uS/cm
@@ -122,8 +122,8 @@ reverse_osmosis_1d:
     pressure_drop: 
       value: -9.8
       units: psi
-    add_head_loss:
-      value: -50 #-59.3 --> high drop causes solver issues
+    header_loss:
+      value: -59.3
       units: psi      
 uf_pumps:
   number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
