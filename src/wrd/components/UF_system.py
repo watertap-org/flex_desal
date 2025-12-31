@@ -1,3 +1,4 @@
+from numpy import ones
 from pyomo.environ import (
     ConcreteModel,
     Expression,
@@ -85,9 +86,11 @@ def build_uf_system(
 
     if split_fraction is None:
         # Even Split
-        m.fs.uf_feed_separator.even_split = 1.0 / len(outlet_list)
+        m.fs.uf_feed_separator.split_frac_input = (
+            1.0 / len(outlet_list) * ones(len(outlet_list))
+        )
     else:
-        raise NotImplementedError("Custom split fractions not yet implemented.")
+        m.fs.uf_feed_separator.split_frac_input = split_fraction
 
     perm_inlet_list = [f"uf_prod_inlet{i}" for i in m.fs.uf_trains]
 
@@ -101,7 +104,7 @@ def build_uf_system(
 
     m.fs.uf_disposal_mixer = Mixer(
         property_package=m.fs.properties,
-        momentum_mixing_type=MomentumMixingType.none,
+        momentum_mixing_type=MomentumMixingType.minimize,
         inlet_list=brine_inlet_list,
     )
 
@@ -178,10 +181,7 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5):
 
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): m.uf_num_trains
-            * Qin
-            * pyunits.gallons
-            / pyunits.minute,
+            ("flow_vol_phase", ("Liq")): Qin * pyunits.gallons / pyunits.minute,
             ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin * pyunits.g / pyunits.L,
             ("pressure", None): 101325,
             ("temperature", None): 273.15 + 27,
@@ -202,21 +202,21 @@ def set_uf_system_op_conditions(m):
         set_uf_train_op_conditions(m.fs.uf_train[i])
         if i != m.fs.uf_trains.first():
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "H2O"].fix(
-                m.fs.uf_feed_separator.even_split
+                m.fs.uf_feed_separator.split_frac_input[i - 1]
             )
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "NaCl"].fix(
-                m.fs.uf_feed_separator.even_split
+                m.fs.uf_feed_separator.split_frac_input[i - 1]
             )
         else:
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "H2O"].set_value(
-                m.fs.uf_feed_separator.even_split
+                m.fs.uf_feed_separator.split_frac_input[i - 1]
             )
             m.fs.uf_feed_separator.split_fraction[0, f"uf{i}", "NaCl"].set_value(
-                m.fs.uf_feed_separator.even_split
+                m.fs.uf_feed_separator.split_frac_input[i - 1]
             )
 
     # m.fs.uf_product_mixer.outlet.pressure[0].fix(101325)
-    m.fs.uf_disposal_mixer.outlet.pressure[0].fix(101325)
+    # m.fs.uf_disposal_mixer.outlet.pressure[0].fix(101325)
 
 
 def initialize_uf_system(m):
@@ -315,12 +315,12 @@ def report_uf_system_pumps(m, w=30):
         report_pump(pump, w=w)
 
 
-def main(add_costing=False):
+def main(add_costing=False, num_trains=4, split_fraction=None, Qin=2637, Cin=0.5):
 
-    m = build_uf_system(num_trains=4)
+    m = build_uf_system(num_trains=num_trains, split_fraction=split_fraction)
     set_uf_system_scaling(m)
     calculate_scaling_factors(m)
-    set_inlet_conditions(m, Qin=2637, Cin=0.5)
+    set_inlet_conditions(m, Qin=Qin, Cin=Cin)
     set_uf_system_op_conditions(m)
     assert degrees_of_freedom(m) == 0
     initialize_uf_system(m)
@@ -343,6 +343,7 @@ def main(add_costing=False):
 
 
 if __name__ == "__main__":
-    m = main(add_costing=True)
+    # m = main(num_trains=3,split_fraction=[.4,.4,.2],Qin=3000, Cin=0.5)
+    m = main(add_costing=False)
     m.fs.total_uf_pump_power.display()
     # m.fs.uf_feed_separator.display()

@@ -52,9 +52,6 @@ def build_system(file="wrd_inputs_8_19_21.yaml"):
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
 
-    m.fs.uf_train = FlowsheetBlock(dynamic=False)
-    build_uf_train(m.fs.uf_train, prop_package=m.fs.properties, file=file)
-
     m.fs.product = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.product)
     m.fs.disposal = Product(property_package=m.fs.properties)
@@ -260,7 +257,6 @@ def main(
         results = solver.solve(m, tee=True)
         assert_optimal_termination(results)
     report_uf_train(m.fs.uf_train, w=30)
-
     return m
 
 

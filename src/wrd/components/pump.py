@@ -100,10 +100,15 @@ def build_pump(
 
     # Load Values for surrogate model
     if uf:
+        # a_0 = 0.0677
+        # a_1 = 5.357
+        # a_2 = -4.475
+        # a_3 = -19.578
+        # Below are estimated for 75% speed
         a_0 = 0.0677
-        a_1 = 5.357
-        a_2 = -4.475
-        a_3 = -19.578
+        a_1 = 7.142
+        a_2 = -7.956
+        a_3 = -46.408
     elif stage_num == 1:
         a_0 = 0.389
         a_1 = -0.535
@@ -263,7 +268,7 @@ def add_pump_costing(blk, costing_package=None):
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
 
 
-def report_pump(blk, w=30, add_costing=True):
+def report_pump(blk, w=30, add_costing=False):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side
