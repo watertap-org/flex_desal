@@ -45,7 +45,7 @@ __all__ = [
 solver = get_solver()
 
 
-def build_system(num_stages=3, file="wrd_inputs_8_19_21.yaml"):
+def build_system(num_stages=2, file="wrd_inputs_8_19_21.yaml"):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -104,7 +104,7 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=302, Pin=101325):
 
 
 def build_ro_train(
-    blk, num_stages=3, file="wrd_inputs_8_19_21.yaml", prop_package=None
+    blk, num_stages=2, file="wrd_inputs_8_19_21.yaml", prop_package=None
 ):
 
     name = (
