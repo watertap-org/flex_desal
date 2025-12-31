@@ -8,6 +8,7 @@ from wrd.components.UF_train import main
 def test_uf_train_with_costing():
     m = main(add_costing=True)
 
+
 # Add tests for the full power UF pumps, half power UF pumps, and total flowrate divided by four.
 @pytest.mark.component
 def test_uf_train_3_13_21_full():
@@ -23,7 +24,7 @@ def test_uf_train_3_13_21_full():
         m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
     )
     # expected_power = 178 * pyunits.kW # Measured value
-    expected_power = 63 * pyunits.kW # Modeled value
+    expected_power = 63 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
     assert pytest.approx(value(power), rel=0.15) == value(expected_power)
 
@@ -69,7 +70,9 @@ def test_uf_train_3_13_21_one_train():
     assert_units_consistent(power + expected_power)
     assert pytest.approx(value(power), rel=0.15) == value(expected_power)
 
+
 # Just doing the divided train because technically these other flowrates are already tested in uf_system tests
+
 
 @pytest.mark.component
 def test_uf_train_8_19_21():
