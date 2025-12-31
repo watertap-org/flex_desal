@@ -18,7 +18,7 @@ class SourceData(InitializationMixin, FeedData):
     def build(self):
         super().build()
 
-        self.suffix = Suffix(direction=Suffix.EXPORT)
+        self.scaling_factor = Suffix(direction=Suffix.EXPORT)
 
     @property
     def default_costing_method(self):
