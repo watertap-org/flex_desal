@@ -273,18 +273,32 @@ def report_uf_system(m, w=30):
     print(f"\n\n{header}\n")
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
-    print(
-        f'{f"Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
-    )
-    print(
-        f'{f"Final Perm Conc":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
-    )
-    print(
-        f'{f"Total Brine Flow":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
-    )
-    print(
-        f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
-    )
+    if m.standalone:
+        print(
+            f'{f"Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Perm Conc":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+        print(
+            f'{f"Total Brine Flow":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+    else:
+        print(
+            f'{f"Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.uf_product_mixer.mixed_state[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Perm Conc":<{w}s}{value(pyunits.convert(m.fs.uf_product_mixer.mixed_state[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+        print(
+            f'{f"Total Brine Flow":<{w}s}{value(pyunits.convert(m.fs.uf_disposal_mixer.mixed_state[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.uf_disposal_mixer.mixed_state[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
     print(f'{f"Overall Recovery":<{w}s}{value(m.fs.recovery_vol_uf)*100:<{w}.3f}{"%"}')
     print(
         f'{f"Total UF Pump Power":<{w}s}{value(pyunits.convert(m.fs.total_uf_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'

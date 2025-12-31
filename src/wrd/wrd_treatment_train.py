@@ -15,7 +15,6 @@ from idaes.models.unit_models import Product, Feed
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.costing import WaterTAPCosting
 
-from wrd.components.chemical_addition import *
 from wrd.components.decarbonator import *
 from wrd.components.uv_aop import *
 from wrd.components.pump import *
@@ -24,6 +23,7 @@ from wrd.components.ro_system import *
 from wrd.components.ro_stage import *
 from wrd.components.ro import report_ro
 from wrd.components.chemical_addition import *
+from wrd.components.brine_disposal import *
 from wrd.utilities import *
 from srp.utils import touch_flow_and_conc
 from models import HeadLoss
@@ -160,8 +160,10 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
 
     m.fs.product = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.product)
-    m.fs.disposal = Product(property_package=m.fs.properties)
-    touch_flow_and_conc(m.fs.disposal)
+
+    # Brine disposal
+    m.fs.disposal = FlowsheetBlock(dynamic=False)
+    build_brine_disposal(m.fs.disposal, prop_package=m.fs.properties, file=file)
 
     # Overall System Metrics
     m.fs.system_recovery = Expression(
@@ -283,7 +285,7 @@ def add_wrd_connections(m):
         source=last_chem.product.outlet, destination=m.fs.product.inlet
     )
     m.fs.disposal_mixer_to_disposal = Arc(
-        source=m.fs.disposal_mixer.outlet, destination=m.fs.disposal.inlet
+        source=m.fs.disposal_mixer.outlet, destination=m.fs.disposal.feed.inlet
     )
 
     TransformationFactory("network.expand_arcs").apply_to(m)
@@ -409,7 +411,7 @@ def initialize_wrd_system(m):
     initialize_ro_system(m)
 
     propagate_state(m.fs.pro_to_ro_system_product_mixer)
-    #
+
     propagate_state(m.fs.pro_to_tsro_header)
 
     m.fs.tsro_header.initialize()
@@ -455,7 +457,7 @@ def initialize_wrd_system(m):
     m.fs.disposal_mixer.initialize()
     propagate_state(m.fs.disposal_mixer_to_disposal)
 
-    m.fs.disposal.initialize()
+    initialize_brine_disposal(m.fs.disposal)
 
 
 def add_wrd_system_costing(m):
@@ -463,6 +465,7 @@ def add_wrd_system_costing(m):
     add_uf_system_costing(m, costing_package=m.fs.costing)
     add_ro_system_costing(m, costing_package=m.fs.costing)
     cost_uv_aop(m.fs.UV_aop, costing_package=m.fs.costing)
+    add_brine_disposal_costing(m.fs.disposal, costing_package=m.fs.costing)
     cost_decarbonator(m.fs.decarbonator, costing_package=m.fs.costing)
     for chem_name in m.fs.chemical_list:
         add_chem_addition_costing(
@@ -513,14 +516,14 @@ def report_wrd(m, w=30):
     )
 
     brine_flow = pyunits.convert(
-        m.fs.disposal.properties[0].flow_vol_phase["Liq"],
+        m.fs.disposal.feed.properties[0].flow_vol_phase["Liq"],
         to_units=pyunits.gallon / pyunits.minute,
     )
     brine_flow_mgd = pyunits.convert(
         brine_flow, to_units=pyunits.Mgallons / pyunits.day
     )
     brine_conc = pyunits.convert(
-        m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"],
+        m.fs.disposal.feed.properties[0].conc_mass_phase_comp["Liq", "NaCl"],
         to_units=pyunits.mg / pyunits.L,
     )
 
@@ -568,6 +571,8 @@ def report_wrd(m, w=30):
     print(sep)
     report_mixer(m.fs.ro_system_product_mixer, w=w)
     report_mixer(m.fs.disposal_mixer, w=w)
+    print(sep)
+    report_brine_disposal(m.fs.disposal, w=w)
     print(sep)
 
     title = f"WRD System Summary"
