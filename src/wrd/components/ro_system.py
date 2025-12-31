@@ -84,9 +84,10 @@ def build_ro_system(
 
     m.fs.ro_product_mixer = Mixer(
         property_package=m.fs.properties,
-        momentum_mixing_type=MomentumMixingType.none,
+        momentum_mixing_type=MomentumMixingType.minimize,
         inlet_list=perm_inlet_list,
     )
+    touch_flow_and_conc(m.fs.ro_product_mixer)
 
     brine_inlet_list = [f"brine_inlet{i}" for i in m.fs.trains]
 
@@ -207,7 +208,6 @@ def set_ro_system_op_conditions(m):
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "NaCl"].set_value(
                 m.fs.ro_feed_separator.even_split
             )
-    m.fs.ro_product_mixer.outlet.pressure[0].fix(101325)
 
 
 def initialize_ro_system(m):
@@ -264,18 +264,33 @@ def report_ro_system(m, w=30, add_costing=True):
     print(f"\n\n{header}\n")
     print(f'{"Parameter":<{w}s}{"Value":<{w}s}{"Units":<{w}s}')
     print(f"{'-' * (3 * w)}")
-    print(
-        f'{f"Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
-    )
-    print(
-        f'{f"Final Perm Conc":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
-    )
-    print(
-        f'{f"Total Brine Flow":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
-    )
-    print(
-        f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
-    )
+
+    if m.standalone:
+        print(
+            f'{f"Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Perm Conc":<{w}s}{value(pyunits.convert(m.fs.product.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+        print(
+            f'{f"Total Brine Flow":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.disposal.properties[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+    else:
+        print(
+            f'{f"Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.ro_product_mixer.mixed_state[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Perm Conc":<{w}s}{value(pyunits.convert(m.fs.ro_product_mixer.mixed_state[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
+        print(
+            f'{f"Total Brine Flow":<{w}s}{value(pyunits.convert(m.fs.ro_brine_mixer.mixed_state[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"Final Brine Conc":<{w}s}{value(pyunits.convert(m.fs.ro_brine_mixer.mixed_state[0].conc_mass_phase_comp["Liq", "NaCl"], to_units=pyunits.mg / pyunits.L)):<{w}.3f}{"mg/L"}'
+        )
     print(f'{f"Overall Recovery":<{w}s}{value(m.fs.recovery_vol_ro)*100:<{w}.3f}{"%"}')
     print(
         f'{f"Total RO Pump Power":<{w}s}{value(pyunits.convert(m.fs.total_ro_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
@@ -296,7 +311,7 @@ def report_ro_system_pumps(m, w=30, add_costing=True):
 
 def main(add_costing=False):
 
-    m = build_ro_system(num_trains=4, num_stages=2)
+    m = build_ro_system(num_trains=1, num_stages=2)
     set_ro_system_scaling(m)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=2637, Cin=0.5)
