@@ -268,7 +268,7 @@ def add_pump_costing(blk, costing_package=None):
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
 
 
-def report_pump(blk, w=30, add_costing=True):
+def report_pump(blk, w=30, add_costing=False):
     title = "Pump Report"
     side = int(((3 * w) - len(title)) / 2) - 1
     header = "=" * side + f" {title} " + "=" * side

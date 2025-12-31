@@ -84,7 +84,7 @@ def build_ro_system(
 
     m.fs.ro_product_mixer = Mixer(
         property_package=m.fs.properties,
-        momentum_mixing_type=MomentumMixingType.none,
+        momentum_mixing_type=MomentumMixingType.minimize,
         inlet_list=perm_inlet_list,
     )
 
@@ -207,7 +207,7 @@ def set_ro_system_op_conditions(m):
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "NaCl"].set_value(
                 m.fs.ro_feed_separator.even_split
             )
-    m.fs.ro_product_mixer.outlet.pressure[0].fix(101325)
+    # m.fs.ro_product_mixer.outlet.pressure[0].fix(101325)
 
 
 def initialize_ro_system(m):
