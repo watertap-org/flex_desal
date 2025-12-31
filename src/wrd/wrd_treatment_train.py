@@ -9,7 +9,7 @@ from pyomo.environ import (
 
 from idaes.core.util.initialization import propagate_state
 from idaes.core.util.model_statistics import degrees_of_freedom
-from idaes.core import FlowsheetBlock
+from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.models.unit_models import Product, Feed
 
 from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
@@ -26,7 +26,7 @@ from wrd.components.chemical_addition import *
 from wrd.components.brine_disposal import *
 from wrd.utilities import *
 from srp.utils import touch_flow_and_conc
-from models import HeadLoss
+from models import HeadLoss, Source
 
 
 def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=None):
@@ -51,10 +51,16 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
 
     m.fs.properties = NaClParameterBlock()
     m.fs.costing = WaterTAPCosting()
+
+    # configure costing parameters
     m.fs.costing.base_currency = pyunits.USD_2021
+    m.fs.costing.base_period = pyunits.year
+    m.fs.costing.utilization_factor.fix(1)
+    m.fs.costing.maintenance_labor_chemical_factor.fix(0)
+    m.fs.costing.electricity_cost.fix(0.15)
 
     # Add units
-    m.fs.feed = Feed(property_package=m.fs.properties)
+    m.fs.feed = Source(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
 
     # Pre- UF Treatment chemical addition units (read from metadata)
@@ -460,8 +466,11 @@ def initialize_wrd_system(m):
     initialize_brine_disposal(m.fs.disposal)
 
 
-def add_wrd_system_costing(m):
-    # uf and UV don't have same convention for costing
+def add_wrd_system_costing(m, source_cost=0.15):
+
+    m.fs.feed.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    m.fs.costing.source.unit_cost.fix(source_cost)
+
     add_uf_system_costing(m, costing_package=m.fs.costing)
     add_ro_system_costing(m, costing_package=m.fs.costing)
     cost_uv_aop(m.fs.UV_aop, costing_package=m.fs.costing)
@@ -640,6 +649,6 @@ def main(
 
 
 if __name__ == "__main__":
-    num_pro_trains = 4
+    num_pro_trains = 1
     file = "wrd_inputs_3_13_21.yaml"
     m = main(num_pro_trains=num_pro_trains, file=file)
