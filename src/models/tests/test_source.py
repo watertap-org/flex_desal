@@ -5,7 +5,7 @@ from pyomo.environ import (
     TransformationFactory,
     assert_optimal_termination,
     units as pyunits,
-    value
+    value,
 )
 from pyomo.network import Arc
 
@@ -23,6 +23,7 @@ from watertap.costing import WaterTAPCosting
 from models.source import Source
 
 solver = get_solver()
+
 
 def build_source():
     m = ConcreteModel()
@@ -61,8 +62,8 @@ def build_source():
 def test_head_loss():
     m = build_source()
 
-    assert not hasattr(m.fs.unit, "inlet") # only has an outlet
-    assert hasattr(m.fs.unit, "outlet") 
+    assert not hasattr(m.fs.unit, "inlet")  # only has an outlet
+    assert hasattr(m.fs.unit, "outlet")
 
     initialization_tester(m, unit=m.fs.unit)
     propagate_state(m.fs.unit_to_product)
@@ -73,4 +74,6 @@ def test_head_loss():
     results = solver.solve(m)
     assert_optimal_termination(results)
 
-    assert pytest.approx(value(m.fs.costing.LCOW), rel=1e-5) == value(m.fs.costing.source.unit_cost)
+    assert pytest.approx(value(m.fs.costing.LCOW), rel=1e-5) == value(
+        m.fs.costing.source.unit_cost
+    )
