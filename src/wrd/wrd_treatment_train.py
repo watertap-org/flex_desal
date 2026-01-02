@@ -591,17 +591,17 @@ def report_wrd_comparison_metrics(m, w=30):
         # )
         for key in m.fs.costing.aggregate_flow_costs:
             print(
-                f'{f"{key}":<{w}s}{value(pyunits.convert(m.fs.costing.aggregate_flow_costs[key], to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
+                f'{f"{key}":<{w}s}{value(m.fs.costing.aggregate_flow_costs[key]):<{w}.3f}{"$/yr"}'
             )
         print(
             f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{"$/yr"}'
         )
         print(
-            f'{f"Feed Opex":<{w}s}{value(pyunits.convert(m.fs.feed.costing.variable_operating_cost, to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
+            f'{f"Feed Opex":<{w}s}{value(m.fs.feed.costing.variable_operating_cost):<{w}.3f}{"$/yr"}'
         )
 
 
-def report_wrd(m, w=30):
+def report_wrd(m, w=30, add_comp_metrics=False):
 
     feed_flow = pyunits.convert(
         m.fs.feed.properties[0].flow_vol_phase["Liq"],
@@ -706,7 +706,8 @@ def report_wrd(m, w=30):
         f'{f"Total Pumping Power":<{w}s}{value(pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
     print(sep)
-    report_wrd_comparison_metrics(m, w=w)
+    if add_comp_metrics:
+        report_wrd_comparison_metrics(m, w=w)
 
 
 def main(
@@ -737,7 +738,7 @@ def main(
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_wrd(m)
+    report_wrd(m, add_comp_metrics=True)
 
     return m
 
