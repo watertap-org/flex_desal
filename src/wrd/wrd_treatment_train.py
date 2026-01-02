@@ -608,22 +608,95 @@ def report_wrd(m, w=30):
     )
     print(sep)
     print("Comparative Metrics:")
-    # Pump powers
-    # Stage Perm product flow rates
-    # Stage recoveries
+    # Print UF system metrics
+    title = f" UF System Metrics"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "-" * side + f" {title} " + "-" * side
+    print(f"\n{header}\n")
+    for i in m.fs.uf_trains:
+        print(
+            f'{f"UF Train {i} Feed Flow":<{w}s}{value(pyunits.convert(m.fs.uf_train[i].feed.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"UF Train {i} Pump Power":<{w}s}{value(pyunits.convert(m.fs.uf_train[i].pump.unit.work_mechanical[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+        )
+
+
+    # Print PRO train metrics
+    for i in m.fs.trains:   
+        title = f"PRO Train {i} Metrics"
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "-" * side + f" {title} " + "-" * side
+        print(f"\n{header}\n")
+        
+        # Print stage-by-stage pump powers and permeate flows
+        for j in m.fs.train[i].stages:
+            print(
+                f'{f"  Stage {j} Pump Power":<{w}s}{value(pyunits.convert(m.fs.train[i].stage[j].pump.unit.work_mechanical[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+            )
+            print(
+                f'{f"  Stage {j} Perm Flow":<{w}s}{value(pyunits.convert(m.fs.train[i].stage[j].product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+            )
+            print(
+                f'{f"  Stage {j} Recovery":<{w}s}{value(m.fs.train[i].stage[j].ro.unit.recovery_vol_phase[0, "Liq"])*100:<{w}.3f}{"%"}'
+            )
+        
+        # Print train totals
+        print(
+            f'{f"  Train {i} Total Pump Power":<{w}s}{value(pyunits.convert(m.fs.train[i].total_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+        )
+        print(
+            f'{f"  Train {i} Total Perm Flow":<{w}s}{value(pyunits.convert(m.fs.train[i].product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
     
+    # Print TSRO train metrics
+    for t in m.fs.tsro_trains:
+        title = f"TSRO Train {t} Metrics"
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "-" * side + f" {title} " + "-" * side
+        print(f"\n{header}\n")
+        
+        print(
+            f'{f"  TSRO {t} Pump Power":<{w}s}{value(pyunits.convert(m.fs.tsro_train[t].pump.unit.work_mechanical[0], to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+        )
+        print(
+            f'{f"  TSRO {t} Perm Flow":<{w}s}{value(pyunits.convert(m.fs.tsro_train[t].product.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+        )
+        print(
+            f'{f"  TSRO {t} Recovery":<{w}s}{value(m.fs.tsro_train[t].ro.unit.recovery_vol_phase[0, "Liq"])*100:<{w}.3f}{"%"}'
+        )
+    # Print decarb and UV metrics
+    title = f"Decarbonator and UV AOP Metrics"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "-" * side + f" {title} " + "-" * side
+    print(f"\n{header}\n")
+    
+    print(
+        f'{f"UV AOP Feed Flow":<{w}s}{value(pyunits.convert(m.fs.UV_aop.feed.properties[0].flow_vol_phase["Liq"], to_units=pyunits.gallons / pyunits.minute)):<{w}.3f}{"gpm"}'
+    )
+    print(
+        f'{f"UV AOP Energy Use":<{w}s}{value(pyunits.convert(m.fs.UV_aop.unit.power_consumption, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+    )
+    print(
+        f'{f"Decarbonator Energy Use":<{w}s}{value(pyunits.convert(m.fs.decarbonator.unit.power_consumption, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
+    )
+    
+
     # Costs
     if m.fs.find_component("costing") is not None:
+        title = f"Flow Costs"
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "-" * side + f" {title} " + "-" * side
+        print(f"\n{header}\n")
         # print(
         #     f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
         # )
-        # print("Flow Costs:")
         for key in m.fs.costing.aggregate_flow_costs:
             print(
                 f'{f"{key}":<{w}s}{value(pyunits.convert(m.fs.costing.aggregate_flow_costs[key], to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
                 )
         print(
-            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{f"{pyunits.get_units(m.fs.disposal.unit.costing.variable_operating_cost)}":<{w}s}'
+            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{"$/yr"}'
         )
         print(
             f'{f"Feed Opex":<{w}s}{value(pyunits.convert(m.fs.feed.costing.variable_operating_cost, to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
