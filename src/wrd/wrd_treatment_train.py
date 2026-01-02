@@ -606,14 +606,28 @@ def report_wrd(m, w=30):
     print(
         f'{f"Total Pumping Power":<{w}s}{value(pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+    print(sep)
+    print("Comparative Metrics:")
+    # Pump powers
+    # Stage Perm product flow rates
+    # Stage recoveries
+    
+    # Costs
     if m.fs.find_component("costing") is not None:
+        # print(
+        #     f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+        # )
+        # print("Flow Costs:")
+        for key in m.fs.costing.aggregate_flow_costs:
+            print(
+                f'{f"{key}":<{w}s}{value(pyunits.convert(m.fs.costing.aggregate_flow_costs[key], to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
+                )
         print(
-            f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{f"{pyunits.get_units(m.fs.disposal.unit.costing.variable_operating_cost)}":<{w}s}'
         )
         print(
-            f'{f"Electricity Cost":<{w}s}{value(pyunits.convert(m.fs.costing.aggregate_flow_costs["electricity"], to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
-        )
-
+            f'{f"Feed Opex":<{w}s}{value(pyunits.convert(m.fs.feed.costing.variable_operating_cost, to_units=pyunits.USD_2021 / pyunits.year)):<{w}.3f}{"$/yr"}'
+            )
 
 def main(
     num_pro_trains=4,
