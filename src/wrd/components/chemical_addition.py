@@ -170,6 +170,9 @@ def set_chem_addition_op_conditions(blk, dose=None):
 
     blk.unit.dose.fix(dose)
 
+    ratio_in_solution = blk.chem_config["ratio_in_solution"]
+    blk.unit.ratio_in_solution.set_value(ratio_in_solution)
+
 
 def initialize_system(blk):
     blk.fs.feed.initialize()
@@ -199,6 +202,7 @@ def add_chem_addition_costing(
 
     if chem_cost is None:
         chem_cost = blk.chem_config["unit_cost"]
+        print(blk.unit.config.chemical, chem_cost(), pyunits.get_units(chem_cost))
         if chem_cost is None:
             raise ValueError("chem_cost must be provided to add_chem_addition_costing")
 
