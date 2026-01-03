@@ -18,23 +18,25 @@ ammonium_sulfate:
     units: kg/m^3
   ratio_in_solution:
     value: 0.4
+    # value: 1
     units: dimensionless
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 1.02
-    units: USD_2021/kg # Not sure if year is valid
+    value: 1.89
+    units: USD_2021/gallon # Not sure if year is valid
 sodium_hypochlorite:
   chemical_dosage:
-    value: 4
+    value: 8
     units: mg/L
   solution_density:
     value: 1196
     units: kg/m^3
   ratio_in_solution:
     value: 0.125
+    # value: 1
     units: dimensionless
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 1.29
-    units: USD_2021/kg # Not sure if year is valid
+    value: 0.7568
+    units: USD_2021/gallon
 sulfuric_acid:
   chemical_dosage:
     value: 96
@@ -44,23 +46,24 @@ sulfuric_acid:
     units: kg/m^3
   ratio_in_solution:
     value: 0.93
+    # value: 1
     units: dimensionless
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 0.212
-    units: USD_2021/kg # What is the difference between a ton and dry ton?
+    value: 188.76
+    units: USD_2021/ton # What is the difference between a ton and dry ton?
 scale_inhibitor:
   chemical_dosage:
     value: 4.5
     units: mg/L
   solution_density:
-    value: 1000 # I don't know this actual value
+    value: 1100 # I don't know this actual value
     units: kg/m^3
   ratio_in_solution:
     value: 1
     units: dimensionless
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 2.30
-    units: USD_2021/kg # What is the difference between a ton and dry ton?
+    value: 8.72
+    units: USD_2021/gallon # What is the difference between a ton and dry ton?
 # calcium_chloride: # This chemical seems to have only been used for part of 2021
 #   chemical_dosage:
 #     value: 10
@@ -88,40 +91,29 @@ calcium_hydroxide:
     value: 47
     units: mg/L
   solution_density:
-    value: 1300 
+    value: 1270 
     units: kg/m^3
   ratio_in_solution:
     value: 0.35
+    # value: 1
     units: dimensionless
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 2.30
-    units: USD_2021/kg 
+    value: 556
+    units: USD_2021/ton
 sodium_hydroxide: 
   chemical_dosage:
     value: 3
     units: mg/L
   solution_density:
-    value: 1781
+    value: 1270
     units: kg/m^3
   ratio_in_solution:
+    # value: 1
     value: 0.25
     units: dimensionless
   unit_cost: 
-    value: 2.37
-    units: USD_2021/kg # Not sure if year is valid
-sodium_hypochlorite:
-  chemical_dosage:
-    value: 4
-    units: mg/L
-  solution_density:
-    value: 1196
-    units: kg/m^3
-  ratio_in_solution:
-    value: 1
-    units: dimensionless
-  unit_cost: 
-    value: 1.29
-    units: USD_2021/kg # Not sure if year is valid
+    value: 557.55
+    units: USD_2021/ton # Not sure if year is valid
 sodium_bisulfite:
   chemical_dosage:
     value: 4
@@ -131,7 +123,8 @@ sodium_bisulfite:
     units: kg/m^3
   ratio_in_solution:
     value: 0.40
+    # value: 1
     units: dimensionless
   unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 1.405
-    units: USD_2021/kg # Not sure if year is valid
+    value: 534
+    units: USD_2021/ton # Not sure if year is valid

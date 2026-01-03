@@ -188,6 +188,13 @@ class ChemicalAdditionData(StateJunctionData):
             doc=f"Volumetric flow rate of {self.config.chemical} solution",
         )
 
+        self.chemical_soln_flow_mass = Var(
+            initialize=1,
+            units=pyunits.kg / pyunits.s,
+            bounds=(0, None),
+            doc=f"Mass flow rate of {self.config.chemical} solution",
+        )
+
         self.pumping_power = Var(
             initialize=1,
             units=pyunits.kW,
@@ -205,11 +212,11 @@ class ChemicalAdditionData(StateJunctionData):
                 to_units=pyunits.kg / pyunits.s,
             )
 
-        @self.Expression(
+        @self.Constraint(
             doc=f"Mass flow rate of {self.config.chemical} solution",
         )
-        def chemical_soln_flow_mass(b):
-            return pyunits.convert(
+        def eq_chemical_soln_flow_mass(b):
+            return b.chemical_soln_flow_mass == pyunits.convert(
                 b.chemical_flow_mass / b.ratio_in_solution,
                 to_units=pyunits.kg / pyunits.s,
             )
@@ -221,8 +228,7 @@ class ChemicalAdditionData(StateJunctionData):
         def eq_chemical_soln_flow_vol(b):
             # (m3 soln / s) = ((g chem / m3 water) * (m3 water / s)) / ((g chem / g soln) * (g soln / m3 soln))
             return b.chemical_soln_flow_vol == pyunits.convert(
-                b.dose
-                * b.properties[0].flow_vol_phase["Liq"]
+                (b.dose * b.properties[0].flow_vol_phase["Liq"])
                 / (b.ratio_in_solution * b.solution_density),
                 to_units=pyunits.m**3 / pyunits.s,
             )

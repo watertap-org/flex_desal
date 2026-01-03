@@ -65,7 +65,7 @@ def build_ammonium_sulfate_cost_param_block(blk):
     blk.cost = pyo.Var(
         initialize=1.02,
         doc="Ammonium sulfate cost",
-        units=pyo.units.USD_2021 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.gallon,
     )
     blk.purity = pyo.Var(
         initialize=1,
@@ -342,7 +342,7 @@ def build_sodium_hypochlorite_cost_param_block(blk):
     blk.cost = pyo.Var(
         initialize=1.29,
         doc="Sodium hypochlorite cost",
-        units=pyo.units.USD_2021 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.gallon,
     )
     blk.purity = pyo.Var(
         initialize=1,
@@ -396,7 +396,7 @@ def build_scale_inhibitor_cost_param_block(blk):
     blk.cost = pyo.Var(
         initialize=2,
         doc="Scale inhibitor cost",
-        units=pyo.units.USD_2020 / pyo.units.kg,
+        units=pyo.units.USD_2020 / pyo.units.gallon,
     )
     blk.purity = pyo.Var(
         initialize=1,
@@ -466,6 +466,18 @@ def cost_chemical_addition(blk, cost_capital=False):
                 )
             )
         blk.costing_package.cost_flow(blk.unit_model.pumping_power, "electricity")
-        blk.costing_package.cost_flow(blk.unit_model.chemical_flow_mass, chemical)
+        print(f"{blk.unit_model.config.chemical} costing added.")
+        if blk.unit_model.config.chemical in [
+            "sodium_hypochlorite",
+            "scale_inhibitor",
+            "ammonium_sulfate",
+        ]:
+            blk.costing_package.cost_flow(
+                blk.unit_model.chemical_soln_flow_vol, chemical
+            )
+        else:
+            blk.costing_package.cost_flow(
+                blk.unit_model.chemical_soln_flow_mass, chemical
+            )
 
     cost_chem_addition(blk)
