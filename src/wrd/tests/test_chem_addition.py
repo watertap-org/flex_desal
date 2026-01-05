@@ -54,13 +54,14 @@ def test_chem_addition_chem_flow():
 @pytest.mark.component
 def test_chem_addition_costs():
     # These costs are based directly on Qin=10000 and yaml inputs, so values should agree very closely
+    # This is NOT facility data
     monthly_costs = {
         "ammonium_sulfate": 841,
         "sodium_hypochlorite": 8603,
         "sulfuric_acid": 35611,
         "scale_inhibitor": 15626,
-        "calcium_hydroxide": 143327,
-        "sodium_hydroxide": 11810,
+        "calcium_hydroxide": 49125,
+        "sodium_hydroxide": 3056,
         "sodium_bisulfite": 9322,
     }
     for chem, cost in monthly_costs.items():

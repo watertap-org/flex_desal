@@ -98,7 +98,7 @@ calcium_hydroxide:
     # value: 1
     units: dimensionless
   unit_cost:
-    value: .0738 
+    value: 1.06
     units: USD_2021/gal
 sodium_hydroxide: 
   chemical_dosage:
@@ -112,7 +112,7 @@ sodium_hydroxide:
     value: 0.25
     units: dimensionless
   unit_cost:
-     value: 1.06
+     value: 0.738
      units: USD_2021/gal # Not sure if year is valid
 sodium_bisulfite:
   chemical_dosage:
