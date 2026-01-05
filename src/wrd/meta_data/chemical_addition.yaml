@@ -97,9 +97,9 @@ calcium_hydroxide:
     value: 0.35
     # value: 1
     units: dimensionless
-  unit_cost: # Adding this so it can be loaded from config when changing the cost values in costing
-    value: 556
-    units: USD_2021/ton
+  unit_cost:
+    value: .0738 
+    units: USD_2021/gal
 sodium_hydroxide: 
   chemical_dosage:
     value: 3
@@ -111,9 +111,9 @@ sodium_hydroxide:
     # value: 1
     value: 0.25
     units: dimensionless
-  unit_cost: 
-    value: 557.55
-    units: USD_2021/ton # Not sure if year is valid
+  unit_cost:
+     value: 1.06
+     units: USD_2021/gal # Not sure if year is valid
 sodium_bisulfite:
   chemical_dosage:
     value: 4

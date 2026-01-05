@@ -120,7 +120,7 @@ def build_calcium_hydroxide_param_block(blk):
     blk.cost = pyo.Var(
         initialize=2.3,
         doc="Calcium hydroxide cost",
-        units=pyo.units.USD_2021 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.gallon,
     )
     blk.purity = pyo.Var(
         initialize=1,  # assumed
@@ -148,7 +148,7 @@ def build_sodium_hydroxide_cost_param_block(blk):
     blk.cost = pyo.Var(
         initialize=2.37,
         doc="Sodium hydroxide cost",
-        units=pyo.units.USD_2021 / pyo.units.kg,
+        units=pyo.units.USD_2021 / pyo.units.gallon,
     )
     blk.purity = pyo.Var(
         initialize=1,  # assumed
@@ -471,6 +471,8 @@ def cost_chemical_addition(blk, cost_capital=False):
             "sodium_hypochlorite",
             "scale_inhibitor",
             "ammonium_sulfate",
+            "calcium_hydroxide",
+            "sodium_hydroxide",
         ]:
             blk.costing_package.cost_flow(
                 blk.unit_model.chemical_soln_flow_vol, chemical
