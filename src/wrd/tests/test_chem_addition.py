@@ -13,7 +13,7 @@ def test_chem_addition_missing_data():
         _ = ca.build_system(chemical_name=None)
 
 
-@pytest.mark.skip
+@pytest.mark.component
 def test_chem_addition_chem_flow():
     # These flows are based directly on Qin=2637 and yaml inputs, so values should agree very closely
     # mass_flow_rates = {
@@ -34,7 +34,7 @@ def test_chem_addition_chem_flow():
         "calcium_hydroxide": 6.52e-5,
         "sodium_hydroxide": 5.96e-6,
         "sodium_bisulfite": 4.78e-6,
-    }    
+    }
     for chem, flow in vol_flow_rates.items():
         m = ca.main(
             chemical_name=chem,
