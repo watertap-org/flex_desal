@@ -287,5 +287,5 @@ def main(
 
 
 if __name__ == "__main__":
-    chem = "ammonium_sulfate"
+    chem = "sodium_bisulfite"
     m = main(chemical_name=chem, Qin=10800)
