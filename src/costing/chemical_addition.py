@@ -2,7 +2,6 @@ import pyomo.environ as pyo
 from watertap.costing.util import (
     register_costing_parameter_block,
     make_capital_cost_var,
-    make_fixed_operating_cost_var,
 )
 
 
@@ -428,7 +427,6 @@ def cost_chemical_addition(blk, cost_capital=False):
         "ferric_chloride": build_ferric_chloride_cost_param_block,
         "soda_ash": build_soda_ash_cost_param_block,
         "alum": build_alum_cost_param_block,
-        # "polymer": build_polymer_cost_param_block,
         "calcium_hydroxide": build_calcium_hydroxide_param_block,
         "sodium_hydroxide": build_sodium_hydroxide_cost_param_block,
         "sulfuric_acid": build_sulfuric_acid_cost_param_block,
@@ -467,6 +465,8 @@ def cost_chemical_addition(blk, cost_capital=False):
             )
 
         cost_units = pyo.units.get_units(chem_addition_param_blk.cost)
+
+        # blk.costing_package.cost_flow(blk.unit_model.pumping_power, "electricity")
 
         if any(_x in cost_units.to_string() for _x in ["gal", "gallon", "m**3"]):
             blk.costing_package.cost_flow(
