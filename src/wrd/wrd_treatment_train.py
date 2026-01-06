@@ -46,9 +46,6 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
     config = get_config_file(file)
     m.fs.config_data = load_config(config)
 
-    config = get_config_file("chemical_addition.yaml")
-    m.fs.chem_data = load_config(config)
-
     m.fs.properties = NaClParameterBlock()
     m.fs.costing = WaterTAPCosting()
 

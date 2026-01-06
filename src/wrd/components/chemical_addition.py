@@ -35,7 +35,8 @@ __all__ = [
 solver = get_solver()
 
 
-def get_chem_data(chem_data, chemical_name, default=None):
+def get_chem_data(config_data, chemical_name, default=None):
+    chem_data = config_data["chemical_addition"]
     chem_config = {}
 
     chem_config["ratio_in_solution"] = get_config_value(
@@ -65,7 +66,7 @@ def get_chem_data(chem_data, chemical_name, default=None):
     return chem_config
 
 
-def build_system(chemical_name=None):
+def build_system(chemical_name=None,file="wrd_inputs_8_19_21.yaml",):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -73,10 +74,9 @@ def build_system(chemical_name=None):
     m.fs.costing.base_currency = pyunits.USD_2021
     m.fs.costing.base_period = pyunits.month
     m.fs.properties = NaClParameterBlock()
-
-    config_file_name = "chemical_addition.yaml"
-    config = get_config_file(config_file_name)
-    m.fs.chem_data = load_config(config)
+    
+    config = get_config_file(file)
+    m.fs.config_data = load_config(config)
 
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -125,7 +125,7 @@ def build_chem_addition(blk, chemical_name=None, prop_package=None):
     blk.feed = StateJunction(property_package=prop_package)
     touch_flow_and_conc(blk.feed)
 
-    blk.chem_config = get_chem_data(m.fs.chem_data, chemical_name, None)
+    blk.chem_config = get_chem_data(m.fs.config_data, chemical_name, None)
 
     blk.unit = ChemicalAddition(
         property_package=prop_package,
