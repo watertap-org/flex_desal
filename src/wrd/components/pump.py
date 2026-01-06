@@ -266,6 +266,8 @@ def add_pump_costing(blk, costing_package=None):
         costing_package = m.fs.costing
 
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
+    # Only want to cost opex (electricity)
+    costing_package.high_pressure_pump.cost.fix(0)
 
 
 def report_pump(blk, w=30, add_costing=False):
