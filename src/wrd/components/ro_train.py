@@ -253,7 +253,9 @@ def add_ro_train_costing(blk, costing_package=None, cost_RO=False):
         costing_package = m.fs.costing
 
     for i in blk.stages:
-        add_ro_stage_costing(blk.stage[i], costing_package=costing_package, cost_RO=cost_RO)
+        add_ro_stage_costing(
+            blk.stage[i], costing_package=costing_package, cost_RO=cost_RO
+        )
 
 
 def report_ro_train(blk, train_num=None, w=30, add_costing=True):

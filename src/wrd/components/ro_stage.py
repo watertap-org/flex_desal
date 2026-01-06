@@ -172,8 +172,7 @@ def initialize_ro_stage(blk):
     blk.disposal.initialize()
 
 
-def report_ro_stage(blk, w=30, add_costing=True):\
-
+def report_ro_stage(blk, w=30, add_costing=True):
     report_pump(blk.pump, w=w, add_costing=add_costing)
     report_ro(blk.ro, w=w)
 

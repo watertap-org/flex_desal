@@ -467,6 +467,7 @@ def initialize_wrd_system(m):
 
     initialize_brine_disposal(m.fs.disposal)
 
+
 def add_wrd_system_costing(m, source_cost=0.15, cost_RO=False):
 
     m.fs.feed.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
