@@ -54,10 +54,10 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
 
     # configure costing parameters
     m.fs.costing.base_currency = pyunits.USD_2021
-    m.fs.costing.base_period = pyunits.year
+    m.fs.costing.base_period = pyunits.month
     m.fs.costing.utilization_factor.fix(1)
     m.fs.costing.maintenance_labor_chemical_factor.fix(0)
-    m.fs.costing.electricity_cost.fix(0.15)
+    m.fs.costing.electricity_cost.fix(0.15) # Read from yaml / config file
 
     # Add units
     m.fs.feed = Source(property_package=m.fs.properties)
@@ -709,6 +709,25 @@ def report_wrd(m, w=30, add_comp_metrics=False):
     if add_comp_metrics:
         report_wrd_comparison_metrics(m, w=w)
 
+def report_wrd_costing_flows(m, w=30):
+    title = "Costing Flows"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "-" * side + f" {title} " + "-" * side
+    print(f"\n{header}\n")
+    
+    for x in m.fs.costing.component_objects([Var, Expression], descend_into=False):
+        # x.display()
+        if "aggregate_flow_" in x.name and not x.is_indexed():
+            if "electricity" in x.name:
+                continue
+            try:
+                # Try converting to ton/month (for mass flows)
+                converted_value = value(pyunits.convert(x, to_units=pyunits.ton / pyunits.month))
+                print(f'{x.name:<{w}s}{converted_value:<{w}.3f}{"ton/month"}')
+            except:
+                # Fall back to gallon/month (for volumetric flows)
+                converted_value = value(pyunits.convert(x, to_units=pyunits.gallon / pyunits.month))
+                print(f'{x.name:<{w}s}{converted_value:<{w}.3f}{"gal/month"}')
 
 def main(
     num_pro_trains=4,
@@ -745,109 +764,97 @@ def main(
 
 if __name__ == "__main__":
     num_pro_trains = 4
-    file = "wrd_inputs_3_13_21.yaml"
+    file = "wrd_inputs_8_19_21.yaml"
     m = main(num_pro_trains=num_pro_trains, file=file)
     # m.fs.costing.display()
-    for x in m.fs.costing.component_objects([Var, Expression], descend_into=False):
-        # x.display()
-        if "aggregate_flow_" in x.name and not x.is_indexed():
-            if "electricity" in x.name:
-                continue
-            try:
-                print(f"\n{x.name}: {value(x)}")
-                print(value(pyunits.convert(x, to_units=pyunits.ton / pyunits.month)))
-            except:
-                print(f"\n{x.name}: {value(x)}")
-                print(
-                    value(pyunits.convert(x, to_units=pyunits.gallon / pyunits.month))
-                )
 
-    from models.chemical_addition import ChemicalAdditionData
-    from pyomo.environ import Block, Var, Expression
 
-    m.fs.ammonium_sulfate_addition.unit.dose.unfix()
-    # m.fs.ammonium_sulfate_addition.unit.chemical_soln_flow_vol.fix(3207 * pyunits.gallon / pyunits.month)
-    m.fs.ammonium_sulfate_addition.unit.chemical_soln_flow_vol.fix(
-        21990 * pyunits.gallon / pyunits.year
-    )
+    # from models.chemical_addition import ChemicalAdditionData
+    # from pyomo.environ import Block, Var, Expression
 
-    # m.fs.sodium_hypochlorite_addition.unit.dose.unfix()
-    # m.fs.sodium_hypochlorite_addition.unit.chemical_soln_flow_vol.fix(22500 * pyunits.gallon / pyunits.month)
+    # m.fs.ammonium_sulfate_addition.unit.dose.unfix()
+    # # m.fs.ammonium_sulfate_addition.unit.chemical_soln_flow_vol.fix(3207 * pyunits.gallon / pyunits.month)
+    # m.fs.ammonium_sulfate_addition.unit.chemical_soln_flow_vol.fix(
+    #     21990 * pyunits.gallon / pyunits.year
+    # )
 
-    # m.fs.scale_inhibitor_addition.unit.dose.unfix()
-    # m.fs.scale_inhibitor_addition.unit.chemical_soln_flow_vol.fix(1675 * pyunits.gallon / pyunits.month)
+    # # m.fs.sodium_hypochlorite_addition.unit.dose.unfix()
+    # # m.fs.sodium_hypochlorite_addition.unit.chemical_soln_flow_vol.fix(22500 * pyunits.gallon / pyunits.month)
 
-    m.fs.sulfuric_acid_addition.unit.dose.unfix()
-    # m.fs.sulfuric_acid_addition.unit.chemical_soln_flow_mass.fix(79.92 * pyunits.ton / pyunits.month)
-    m.fs.sulfuric_acid_addition.unit.chemical_soln_flow_vol.fix(
-        217166 * pyunits.gallon / pyunits.year
-    )
+    # # m.fs.scale_inhibitor_addition.unit.dose.unfix()
+    # # m.fs.scale_inhibitor_addition.unit.chemical_soln_flow_vol.fix(1675 * pyunits.gallon / pyunits.month)
 
-    m.fs.sodium_hydroxide_addition.unit.dose.unfix()
-    m.fs.sodium_hydroxide_addition.unit.chemical_soln_flow_mass.fix(
-        14 * pyunits.ton / pyunits.month
-    )
+    # m.fs.sulfuric_acid_addition.unit.dose.unfix()
+    # # m.fs.sulfuric_acid_addition.unit.chemical_soln_flow_mass.fix(79.92 * pyunits.ton / pyunits.month)
+    # m.fs.sulfuric_acid_addition.unit.chemical_soln_flow_vol.fix(
+    #     217166 * pyunits.gallon / pyunits.year
+    # )
 
-    m.fs.calcium_hydroxide_addition.unit.dose.unfix()
-    # m.fs.calcium_hydroxide_addition.unit.chemical_soln_flow_mass.fix(29 * pyunits.ton / pyunits.month)
-    m.fs.calcium_hydroxide_addition.unit.chemical_soln_flow_vol.fix(
-        339108 * pyunits.gallon / pyunits.year
-    )
+    # m.fs.sodium_hydroxide_addition.unit.dose.unfix()
+    # m.fs.sodium_hydroxide_addition.unit.chemical_soln_flow_mass.fix(
+    #     14 * pyunits.ton / pyunits.month
+    # )
 
-    m.fs.sodium_bisulfite_addition.unit.dose.unfix()
-    # m.fs.calcium_hydroxide_addition.unit.chemical_soln_flow_mass.fix(29 * pyunits.ton / pyunits.month)
-    m.fs.sodium_bisulfite_addition.unit.chemical_soln_flow_vol.fix(
-        39508 * pyunits.gallon / pyunits.year
-    )
+    # m.fs.calcium_hydroxide_addition.unit.dose.unfix()
+    # # m.fs.calcium_hydroxide_addition.unit.chemical_soln_flow_mass.fix(29 * pyunits.ton / pyunits.month)
+    # m.fs.calcium_hydroxide_addition.unit.chemical_soln_flow_vol.fix(
+    #     339108 * pyunits.gallon / pyunits.year
+    # )
 
-    solver = get_solver()
-    results = solver.solve(m)
-    assert_optimal_termination(results)
+    # m.fs.sodium_bisulfite_addition.unit.dose.unfix()
+    # # m.fs.calcium_hydroxide_addition.unit.chemical_soln_flow_mass.fix(29 * pyunits.ton / pyunits.month)
+    # m.fs.sodium_bisulfite_addition.unit.chemical_soln_flow_vol.fix(
+    #     39508 * pyunits.gallon / pyunits.year
+    # )
 
-    for b in m.fs.component_objects(
-        Block,
-    ):
-        if not isinstance(b, ChemicalAdditionData):
-            continue
-        print(f"\n{b.name}")
-        print(f"\t{'Chemical:':<30} {b.config.chemical}")
-        print(f"\t{'Dose:':<30} {value(b.dose):.4f} {pyunits.get_units(b.dose)}")
-        x = pyunits.convert(
-            b.ratio_in_solution, to_units=pyunits.gallon / pyunits.gallon
-        )
-        print(f"\t{'Ratio In Solution:':<30} {value(x):.2f} {pyunits.get_units(x)}")
-        x = pyunits.convert(
-            b.chemical_soln_flow_vol, to_units=pyunits.gallon / pyunits.month
-        )
-        print(
-            f"\t{'Chemical Solution Vol Flow:':<30} {value(x):.2f} {pyunits.get_units(x)}"
-        )
-        x = pyunits.convert(
-            b.chemical_soln_flow_mass, to_units=pyunits.ton / pyunits.month
-        )
-        print(
-            f"\t{'Chemical Solution Mass Flow:':<30} {value(x):.2f} {pyunits.get_units(x)}"
-        )
-        x = pyunits.convert(b.chemical_flow_mass, to_units=pyunits.ton / pyunits.month)
-        print(f"\t{'Chemical Mass Flow:':<30} {value(x):.2f} {pyunits.get_units(x)}")
-        x = pyunits.convert(
-            m.fs.costing.aggregate_flow_costs[b.config.chemical],
-            to_units=pyunits.USD_2021 / pyunits.month,
-        )
-        print(f"\t{'Chemical Cost:':<30} {value(x):.2f} {pyunits.get_units(x)}")
-        uc = m.fs.costing.find_component(f"{b.config.chemical}")
-        uc = uc.cost
-        print(f"\t{'Unit Cost:':<30} {value(uc):.2f} {pyunits.get_units(uc)}")
-        try:
-            uc = pyunits.convert(uc, to_units=pyunits.USD_2021 / pyunits.ton)
-            print(
-                f"\t{'Unit Cost ($/ton):':<30} {value(uc):.2f} {pyunits.get_units(uc)}"
-            )
-        except:
-            uc = pyunits.convert(uc, to_units=pyunits.USD_2021 / pyunits.gallon)
-            print(
-                f"\t{'Unit Cost ($/gal):':<30} {value(uc):.2f} {pyunits.get_units(uc)}"
-            )
+    # solver = get_solver()
+    # results = solver.solve(m)
+    # assert_optimal_termination(results)
+
+    # for b in m.fs.component_objects(
+    #     Block,
+    # ):
+    #     if not isinstance(b, ChemicalAdditionData):
+    #         continue
+    #     print(f"\n{b.name}")
+    #     print(f"\t{'Chemical:':<30} {b.config.chemical}")
+    #     print(f"\t{'Dose:':<30} {value(b.dose):.4f} {pyunits.get_units(b.dose)}")
+    #     x = pyunits.convert(
+    #         b.ratio_in_solution, to_units=pyunits.gallon / pyunits.gallon
+    #     )
+    #     print(f"\t{'Ratio In Solution:':<30} {value(x):.2f} {pyunits.get_units(x)}")
+    #     x = pyunits.convert(
+    #         b.chemical_soln_flow_vol, to_units=pyunits.gallon / pyunits.month
+    #     )
+    #     print(
+    #         f"\t{'Chemical Solution Vol Flow:':<30} {value(x):.2f} {pyunits.get_units(x)}"
+    #     )
+    #     x = pyunits.convert(
+    #         b.chemical_soln_flow_mass, to_units=pyunits.ton / pyunits.month
+    #     )
+    #     print(
+    #         f"\t{'Chemical Solution Mass Flow:':<30} {value(x):.2f} {pyunits.get_units(x)}"
+    #     )
+    #     x = pyunits.convert(b.chemical_flow_mass, to_units=pyunits.ton / pyunits.month)
+    #     print(f"\t{'Chemical Mass Flow:':<30} {value(x):.2f} {pyunits.get_units(x)}")
+    #     x = pyunits.convert(
+    #         m.fs.costing.aggregate_flow_costs[b.config.chemical],
+    #         to_units=pyunits.USD_2021 / pyunits.month,
+    #     )
+    #     print(f"\t{'Chemical Cost:':<30} {value(x):.2f} {pyunits.get_units(x)}")
+    #     uc = m.fs.costing.find_component(f"{b.config.chemical}")
+    #     uc = uc.cost
+    #     print(f"\t{'Unit Cost:':<30} {value(uc):.2f} {pyunits.get_units(uc)}")
+    #     try:
+    #         uc = pyunits.convert(uc, to_units=pyunits.USD_2021 / pyunits.ton)
+    #         print(
+    #             f"\t{'Unit Cost ($/ton):':<30} {value(uc):.2f} {pyunits.get_units(uc)}"
+    #         )
+    #     except:
+    #         uc = pyunits.convert(uc, to_units=pyunits.USD_2021 / pyunits.gallon)
+    #         print(
+    #             f"\t{'Unit Cost ($/gal):':<30} {value(uc):.2f} {pyunits.get_units(uc)}"
+    #         )
         # for x in b.component_objects([Var, Expression], descend_into=False):
         #     if "chemical_flow_mass" in x.name or "chemical_soln_flow_mass" in x.name:
         #         print(f"\n{x.name}: {value(x)}")
