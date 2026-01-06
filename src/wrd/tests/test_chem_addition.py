@@ -5,8 +5,8 @@ from pyomo.util.check_units import assert_units_equivalent
 
 import wrd.components.chemical_addition as ca
 
-flow1 = 10652
-flow2 = 9397
+flow_pre_treat = 10652
+flow_post_treat = 9397
 
 
 @pytest.mark.unit
@@ -46,9 +46,9 @@ def test_chem_addition_chem_flow():
             "sulfuric_acid",
             "scale_inhibitor",
         ]:
-            flow = flow1
+            flow = flow_pre_treat
         else:
-            flow = flow2
+            flow = flow_post_treat
         m = ca.main(
             chemical_name=chem,
             Qin=flow,
@@ -80,9 +80,9 @@ def test_chem_addition_costs():
             "sulfuric_acid",
             "scale_inhibitor",
         ]:
-            flow = flow1
+            flow = flow_pre_treat
         else:
-            flow = flow2
+            flow = flow_post_treat
         m = ca.main(
             chemical_name=chem,
             Qin=flow,

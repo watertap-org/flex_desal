@@ -66,7 +66,10 @@ def get_chem_data(config_data, chemical_name, default=None):
     return chem_config
 
 
-def build_system(chemical_name=None,file="wrd_inputs_8_19_21.yaml",):
+def build_system(
+    chemical_name=None,
+    file="wrd_inputs_8_19_21.yaml",
+):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -74,7 +77,7 @@ def build_system(chemical_name=None,file="wrd_inputs_8_19_21.yaml",):
     m.fs.costing.base_currency = pyunits.USD_2021
     m.fs.costing.base_period = pyunits.month
     m.fs.properties = NaClParameterBlock()
-    
+
     config = get_config_file(file)
     m.fs.config_data = load_config(config)
 
