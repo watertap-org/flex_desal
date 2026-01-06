@@ -239,3 +239,7 @@ chemical_addition:
     unit_cost: 
       value: 2.94 # August 2021 data 
       units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py
+electricity_cost:
+  electricity_cost:
+    value: 0.21
+    units: USD_2021/kWh

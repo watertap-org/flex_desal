@@ -56,7 +56,9 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
     m.fs.costing.utilization_factor.fix(1)
     m.fs.costing.maintenance_labor_chemical_factor.fix(0)
     # Default is for August 2021
-    m.fs.costing.electricity_cost.fix(0.21)
+    m.fs.costing.electricity_cost.fix(
+        get_config_value(m.fs.config_data, "electricity_cost","electricity_cost")
+    )
 
     # Add units
     m.fs.feed = Source(property_package=m.fs.properties)
