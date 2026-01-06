@@ -172,23 +172,22 @@ def initialize_ro_stage(blk):
     blk.disposal.initialize()
 
 
-def report_ro_stage(blk, w=30, add_costing=True):
-    # title = "RO Stage Report"
-    # side = int(((3 * w) - len(title)) / 2) - 1
-    # header = "=" * side + f" {title} " + "=" * side
-    # print(f"\n{header}\n")
+def report_ro_stage(blk, w=30, add_costing=True):\
+
     report_pump(blk.pump, w=w, add_costing=add_costing)
     report_ro(blk.ro, w=w)
 
 
-def add_ro_stage_costing(blk, costing_package=None):
+def add_ro_stage_costing(blk, costing_package=None, cost_RO=False):
 
     if costing_package is None:
         m = blk.model()
         costing_package = m.fs.costing
 
     add_pump_costing(blk.pump, costing_package=costing_package)
-    add_ro_costing(blk.ro, costing_package=costing_package)
+    if cost_RO:
+        # RO costing adds no opex, only capex
+        add_ro_costing(blk.ro, costing_package=costing_package)
 
 
 def main(
@@ -206,7 +205,7 @@ def main(
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
     set_ro_stage_op_conditions(m.fs.ro_stage)
 
-    add_ro_stage_costing(m.fs.ro_stage)
+    add_ro_stage_costing(m.fs.ro_stage, cost_RO=False)
     m.fs.costing.cost_process()
     m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
     m.fs.costing.add_specific_energy_consumption(

@@ -468,13 +468,13 @@ def initialize_wrd_system(m):
     initialize_brine_disposal(m.fs.disposal)
 
 
-def add_wrd_system_costing(m, source_cost=0.15):
+def add_wrd_system_costing(m, source_cost=0.15, cost_RO=False):
 
     m.fs.feed.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.costing.source.unit_cost.fix(source_cost)
 
     add_uf_system_costing(m, costing_package=m.fs.costing)
-    add_ro_system_costing(m, costing_package=m.fs.costing)
+    add_ro_system_costing(m, costing_package=m.fs.costing, cost_RO=cost_RO)
     cost_uv_aop(m.fs.UV_aop, costing_package=m.fs.costing)
     add_brine_disposal_costing(m.fs.disposal, costing_package=m.fs.costing)
     cost_decarbonator(m.fs.decarbonator, costing_package=m.fs.costing)
