@@ -40,7 +40,7 @@ sulfuric_acid:
     units: USD_2021/ton 
 scale_inhibitor:
   chemical_dosage:
-    value: 4.8
+    value: 4.77
     units: mg/L
   solution_density:
     value: 1150 
