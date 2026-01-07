@@ -143,3 +143,102 @@ uf_pumps:
     pump_outlet_pressure: 
       value: 35.4
       units: psi
+
+# ALL CHEMICAL ADDITION VALUES ARE FOR AUGUST AND NOT ACCURATE FOR MARCH
+chemical_addition:
+  ammonium_sulfate:
+    chemical_dosage:
+      value: 2.23
+      units: mg/L
+    solution_density:
+      value: 1200
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.23
+      units: dimensionless
+    unit_cost: 
+      value: 1.89
+      units: USD_2021/gallon 
+  sodium_hypochlorite:
+    chemical_dosage:
+      value: 8.1 # UF + UV/AOP dosing 
+      units: mg/L
+    solution_density:
+      value: 1200
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.125
+      units: dimensionless
+    unit_cost: 
+      value: 0.757
+      units: USD_2021/gallon
+  sulfuric_acid:
+    chemical_dosage:
+      value: 41.49
+      units: mg/L
+    solution_density:
+      value: 1840
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.93
+      units: dimensionless
+    unit_cost: 
+      value: 188.76
+      units: USD_2021/ton 
+  scale_inhibitor:
+    chemical_dosage:
+      value: 4.77
+      units: mg/L
+    solution_density:
+      value: 1150 
+      units: kg/m^3
+    ratio_in_solution:
+      value: 1
+      units: dimensionless
+    unit_cost:
+      value: 8.72
+      units: USD_2021/gallon 
+  calcium_hydroxide: 
+    chemical_dosage:
+      value: 17.9
+      units: mg/L
+    solution_density:
+      value: 1300
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.35
+      units: dimensionless
+    unit_cost:    
+      value: 556
+      units: USD_2021/ton
+  sodium_hydroxide: 
+    chemical_dosage:
+      value: 6.98
+      units: mg/L
+    solution_density:
+      value: 1300
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.25
+      units: dimensionless  
+    unit_cost: 
+      value: 557.55
+      units: USD_2021/ton
+  sodium_bisulfite:
+    chemical_dosage:
+      value: 9.36
+      units: mg/L
+    solution_density:
+      value: 1200
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.4
+      units: dimensionless
+    unit_cost: 
+      value: 2.94 # August 2021 data 
+      units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py\
+
+electricity_cost:
+  electricity_cost:
+    value: 0.17
+    units: USD_2021/kWh

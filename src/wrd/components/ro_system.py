@@ -240,13 +240,15 @@ def initialize_ro_system(m):
         m.fs.disposal.initialize()
 
 
-def add_ro_system_costing(m, costing_package=None):
+def add_ro_system_costing(m, costing_package=None, cost_RO=False):
     if costing_package is None:
         # costing_package = m.fs.costing
         m.fs.costing = costing_package = WaterTAPCosting()
 
     for i in m.fs.trains:
-        add_ro_train_costing(m.fs.train[i], costing_package=costing_package)
+        add_ro_train_costing(
+            m.fs.train[i], costing_package=costing_package, cost_RO=cost_RO
+        )
 
 
 def report_ro_system(m, w=30, add_costing=True):

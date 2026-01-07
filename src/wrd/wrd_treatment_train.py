@@ -46,18 +46,19 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
     config = get_config_file(file)
     m.fs.config_data = load_config(config)
 
-    config = get_config_file("chemical_addition.yaml")
-    m.fs.chem_data = load_config(config)
-
     m.fs.properties = NaClParameterBlock()
     m.fs.costing = WaterTAPCosting()
 
     # configure costing parameters
+    # TODO: Read from yaml / config file
     m.fs.costing.base_currency = pyunits.USD_2021
     m.fs.costing.base_period = pyunits.year
     m.fs.costing.utilization_factor.fix(1)
     m.fs.costing.maintenance_labor_chemical_factor.fix(0)
-    m.fs.costing.electricity_cost.fix(0.15)
+    # Default is for August 2021
+    m.fs.costing.electricity_cost.fix(
+        get_config_value(m.fs.config_data, "electricity_cost", "electricity_cost")
+    )
 
     # Add units
     m.fs.feed = Source(property_package=m.fs.properties)
@@ -466,16 +467,20 @@ def initialize_wrd_system(m):
     initialize_brine_disposal(m.fs.disposal)
 
 
-def add_wrd_system_costing(m, source_cost=0.15):
+def add_wrd_system_costing(m, source_cost=0.15, cost_RO=False):
 
     m.fs.feed.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
     m.fs.costing.source.unit_cost.fix(source_cost)
 
     add_uf_system_costing(m, costing_package=m.fs.costing)
-    add_ro_system_costing(m, costing_package=m.fs.costing)
+    add_ro_system_costing(m, costing_package=m.fs.costing, cost_RO=cost_RO)
     cost_uv_aop(m.fs.UV_aop, costing_package=m.fs.costing)
     add_brine_disposal_costing(m.fs.disposal, costing_package=m.fs.costing)
     cost_decarbonator(m.fs.decarbonator, costing_package=m.fs.costing)
+    for t in m.fs.tsro_trains:
+        add_ro_stage_costing(
+            m.fs.tsro_train[t], costing_package=m.fs.costing, cost_RO=cost_RO
+        )
     for chem_name in m.fs.chemical_list:
         add_chem_addition_costing(
             blk=m.fs.find_component(chem_name + "_addition"),
@@ -586,9 +591,9 @@ def report_wrd_comparison_metrics(m, w=30):
         side = int(((3 * w) - len(title)) / 2) - 1
         header = "-" * side + f" {title} " + "-" * side
         print(f"\n{header}\n")
-        # print(
-        #     f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
-        # )
+        print(
+            f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+        )
         for key in m.fs.costing.aggregate_flow_costs:
             print(
                 f'{f"{key}":<{w}s}{value(m.fs.costing.aggregate_flow_costs[key]):<{w}.3f}{"$/yr"}'
@@ -710,6 +715,31 @@ def report_wrd(m, w=30, add_comp_metrics=False):
         report_wrd_comparison_metrics(m, w=w)
 
 
+def report_wrd_costing_flows(m, w=30):
+    title = "Costing Flows"
+    side = int(((3 * w) - len(title)) / 2) - 1
+    header = "-" * side + f" {title} " + "-" * side
+    print(f"\n{header}\n")
+
+    for x in m.fs.costing.component_objects([Var, Expression], descend_into=False):
+        # x.display()
+        if "aggregate_flow_" in x.name and not x.is_indexed():
+            if "electricity" in x.name:
+                continue
+            try:
+                # Try converting to ton/month (for mass flows)
+                converted_value = value(
+                    pyunits.convert(x, to_units=pyunits.ton / pyunits.month)
+                )
+                print(f'{x.name:<{w}s}{converted_value:<{w}.3f}{"ton/month"}')
+            except:
+                # Fall back to gallon/month (for volumetric flows)
+                converted_value = value(
+                    pyunits.convert(x, to_units=pyunits.gallon / pyunits.month)
+                )
+                print(f'{x.name:<{w}s}{converted_value:<{w}.3f}{"gal/month"}')
+
+
 def main(
     num_pro_trains=4,
     num_tsro_trains=None,
@@ -744,6 +774,6 @@ def main(
 
 
 if __name__ == "__main__":
-    num_pro_trains = 1
-    file = "wrd_inputs_3_13_21.yaml"
+    num_pro_trains = 4
+    file = "wrd_inputs_8_19_21.yaml"
     m = main(num_pro_trains=num_pro_trains, file=file)

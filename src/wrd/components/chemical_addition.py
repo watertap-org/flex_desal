@@ -35,7 +35,8 @@ __all__ = [
 solver = get_solver()
 
 
-def get_chem_data(chem_data, chemical_name, default=None):
+def get_chem_data(config_data, chemical_name, default=None):
+    chem_data = config_data["chemical_addition"]
     chem_config = {}
 
     chem_config["ratio_in_solution"] = get_config_value(
@@ -65,7 +66,10 @@ def get_chem_data(chem_data, chemical_name, default=None):
     return chem_config
 
 
-def build_system(chemical_name=None):
+def build_system(
+    chemical_name=None,
+    file="wrd_inputs_8_19_21.yaml",
+):
 
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
@@ -74,9 +78,8 @@ def build_system(chemical_name=None):
     m.fs.costing.base_period = pyunits.month
     m.fs.properties = NaClParameterBlock()
 
-    config_file_name = "chemical_addition.yaml"
-    config = get_config_file(config_file_name)
-    m.fs.chem_data = load_config(config)
+    config = get_config_file(file)
+    m.fs.config_data = load_config(config)
 
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -125,7 +128,7 @@ def build_chem_addition(blk, chemical_name=None, prop_package=None):
     blk.feed = StateJunction(property_package=prop_package)
     touch_flow_and_conc(blk.feed)
 
-    blk.chem_config = get_chem_data(m.fs.chem_data, chemical_name, None)
+    blk.chem_config = get_chem_data(m.fs.config_data, chemical_name, None)
 
     blk.unit = ChemicalAddition(
         property_package=prop_package,
@@ -170,6 +173,9 @@ def set_chem_addition_op_conditions(blk, dose=None):
 
     blk.unit.dose.fix(dose)
 
+    ratio_in_solution = blk.chem_config["ratio_in_solution"]
+    blk.unit.ratio_in_solution.set_value(ratio_in_solution)
+
 
 def initialize_system(blk):
     blk.fs.feed.initialize()
@@ -199,6 +205,7 @@ def add_chem_addition_costing(
 
     if chem_cost is None:
         chem_cost = blk.chem_config["unit_cost"]
+        print(blk.unit.config.chemical, chem_cost(), pyunits.get_units(chem_cost))
         if chem_cost is None:
             raise ValueError("chem_cost must be provided to add_chem_addition_costing")
 
@@ -238,7 +245,12 @@ def report_chem_addition(blk, w=35):
     print(
         f'{f"{chem_name} Pump":<{w}s}{value(blk.unit.pumping_power):<{w}.3e}{f"{pyunits.get_units(blk.unit.pumping_power)}"}'
     )
-
+    print(
+        f'{f"{chem_name} Vol. Flow (gpm)":<{w}s}{value(pyunits.convert(blk.unit.chemical_soln_flow_vol,to_units=pyunits.gallon/pyunits.min)):<{w}.3e}{"gpm"}'
+    )
+    print(
+        f'{f"{chem_name} Vol. Flow (gal/month)":<{w}s}{value(pyunits.convert(blk.unit.chemical_soln_flow_vol,to_units=pyunits.gallon/pyunits.month)):<{w}.3e}{"gal/month"}'
+    )
     m = blk.model()
     if m.fs.find_component("costing") is not None:
         cost_var = m.fs.costing.find_component(f"{blk.unit.config.chemical}")
@@ -278,5 +290,5 @@ def main(
 
 
 if __name__ == "__main__":
-    chem = "scale_inhibitor"
-    m = main(chemical_name=chem)
+    chem = "sodium_bisulfite"
+    m = main(chemical_name=chem, Qin=10800)

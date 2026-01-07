@@ -143,3 +143,8 @@ uf_pumps:
     pump_outlet_pressure: 
       value: 35.4
       units: psi
+
+electricity_cost:
+  electricity_cost:
+    value: 0.16
+    units: USD_2021/kWh

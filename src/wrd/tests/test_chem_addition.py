@@ -5,6 +5,9 @@ from pyomo.util.check_units import assert_units_equivalent
 
 import wrd.components.chemical_addition as ca
 
+flow1 = 10652  # Pre RO flow rate for August 19, 2021 WRD treatment train
+flow2 = 9397  # Post RO flow rate for August 19, 2021 WRD treatment train
+
 
 @pytest.mark.unit
 def test_chem_addition_missing_data():
@@ -15,55 +18,70 @@ def test_chem_addition_missing_data():
 
 @pytest.mark.component
 def test_chem_addition_chem_flow():
-    # These flows are based directly on Qin=2637 and yaml inputs, so values should agree very closely
-    mass_flow_rates = {
-        "ammonium_sulfate": 8.32e-5,
-        "sodium_hypochlorite": 6.65e-4,
-        "sulfuric_acid": 1.60e-2,
-        "scale_inhibitor": 7.49e-4,
-        "calcium_hydroxide": 7.82e-3,
-        "sodium_hydroxide": 4.99e-4,
-        "sodium_bisulfite": 6.65e-4,
+    # These flows are based on inlet flow for August 19, 2021 WRD treatment train (Qin=10652 gpm)
+
+    chem_flow_dict = {
+        "sodium_hypochlorite": 871 * pyunits.gallon / pyunits.day,
+        "calcium_hydroxide": 555 * pyunits.gallon / pyunits.day,
+        "sodium_bisulfite": 274 * pyunits.gallon / pyunits.day,
+        "scale_inhibitor": 69 * pyunits.gallon / pyunits.day,
+        "sulfuric_acid": 365 * pyunits.gallon / pyunits.day,
+        "sodium_hydroxide": 304 * pyunits.gallon / pyunits.day,
+        "ammonium_sulfate": 130 * pyunits.gallon / pyunits.day,
     }
-    for chem, flow in mass_flow_rates.items():
+    for chem, v in chem_flow_dict.items():
+        if chem in [
+            "ammonium_sulfate",
+            "sodium_hypochlorite",
+            "sulfuric_acid",
+            "scale_inhibitor",
+        ]:
+            flow = flow1
+        else:
+            flow = flow2
         m = ca.main(
             chemical_name=chem,
-            Qin=2637,
-            Cin=0.5,
-            dose=None,
-            chem_cost=None,
+            Qin=flow,
         )
-
-        chem_mass_flow = m.fs.costing.find_component(f"aggregate_flow_{chem}")
-        expected_mass_flow = flow * pyunits.kg / pyunits.s
-        assert pytest.approx(value(chem_mass_flow), rel=0.05) == value(
-            expected_mass_flow
-        )  # kg/s
+        chem_vol_flow = m.fs.chem_addition.unit.chemical_soln_flow_vol
+        chem_flow = pyunits.convert(
+            chem_vol_flow, to_units=pyunits.gallon / pyunits.day
+        )
+        assert pytest.approx(value(chem_flow), rel=0.15) == value(v)
 
 
 @pytest.mark.component
 def test_chem_addition_costs():
-    # These costs are based directly on Qin=2637 and yaml inputs, so values should agree very closely
+    # These costs are from August 19, 2021 WRD treatment train
+    # This is facility data
     monthly_costs = {
-        "ammonium_sulfate": 222,
-        "sodium_hypochlorite": 2256,
-        "sulfuric_acid": 8880,
-        "scale_inhibitor": 4533,
-        "calcium_hydroxide": 47309,
-        "sodium_hydroxide": 3114,
-        "sodium_bisulfite": 2458,
+        "sodium_hypochlorite": 17088 * pyunits.USD_2021 / pyunits.month,
+        "calcium_hydroxide": 16939 * pyunits.USD_2021 / pyunits.month,
+        "sodium_bisulfite": 20940 * pyunits.USD_2021 / pyunits.month,
+        "scale_inhibitor": 14606 * pyunits.USD_2021 / pyunits.month,
+        "sulfuric_acid": 15086 * pyunits.USD_2021 / pyunits.month,
+        "sodium_hydroxide": 7814 * pyunits.USD_2021 / pyunits.month,
+        "ammonium_sulfate": 6061 * pyunits.USD_2021 / pyunits.month,
     }
     for chem, cost in monthly_costs.items():
+        if chem in [
+            "ammonium_sulfate",
+            "sodium_hypochlorite",
+            "sulfuric_acid",
+            "scale_inhibitor",
+        ]:
+            flow = flow1
+        else:
+            flow = flow2
         m = ca.main(
             chemical_name=chem,
-            Qin=2637,
-            Cin=0.5,
-            dose=None,
-            chem_cost=None,
+            Qin=flow,
         )
-
         operational_cost = m.fs.costing.aggregate_flow_costs[chem]
+        agg_cost = pyunits.convert(
+            operational_cost, to_units=pyunits.USD_2021 / pyunits.month
+        )
         assert_units_equivalent(
             operational_cost, m.fs.costing.base_currency / m.fs.costing.base_period
         )
-        assert pytest.approx(value(operational_cost), rel=0.05) == cost  # $/month
+        assert pytest.approx(value(agg_cost), rel=0.35) == value(cost)  # $/month

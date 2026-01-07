@@ -100,15 +100,15 @@ def build_pump(
 
     # Load Values for surrogate model
     if uf:
-        # a_0 = 0.0677
-        # a_1 = 5.357
-        # a_2 = -4.475
-        # a_3 = -19.578
-        # Below are estimated for 75% speed
         a_0 = 0.0677
-        a_1 = 7.142
-        a_2 = -7.956
-        a_3 = -46.408
+        a_1 = 5.357
+        a_2 = -4.475
+        a_3 = -19.578
+        # Below are estimated for 75% speed
+        # a_0 = 0.0677
+        # a_1 = 7.142
+        # a_2 = -7.956
+        # a_3 = -46.408
     elif stage_num == 1:
         a_0 = 0.389
         a_1 = -0.535
@@ -266,6 +266,8 @@ def add_pump_costing(blk, costing_package=None):
         costing_package = m.fs.costing
 
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
+    # Only want to cost opex (electricity)
+    costing_package.high_pressure_pump.cost.fix(0)
 
 
 def report_pump(blk, w=30, add_costing=False):
