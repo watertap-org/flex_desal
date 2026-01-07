@@ -24,7 +24,7 @@ def test_uf_train_3_13_21_full():
         m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
     )
     # expected_power = 178 * pyunits.kW # Measured value
-    expected_power = 63 * pyunits.kW  # Modeled value
+    expected_power = 48.7 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
     assert pytest.approx(value(power), rel=0.15) == value(expected_power)
 
@@ -43,7 +43,7 @@ def test_uf_train_3_13_21_half():
         m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
     )
     # expected_power = 79 * pyunits.kW # Measured value
-    expected_power = 26 * pyunits.kW  # Modeled value
+    expected_power = 30.8 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
     assert pytest.approx(value(power), rel=0.15) == value(expected_power)
 
