@@ -153,7 +153,7 @@ chemical_addition:
       value: 2.23
       units: mg/L
     solution_density:
-      value: 1230
+      value: 1200
       units: kg/m^3
     ratio_in_solution:
       value: 0.23
@@ -172,7 +172,7 @@ chemical_addition:
       value: 0.125
       units: dimensionless
     unit_cost: 
-      value: 0.738
+      value: 0.757
       units: USD_2021/gallon
   sulfuric_acid:
     chemical_dosage:
@@ -231,14 +231,15 @@ chemical_addition:
       value: 9.36
       units: mg/L
     solution_density:
-      value: 1320
+      value: 1200
       units: kg/m^3
     ratio_in_solution:
       value: 0.4
       units: dimensionless
     unit_cost: 
       value: 2.94 # August 2021 data 
-      units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py
+      units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py\
+
 electricity_cost:
   electricity_cost:
     value: 0.21
