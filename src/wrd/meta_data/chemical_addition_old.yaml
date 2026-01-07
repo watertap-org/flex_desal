@@ -1,7 +1,7 @@
 
 ammonium_sulfate:
   chemical_dosage:
-    value: 2.2
+    value: 2.23
     units: mg/L
   solution_density:
     value: 1230
@@ -23,7 +23,7 @@ sodium_hypochlorite:
     value: 0.125
     units: dimensionless
   unit_cost: 
-    value: 0.7568
+    value: 0.738
     units: USD_2021/gallon
 sulfuric_acid:
   chemical_dosage:
@@ -82,15 +82,11 @@ sodium_bisulfite:
     value: 9.36
     units: mg/L
   solution_density:
-    value: 1200
+    value: 1320
     units: kg/m^3
   ratio_in_solution:
     value: 0.4
     units: dimensionless
-  # BUG: costing by chem_flow_mass does not result in correct result
-  # unit_cost: 
-  #   value: 534
-  #   units: USD_2021/ton 
   unit_cost: 
-    value: 2.94 # August 2021 data
-    units: USD_2021/gallon
+    value: 2.94 # August 2021 data 
+    units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py
