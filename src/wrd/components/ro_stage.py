@@ -58,7 +58,9 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
     )
 
     m.fs.product = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.product)
     m.fs.brine = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.brine)
 
     # Arcs to connect the unit models
     m.fs.feed_to_ro_stage = Arc(
