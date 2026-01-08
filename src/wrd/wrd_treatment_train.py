@@ -768,12 +768,13 @@ def main(
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_wrd(m, add_comp_metrics=True)
+    report_wrd(m, add_comp_metrics=False)
 
     return m
 
 
 if __name__ == "__main__":
-    num_pro_trains = 4
-    file = "wrd_inputs_8_19_21.yaml"
-    m = main(num_pro_trains=num_pro_trains, file=file)
+    num_pro_trains = 1
+    num_tsro_trains = 1
+    file = "wrd_inputs_3_13_21.yaml"
+    m = main(num_pro_trains=num_pro_trains, num_tsro_trains=num_tsro_trains, file=file)
