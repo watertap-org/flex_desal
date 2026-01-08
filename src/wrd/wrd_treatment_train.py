@@ -775,6 +775,5 @@ def main(
 
 if __name__ == "__main__":
     num_pro_trains = 1
-    num_tsro_trains = 1
-    file = "wrd_inputs_3_13_21.yaml"
-    m = main(num_pro_trains=num_pro_trains, num_tsro_trains=num_tsro_trains, file=file)
+    file = "wrd_inputs_8_19_21.yaml"
+    m = main(num_pro_trains=num_pro_trains, file=file)
