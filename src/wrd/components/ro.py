@@ -41,7 +41,7 @@ default_ro_config = dict(
     transformation_scheme="BACKWARD",
     transformation_method="dae.finite_difference",
     module_type="spiral_wound",
-    finite_elements=10,
+    finite_elements=10, #Change this to 1 to apply SD model equations to whole element
     has_full_reporting=True,
 )
 

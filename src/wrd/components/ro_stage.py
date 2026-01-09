@@ -227,6 +227,15 @@ def run_august_stages():
     # August 19, 2021 Data
     # Stage 1
     m = main()
+
+    #See what membrane permeablity would yield the desired recovery
+    m.fs.ro_stage.ro.unit.A_comp.unfix()
+    m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.6077)
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    m.fs.ro_stage.ro.unit.A_comp.display()
+
     # Stage 2
     m = main(
         Qin=1029,
@@ -236,15 +245,30 @@ def run_august_stages():
         stage_num=2,
         file="wrd_inputs_8_19_21.yaml",
     )
+
+    m.fs.ro_stage.ro.unit.A_comp.unfix()
+    m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.6310)
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    m.fs.ro_stage.ro.unit.A_comp.display()
+
     # Stage 3
     m = main(
         Qin=384,
-        Cin=4.847 / 2,
+        Cin= 4.847 / 2,
         Tin=302,
-        Pin=(112.6 - 41.9) * pyunits.psi,
+        Pin=(112.6 - 41.9) * pyunits.psi, #Is this the right pressure?
         stage_num=3,
         file="wrd_inputs_8_19_21.yaml",
     )
+
+    m.fs.ro_stage.ro.unit.A_comp.unfix()
+    m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.5697)
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    m.fs.ro_stage.ro.unit.A_comp.display()
 
 
 def run_march_stages():
@@ -259,6 +283,14 @@ def run_march_stages():
         stage_num=1,
         file="wrd_inputs_3_13_21.yaml",
     )
+
+    m.fs.ro_stage.ro.unit.A_comp.unfix()
+    m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.5728)
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    m.fs.ro_stage.ro.unit.A_comp.display()
+
     # Stage 2
     m = main(
         Qin=1047,
@@ -268,6 +300,14 @@ def run_march_stages():
         stage_num=2,
         file="wrd_inputs_3_13_21.yaml",
     )
+
+    m.fs.ro_stage.ro.unit.A_comp.unfix()
+    m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.5891)
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    m.fs.ro_stage.ro.unit.A_comp.display()
+
     # Stage 3
     m = main(
         Qin=506.5,
@@ -275,10 +315,17 @@ def run_march_stages():
         Tin=295,
         Pin=(106.3 - 59.3) * pyunits.psi,
         stage_num=3,
-        file="wrd_ro_inputs_3_13_21.yaml",
+        file="wrd_inputs_3_13_21.yaml",
     )
+
+    m.fs.ro_stage.ro.unit.A_comp.unfix()
+    m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.5499)
+    solver = get_solver()
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    m.fs.ro_stage.ro.unit.A_comp.display()
 
 
 if __name__ == "__main__":
     run_august_stages()
-    run_march_stages()
+    # run_march_stages()

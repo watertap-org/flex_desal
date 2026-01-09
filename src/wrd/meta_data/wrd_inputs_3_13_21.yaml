@@ -84,7 +84,7 @@ reverse_osmosis_1d:
       value: -10.0
       units: psi
   stage_2:
-    A_comp: 5.62e-12  # m/s/Pa
+    A_comp: 5.62e-12  # m2/s/Pa
     B_comp: 1.38e-8  # m/s
     channel_height: 
       value: 86.36e-5 # mil to m

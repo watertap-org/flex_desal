@@ -69,7 +69,7 @@ reverse_osmosis_1d:
     A_comp: 7.66e-12  # m/s/Pa
     B_comp: 2.22e-8  # m/s
     # From Toray TMG(D) Series, low pressure brackish water RO membrane - TMG20D-400 datasheet 
-    channel_height: 
+    channel_height:
       value: 86.36e-5 # 34 mil to m
       units: m
     element_membrane_area: 
