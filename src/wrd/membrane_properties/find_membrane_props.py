@@ -16,13 +16,16 @@ for col in Data.columns:
         Data[col] = pd.to_numeric(Data[col], errors='coerce')
 
 # Do any required data cleaning
-data_mask_date = (Data["DateTime"].str.startswith("8/")) & (Data["DateTime"].str.contains("/2021"))
+data_mask_date = (Data["DateTime"].str.startswith("3/")) & (Data["DateTime"].str.contains("/2021"))
 cleaned_data = Data[data_mask_date].reset_index(drop=True)
+data_mask_perm_flow = cleaned_data["stage 1 permeate flowrate (gpm)"] >= 1000
+cleaned_data = cleaned_data[data_mask_perm_flow].reset_index(drop=True)
 
 # Add column for salinity from conductivity
 cleaned_data["stage 1 feed salinity (g/L)"] = cleaned_data["stage 1 feed conductivity (us/cm)"] * 0.0005 # Conversion factor
 cleaned_data["stage 1 permeate salinity (g/L)"] = cleaned_data["stage 1 permeate conductivity (us/cm)"] * 0.0005
 cleaned_data["stage 1 feed flowrate (gpm)"] = cleaned_data["stage 1 permeate flowrate (gpm)"] + cleaned_data["stage 1 concentrate flowrate (gpm)"]
+print(cleaned_data)
 
 if __name__ == '__main__':
     # Pass values to ro component model
@@ -61,6 +64,12 @@ if __name__ == '__main__':
         permability_values[cleaned_data['DateTime'][i]] = {"A": A_new, "B": B_new}
     # Export to csv?
     print(permability_values)
+    
+    # Convert to DataFrame and export to CSV
+    permeability_df = pd.DataFrame.from_dict(permability_values, orient='index')
+    permeability_df.index.name = 'DateTime'
+    permeability_df.reset_index(inplace=True)
+    permeability_df.to_csv("C:\\Users\\rchurchi\\flex_desal\\src\\wrd\\membrane_properties\\memb_perm_values_march.csv", index=False)
     average_A = sum([v["A"] for v in permability_values.values()]) / len(permability_values)
     average_B = sum([v["B"] for v in permability_values.values()]) / len(permability_values)
     print(f"Average A: {average_A}, Average B: {average_B}")
