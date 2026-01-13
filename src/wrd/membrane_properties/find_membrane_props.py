@@ -6,7 +6,10 @@ from pyomo.environ import (
 )
 from watertap.core.solvers import get_solver
 
+# Choose stage number to find properties
 stage_num = 2
+
+# Load Data from 2019 - 2024
 if stage_num == 3:
     Data = pd.read_csv(
         "C:\\Users\\rchurchi\\flex_desal\\src\\wrd\\membrane_properties\\WRD_Data_TSRO1.csv"
@@ -22,12 +25,15 @@ for col in Data.columns:
     if col != "DateTime":
         Data[col] = pd.to_numeric(Data[col], errors="coerce")
 
-# Do any required data cleaning
+# Exract only the month and year of interest
 data_mask_date = (Data["DateTime"].str.startswith("8/")) & (
     Data["DateTime"].str.contains("/2021")
 )
 cleaned_data = Data[data_mask_date].reset_index(drop=True)
+
+# Add variables
 if stage_num == 3:
+    # Remove low flow days (off or off spec)
     data_mask_perm_flow = cleaned_data["stage 3 permeate flowrate (gpm)"] >= 120
     cleaned_data = cleaned_data[data_mask_perm_flow].reset_index(drop=True)
     data_mask_pressure = cleaned_data["stage 3 feed pressure (psi)"] >= 50
@@ -48,7 +54,9 @@ if stage_num == 3:
         + cleaned_data["stage 3 concentrate flowrate (gpm)"]
         * cleaned_data["stage 3 concentrate salinity (g/L)"]
     ) / cleaned_data["stage 3 feed flowrate (gpm)"]
+
 else:
+    # Remove low flow days (off or off spec)
     data_mask_perm_flow = cleaned_data["stage 1 permeate flowrate (gpm)"] >= 1000
     cleaned_data = cleaned_data[data_mask_perm_flow].reset_index(drop=True)
     # Add column for salinity from conductivity
@@ -83,18 +91,10 @@ if __name__ == "__main__":
     permability_values = {}
     for i in range(len(cleaned_data)):
         print()
-        Qin = cleaned_data[f"stage {stage_num} feed flowrate (gpm)"][
-            i
-        ]  # * pyunits.gallons/pyunits.minute
-        Qperm = cleaned_data[f"stage {stage_num} permeate flowrate (gpm)"][
-            i
-        ]  # * pyunits.gallons/pyunits.minute
-        Cin = cleaned_data[f"stage {stage_num} feed salinity (g/L)"][
-            i
-        ]  # * pyunits.g/pyunits.L
-        Cperm = cleaned_data[f"stage {stage_num} permeate salinity (g/L)"][
-            i
-        ]  # * pyunits.g/pyunits.L
+        Qin = cleaned_data[f"stage {stage_num} feed flowrate (gpm)"][i]
+        Qperm = cleaned_data[f"stage {stage_num} permeate flowrate (gpm)"][i]
+        Cin = cleaned_data[f"stage {stage_num} feed salinity (g/L)"][i]
+        Cperm = cleaned_data[f"stage {stage_num} permeate salinity (g/L)"][i]
         Pin = cleaned_data[f"stage {stage_num} feed pressure (psi)"][i]
         Pout = cleaned_data[f"stage {stage_num} concentrate pressure (psi)"][i]
 
@@ -118,12 +118,18 @@ if __name__ == "__main__":
         assert_optimal_termination(results)
         A_new = m.fs.ro.unit.A_comp[0, "H2O"].value
         B_new = m.fs.ro.unit.B_comp[0, "NaCl"].value
-        # print(f"DateTime: {cleaned_data['DateTime'][i]}")
-        # print(f"Run {i+1}: A = {A_new}, B = {B_new}")
+
         # Tabulate all the A and B Values
         permability_values[cleaned_data["DateTime"][i]] = {"A": A_new, "B": B_new}
-    # Export to csv?
+    
     print(permability_values)
+    average_A = sum([v["A"] for v in permability_values.values()]) / len(
+        permability_values
+    )
+    average_B = sum([v["B"] for v in permability_values.values()]) / len(
+        permability_values
+    )
+    print(f"Average A: {average_A}, Average B: {average_B}")
 
     # Convert to DataFrame and export to CSV
     permeability_df = pd.DataFrame.from_dict(permability_values, orient="index")
@@ -139,10 +145,4 @@ if __name__ == "__main__":
             f"C:\\Users\\rchurchi\\flex_desal\\src\\wrd\\membrane_properties\\memb_perm_values_PRO1_{stage_num}_aug.csv",
             index=False,
         )
-    average_A = sum([v["A"] for v in permability_values.values()]) / len(
-        permability_values
-    )
-    average_B = sum([v["B"] for v in permability_values.values()]) / len(
-        permability_values
-    )
-    print(f"Average A: {average_A}, Average B: {average_B}")
+

@@ -2,7 +2,7 @@ import pytest
 from pyomo.environ import value, units as pyunits
 from wrd.components.ro_stage import main
 
-
+# TODO: Update test perm flowrate values for new model outputs w/ updated A and B
 @pytest.mark.component
 def test_ro_PRO1_8_19_21():
     # Stage 1
@@ -98,7 +98,7 @@ def test_ro_PRO1_3_13_21():
 
     expected_power = 189.6 * pyunits.kW
     # expected_perm_flow = 1404.7 * pyunits.gal / pyunits.min # measured value
-    expected_perm_flow = 1797 * pyunits.gal / pyunits.min  # modeled value
+    expected_perm_flow = 1413.79 * pyunits.gal / pyunits.min  # modeled value
 
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW
