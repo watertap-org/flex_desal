@@ -122,7 +122,7 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.516  # unitless
     pressure_drop: 
-      value: -10.98
+      value: -7
       units: psi
     header_loss:
       value: -41.9
