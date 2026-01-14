@@ -30,9 +30,11 @@ from models import HeadLoss, Source
 
 
 def build_wrd_system(
+    num_uf_pump = 3,
+    uf_split_fraction=None,
     num_pro_trains=4,
-    num_tsro_trains=None,
     num_stages=2,
+    num_tsro_trains=None,
     tsro_split_fraction=None,
     file=None,
 ):
@@ -85,7 +87,7 @@ def build_wrd_system(
 
     # UF
     build_uf_system(
-        m=m, num_trains=num_pro_trains, prop_package=m.fs.properties, file=file
+        m=m, num_trains=num_uf_pump, prop_package=m.fs.properties, file=file, split_fraction=uf_split_fraction
     )
 
     # PRO System
@@ -335,7 +337,7 @@ def set_wrd_inlet_conditions(m, Qin=None, Cin=None, Tin=None):
 
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains),
+            ("flow_vol_phase", ("Liq")): (Qin),
             ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin,
             ("temperature", None): Tin,
             ("pressure", None): 101325,
@@ -598,26 +600,6 @@ def report_wrd_comparison_metrics(m, w=30):
         f'{f"Decarbonator Energy Use":<{w}s}{value(pyunits.convert(m.fs.decarbonator.unit.power_consumption, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
 
-    # Costs
-    if m.fs.find_component("costing") is not None:
-        title = f"Flow Costs"
-        side = int(((3 * w) - len(title)) / 2) - 1
-        header = "-" * side + f" {title} " + "-" * side
-        print(f"\n{header}\n")
-        print(
-            f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
-        )
-        for key in m.fs.costing.aggregate_flow_costs:
-            print(
-                f'{f"{key}":<{w}s}{value(m.fs.costing.aggregate_flow_costs[key]):<{w}.3f}{"$/yr"}'
-            )
-        print(
-            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{"$/yr"}'
-        )
-        print(
-            f'{f"Feed Opex":<{w}s}{value(m.fs.feed.costing.variable_operating_cost):<{w}.3f}{"$/yr"}'
-        )
-
 
 def report_wrd(m, w=30, add_comp_metrics=False):
 
@@ -723,6 +705,27 @@ def report_wrd(m, w=30, add_comp_metrics=False):
         f'{f"Total Pumping Power":<{w}s}{value(pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
     print(sep)
+
+    # Costs
+    if m.fs.find_component("costing") is not None:
+        title = f"Flow Costs"
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "-" * side + f" {title} " + "-" * side
+        print(f"\n{header}\n")
+        print(
+            f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+        )
+        for key in m.fs.costing.aggregate_flow_costs:
+            print(
+                f'{f"{key}":<{w}s}{value(m.fs.costing.aggregate_flow_costs[key]):<{w}.3f}{"$/yr"}'
+            )
+        print(
+            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{"$/yr"}'
+        )
+        print(
+            f'{f"Feed Opex":<{w}s}{value(m.fs.feed.costing.variable_operating_cost):<{w}.3f}{"$/yr"}'
+        )
+
     if add_comp_metrics:
         report_wrd_comparison_metrics(m, w=w)
 
@@ -753,16 +756,22 @@ def report_wrd_costing_flows(m, w=30):
 
 
 def main(
+    num_uf_pump = 3,   
+    uf_split_fraction=None, 
     num_pro_trains=4,
     num_tsro_trains=None,
     num_pro_stages=2,
+    tsro_split_fraction=None,
     file=None,
 ):
 
     m = build_wrd_system(
+        num_uf_pump=num_uf_pump,
+        uf_split_fraction =uf_split_fraction,
         num_pro_trains=num_pro_trains,
-        num_tsro_trains=num_tsro_trains,
         num_stages=num_pro_stages,
+        num_tsro_trains=num_tsro_trains,
+        tsro_split_fraction=tsro_split_fraction,
         file=file,
     )
     add_wrd_connections(m)
@@ -780,14 +789,29 @@ def main(
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_wrd(m, add_comp_metrics=True)
     return m
 
 
 if __name__ == "__main__":
-    num_pro_trains = 1
+    num_uf_pump = 3 
+    uf_split_fraction = [0.4, 0.4, 0.2]
+    num_pro_trains = 4
+    num_tsro_trains = 4
+    tsro_split_fraction = None
+
     file = "wrd_inputs_8_19_21.yaml"
-    m = main(num_pro_trains=num_pro_trains, file=file)
+
+    m = main(
+        num_uf_pump=num_uf_pump,
+        uf_split_fraction=uf_split_fraction,
+        num_pro_trains=num_pro_trains, 
+        num_tsro_trains=num_tsro_trains,
+        tsro_split_fraction=tsro_split_fraction,
+        file=file
+        )
+    
+    report_wrd(m, add_comp_metrics=True)
+
     # See what membrane permeablity would yield the desired recovery (8/19/21 WRD Recoveries)
     # m.fs.train[1].stage[1].ro.unit.A_comp.unfix()
     # m.fs.train[1].stage[1].ro.unit.recovery_vol_phase[0, "Liq"].fix(0.6098)
