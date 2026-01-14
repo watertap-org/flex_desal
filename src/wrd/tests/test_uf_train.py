@@ -24,9 +24,9 @@ def test_uf_train_3_13_21_full():
         m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
     )
     # expected_power = 178 * pyunits.kW # Measured value
-    expected_power = 48.7 * pyunits.kW  # Modeled value
+    expected_power = 48.65 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
-    assert pytest.approx(value(power), rel=0.15) == value(expected_power)
+    assert pytest.approx(value(power), rel=1e-3) == value(expected_power)
 
 
 @pytest.mark.component
@@ -45,7 +45,7 @@ def test_uf_train_3_13_21_half():
     # expected_power = 79 * pyunits.kW # Measured value
     expected_power = 30.8 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
-    assert pytest.approx(value(power), rel=0.15) == value(expected_power)
+    assert pytest.approx(value(power), rel=1e-3) == value(expected_power)
 
 
 @pytest.mark.component
@@ -66,9 +66,9 @@ def test_uf_train_3_13_21_one_train():
         m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
     )
     # expected_power = 108 * pyunits.kW # Total measured uf pump power divided by 4
-    expected_power = 30 * pyunits.kW  # Modeled value
+    expected_power = 34.57 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
-    assert pytest.approx(value(power), rel=0.15) == value(expected_power)
+    assert pytest.approx(value(power), rel=1e-3) == value(expected_power)
 
 
 # Just doing the divided train because technically these other flowrates are already tested in uf_system tests
@@ -88,6 +88,6 @@ def test_uf_train_8_19_21():
         m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
     )
     # expected_power = 114 * pyunits.kW  # Total measured uf pump power divided by 4
-    expected_power = 32 * pyunits.kW  # Modeled value
+    expected_power = 35.78 * pyunits.kW  # Modeled value
     assert_units_consistent(power + expected_power)
-    assert pytest.approx(value(power), rel=0.15) == value(expected_power)  # kWh/m3
+    assert pytest.approx(value(power), rel=1e-3) == value(expected_power)  # kWh/m3

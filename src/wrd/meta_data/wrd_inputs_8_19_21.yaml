@@ -58,7 +58,7 @@ pumps:
       value: 112.6
       units: psi
     pump_outlet_pressure: 
-      value: 164.38 
+      value: 164.38
       units: psi
 
 # PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
@@ -66,10 +66,10 @@ pumps:
 reverse_osmosis_1d:
   number_of_trains: 1  # unitless
   stage_1:
-    A_comp: 0.66306e-11  # m/s/Pa
-    B_comp: 1.3019e-8  # m/s
+    A_comp: 7.32e-12  # m/s/Pa
+    B_comp: 7.50e-8  # m/s
     # From Toray TMG(D) Series, low pressure brackish water RO membrane - TMG20D-400 datasheet 
-    channel_height: 
+    channel_height:
       value: 86.36e-5 # 34 mil to m
       units: m
     element_membrane_area: 
@@ -86,8 +86,8 @@ reverse_osmosis_1d:
       value: -10.7
       units: psi
   stage_2:
-    A_comp: 0.66306e-11  # m/s/Pa
-    B_comp: 1.3019e-8  # m/s
+    A_comp: 7.02e-12  # m/s/Pa
+    B_comp: 4.69e-8  # m/s
     channel_height: 
       value: 86.36e-5 # mil to m
       units: m
@@ -105,8 +105,8 @@ reverse_osmosis_1d:
       value: -6
       units: psi
   stage_3:
-    A_comp: 0.66306e-11  # m/s/Pa
-    B_comp: 1.3019e-8  # m/s
+    A_comp: 8.49e-12  # m/s/Pa
+    B_comp: 1.32e-7  # m/s
     # From Toray TMG(D) Series, low pressure brackish water RO membrane - TMG20D-400 datasheet 
     channel_height: 
       value: 86.36e-5 # mil to m
@@ -122,7 +122,7 @@ reverse_osmosis_1d:
     # For Train 2 data on 2/20/21
     water_recovery_mass_phase: 0.516  # unitless
     pressure_drop: 
-      value: -10.98
+      value: -7
       units: psi
     header_loss:
       value: -41.9
