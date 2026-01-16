@@ -20,7 +20,7 @@ feed_stream:
     units: psi
 # RO pump pressure for Train 2 data on 2/20/21.  
 ro_pumps:
-  pump_stage1:
+  pump_stage_1:
     pump_flowrate: # Currently only used for pump tests
       value: 2449.8
       units: gal / min
@@ -33,7 +33,7 @@ ro_pumps:
     pump_outlet_pressure: 
       value: 153.5 
       units: psi 
-  pump_stage2:
+  pump_stage_2:
     pump_flowrate: # Currently only used for pump tests
       value: 983.2
       units: gal /min
@@ -44,9 +44,9 @@ ro_pumps:
       value: 143.3
       units: psi
     pump_outlet_pressure: 
-      value: 157.8 
+      value: 157.8
       units: psi  
-  pump_stage3:
+  pump_stage_3:
     pump_flowrate: # Currently only used for pump tests
       value: 493.1
       units: gal / min

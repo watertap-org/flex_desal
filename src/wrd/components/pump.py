@@ -370,17 +370,17 @@ if __name__ == "__main__":
 
     # August 19, 2021 Data
     # Stage 1
-    m = main(Qin=1500)
+    # m = main()
     # Testing at a lower speed
     m = main(
-        Qin=1440,
-        Cin=0.5,
+        Qin=983.2,
+        Cin=1.2,
         Tin=302,
-        Pin=101325,
-        speed=0.96,
-        stage_num=1,
-        file="wrd_inputs_8_19_21.yaml",
-    )
+        Pin=143.3 * pyunits.psi,
+        speed=1,
+        stage_num=2,
+        file="wrd_inputs_2_20_21.yaml",
+        )
     # Stage 2
     # m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
     # Stage 3
