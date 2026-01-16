@@ -36,7 +36,7 @@ __all__ = [
 solver = get_solver()
 
 
-def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
+def build_system(stage_num=1, speed=1, file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -45,8 +45,13 @@ def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
     m.fs.pump = FlowsheetBlock(dynamic=False)
-    build_pump(m.fs.pump, stage_num=stage_num, file=file, prop_package=m.fs.properties)
-
+    build_pump(
+        m.fs.pump,
+        stage_num=stage_num,
+        speed=speed,
+        file=file,
+        prop_package=m.fs.properties,
+    )
     m.fs.product = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.product)
 
@@ -72,25 +77,8 @@ def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     return m
 
 
-def build_pump(
-    blk, stage_num=1, file="wrd_inputs_8_19_21.yaml", prop_package=None, uf=False
-):
+def set_pump_efficiency(blk, stage_num=1, uf=False, speed=1):
 
-    if prop_package is None:
-        m = blk.model()
-        prop_package = m.fs.ro_properties
-
-    blk.config_data = load_config(get_config_file(file))
-    blk.stage_num = stage_num
-
-    blk.feed = StateJunction(property_package=prop_package)
-    touch_flow_and_conc(blk.feed)
-
-    blk.unit = Pump(property_package=prop_package)
-
-    blk.product = StateJunction(property_package=prop_package)
-
-    # Create variable for the efficiency from the pump curves
     blk.unit.efficiency_fluid = Var(
         initialize=0.7,
         units=pyunits.dimensionless,
@@ -100,10 +88,12 @@ def build_pump(
 
     # Load Values for surrogate model
     if uf:
+        # Below are estimated for 100% speed
         a_0 = 0.0677
         a_1 = 5.357
         a_2 = -4.475
         a_3 = -19.578
+        # apply pump affinity laws
         # Below are estimated for 75% speed
         # a_0 = 0.0677
         # a_1 = 7.142
@@ -113,7 +103,7 @@ def build_pump(
         a_0 = 0.389
         a_1 = -0.535
         a_2 = 41.373
-        a_3 = -138.82
+        a_3 = -138.820
     elif stage_num == 2:
         a_0 = 0.067
         a_1 = 21.112
@@ -156,17 +146,44 @@ def build_pump(
     )
 
     flow = blk.feed.properties[0].flow_vol_phase["Liq"]
+    equiv_flow_at_100_spd = flow / speed
 
     blk.unit.eq_efficiency_surr = Constraint(
         expr=blk.unit.efficiency_fluid
-        == blk.unit.efficiency_cubed_coeff * flow**3
-        + blk.unit.efficiency_squared_coeff * flow**2
-        + blk.unit.efficiency_linear_coeff * flow
+        == blk.unit.efficiency_cubed_coeff * equiv_flow_at_100_spd**3
+        + blk.unit.efficiency_squared_coeff * equiv_flow_at_100_spd**2
+        + blk.unit.efficiency_linear_coeff * equiv_flow_at_100_spd
         + blk.unit.efficiency_constant,
         doc="Efficiency surrogate equation",
     )
     blk.unit.efficiency_pump.bounds = (0, 1)
 
+
+def build_pump(
+    blk,
+    stage_num=1,
+    speed=1,
+    file="wrd_inputs_8_19_21.yaml",
+    prop_package=None,
+    uf=False,
+):
+
+    if prop_package is None:
+        m = blk.model()
+        prop_package = m.fs.ro_properties
+
+    blk.config_data = load_config(get_config_file(file))
+    blk.stage_num = stage_num
+
+    blk.feed = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.feed)
+
+    blk.unit = Pump(property_package=prop_package)
+
+    blk.product = StateJunction(property_package=prop_package)
+    set_pump_efficiency(blk, stage_num=stage_num, speed=speed, uf=uf)
+
+    # Create variable for the efficiency from the pump curves
     blk.unit.efficiency_motor = Param(
         initialize=0.938,
         mutable=True,
@@ -207,12 +224,16 @@ def build_pump(
 
 def set_pump_op_conditions(blk, uf=False):
     if uf:
+        # All the pumps are assumed to have the same outlet pressure for UF pumps because they collect in a header
         Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump_{blk.stage_num}"
+            blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump"
         )
     else:
         Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
+            blk.config_data,
+            "pump_outlet_pressure",
+            "ro_pumps",
+            f"pump_stage_{blk.stage_num}",
         )
         print(
             f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
@@ -315,12 +336,13 @@ def main(
     Cin=0.5,
     Tin=302,
     Pin=101325,
+    speed=1,
     stage_num=1,
     file="wrd_inputs_8_19_21.yaml",
     add_costing=True,
 ):
 
-    m = build_system(stage_num=stage_num, file=file)
+    m = build_system(stage_num=stage_num, speed=speed, file=file)
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
@@ -348,8 +370,18 @@ if __name__ == "__main__":
 
     # August 19, 2021 Data
     # Stage 1
-    m = main()
+    m = main(Qin=1500)
+    # Testing at a lower speed
+    m = main(
+        Qin=1440,
+        Cin=0.5,
+        Tin=302,
+        Pin=101325,
+        speed=0.96,
+        stage_num=1,
+        file="wrd_inputs_8_19_21.yaml",
+    )
     # Stage 2
-    m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
+    # m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
     # Stage 3
-    m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)
+    # m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)

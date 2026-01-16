@@ -7,7 +7,6 @@ from watertap_contrib.reflo.costing.util import (
 
 
 def build_source_cost_param_block(blk):
-
     costing = blk.parent_block()
     blk.unit_cost = pyo.Var(
         initialize=0.15,
