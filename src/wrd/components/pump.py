@@ -100,6 +100,7 @@ def build_pump(
 
     # Load Values for surrogate model
     if uf:
+        # Below are estimated for 100% speed
         a_0 = 0.0677
         a_1 = 5.357
         a_2 = -4.475
@@ -207,12 +208,16 @@ def build_pump(
 
 def set_pump_op_conditions(blk, uf=False):
     if uf:
+        # All the pumps are assumed to have the same outlet pressure for UF pumps because they collect in a header
         Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump_{blk.stage_num}"
+            blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump"
         )
     else:
         Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "pumps", f"pump_{blk.stage_num}"
+            blk.config_data,
+            "pump_outlet_pressure",
+            "ro_pumps",
+            f"pump_stage_{blk.stage_num}",
         )
         print(
             f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
