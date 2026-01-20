@@ -1,7 +1,7 @@
 # Feed stream for Train 2 data on 2/20/21
 feed_stream:
   feed_flow_water: 
-    value: 2449.8 
+    value: 9799.2
     units: gal / min
   feed_density_water: 
     value: 1000
@@ -18,9 +18,9 @@ feed_stream:
   feed_pressure: 
     value: 35.15
     units: psi
-# Pump pressure for Train 2 data on 2/20/21.  
-pumps:
-  pump_1:
+# RO pump pressure for Train 2 data on 2/20/21.  
+ro_pumps:
+  pump_stage1:
     pump_flowrate: # Currently only used for pump tests
       value: 2449.8
       units: gal / min
@@ -33,7 +33,7 @@ pumps:
     pump_outlet_pressure: 
       value: 153.5 
       units: psi 
-  pump_2:
+  pump_stage2:
     pump_flowrate: # Currently only used for pump tests
       value: 983.2
       units: gal /min
@@ -46,7 +46,7 @@ pumps:
     pump_outlet_pressure: 
       value: 157.8 
       units: psi  
-  pump_3:
+  pump_stage3:
     pump_flowrate: # Currently only used for pump tests
       value: 493.1
       units: gal / min
@@ -59,8 +59,9 @@ pumps:
     pump_outlet_pressure: 
       value: 156.8 
       units: psi
-# Haven't double checked pressure drops against raw data for this day
+
 # A and B coefficients for the RO system from Josh estimates
+# NEED TO UPDATE BASED ON  FEB 21 DATA. Train 2
 reverse_osmosis_1d:
   number_of_trains: 4  # unitless
   stage_1:
@@ -122,29 +123,130 @@ reverse_osmosis_1d:
     pressure_drop: 
       value: -6.98
       units: psi
-    header_loss:
-      value: -43.7
-      units: psi    
-uf_pumps:
-  number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
-  pump_1:
-    pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
-      value: 35.4
-      units: psi 
-  pump_2:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi  
-  pump_3:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi
-  pump_4:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi
 
+headers:
+  pro_header_loss:
+    value: -24.6
+    units: psi
+  tsro_header_loss:
+    value: -43.7
+    units: psi
+
+    
+uf_pumps:
+  number_trains: 1 # This number is uf_pumps now
+  pump:
+    pump_outlet_pressure:  
+      # This value is based on the value observed on SCADA during a site visit. 
+      # To be updated with actual UF pump pressure when available.
+      # Assuming all pump have the same pressure
+      value: 60  
+      units: psi 
+
+# Chemical addition data for 8/19/21
+# NEED TO UPDATE BASED ON FEB 21 DATA
+chemical_addition:
+  ammonium_sulfate:
+    chemical_dosage:
+      value: 2.23
+      units: mg/L
+    solution_density:
+      value: 1200
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.23
+      units: dimensionless
+    unit_cost: 
+      value: 1.89
+      units: USD_2021/gallon 
+  sodium_hypochlorite:
+    chemical_dosage:
+      value: 8.1 # UF + UV/AOP dosing 
+      units: mg/L
+    solution_density:
+      value: 1200
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.125
+      units: dimensionless
+    unit_cost: 
+      value: 0.757
+      units: USD_2021/gallon
+  sulfuric_acid:
+    chemical_dosage:
+      value: 41.49
+      units: mg/L
+    solution_density:
+      value: 1840
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.93
+      units: dimensionless
+    unit_cost: 
+      value: 188.76
+      units: USD_2021/ton 
+  scale_inhibitor:
+    chemical_dosage:
+      value: 4.77
+      units: mg/L
+    solution_density:
+      value: 1150 
+      units: kg/m^3
+    ratio_in_solution:
+      value: 1
+      units: dimensionless
+    unit_cost:
+      value: 8.72
+      units: USD_2021/gallon 
+  calcium_hydroxide: 
+    chemical_dosage:
+      value: 17.9
+      units: mg/L
+    solution_density:
+      value: 1300
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.35
+      units: dimensionless
+    unit_cost:    
+      value: 584.1
+      units: USD_2021/ton
+  sodium_hydroxide: 
+    chemical_dosage:
+      value: 6.98
+      units: mg/L
+    solution_density:
+      value: 1300
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.25
+      units: dimensionless  
+    unit_cost: 
+      value: 557.55
+      units: USD_2021/ton
+  sodium_bisulfite:
+    chemical_dosage:
+      value: 9.36
+      units: mg/L
+    solution_density:
+      value: 1200
+      units: kg/m^3
+    ratio_in_solution:
+      value: 0.4
+      units: dimensionless
+    unit_cost: 
+      value: 2.94 # August 2021 data 
+      units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py\
+# 8/19/21 values!
 electricity_cost:
   electricity_cost:
-    value: 0.16
+    value: 0.203
     units: USD_2021/kWh
+feedwater_cost:
+  feedwater_cost:
+    value: 0.16
+    units: USD_2021/m**3
+brine_disposal_cost:
+  brine_disposal_cost:
+    value: 0.43
+    units: USD_2021/m**3

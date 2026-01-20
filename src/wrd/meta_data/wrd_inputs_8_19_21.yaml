@@ -1,7 +1,7 @@
-# Feed stream for Train 1 data on 8/19/21
+# Feed stream for whole plant on 8/19/21
 feed_stream:
   feed_flow_water: 
-    value: 2663
+    value: 10654
     units: gal/min
   feed_density_water: 
     value: 1000
@@ -19,10 +19,10 @@ feed_stream:
     value: 14.5
     units: psi 
 
-# Pump pressure for Train 1 data on 8/19/21.  
-pumps:
-  pump_1:
-    pump_flowrate: # Currently only used for pump tests
+# RO pump pressure for Train 1 data on 8/19/21.  
+ro_pumps:
+  pump_stage_1:
+    pump_flowrate: # Currently only used for pump tests. The feedstream gives the flow for the flowsheet.
       value: 2637.1
       units: gal/min
     feed_conductivity: # Currently only used for pump tests
@@ -34,9 +34,8 @@ pumps:
     pump_outlet_pressure: 
       value: 141.9 
       units: psi 
-  pump_2:
-    pump_flowrate: # Currently only used for pump tests
-      value: 1028.9
+  pump_stage_2:
+    pump_flowrate: # Currently only used for pump tests. 
       units: gal /min
     feed_conductivity: 
       value: 2495.8
@@ -47,8 +46,8 @@ pumps:
     pump_outlet_pressure: 
       value: 160.5 
       units: psi  
-  pump_3:
-    pump_flowrate: # Currently only used for pump tests
+  pump_stage_3:
+    pump_flowrate: # Currently only used for pump tests.
       value: 383.6
       units: gal/min
     feed_conductivity: 
@@ -61,8 +60,9 @@ pumps:
       value: 164.38
       units: psi
 
-# PRESSUE DROP SHOULD BE DIFFERENT FOR EACH CASE DAY
-# A and B coefficients for the RO system from Josh estimates
+# A and B coefficients for the RO system updated for each stage.
+# The A and B values are the average of the WaterTAP modeled A and B for August 2021 data.
+# Data used for each stage is in src/wrd/membrane_properties/cleaned_data...
 reverse_osmosis_1d:
   number_of_trains: 1  # unitless
   stage_1:
@@ -80,7 +80,7 @@ reverse_osmosis_1d:
     # WRD design document
     number_of_vessels: 72 # unitless
     number_of_elements_per_vessel: 7  # unitless
-    # For Train 2 data on 2/20/21
+    # For Train 1 data on 8/19/21
     water_recovery_mass_phase: 0.610  # unitless
     pressure_drop: 
       value: -10.7
@@ -99,7 +99,7 @@ reverse_osmosis_1d:
     # WRD design document
     number_of_vessels: 30 # unitless
     number_of_elements_per_vessel: 7  # unitless
-    # For Train 2 data on 2/20/21
+    # For Train 1 data on 8/19/21
     water_recovery_mass_phase: 0.617  # unitless
     pressure_drop: 
       value: -6
@@ -119,34 +119,31 @@ reverse_osmosis_1d:
     # WRD design document
     number_of_vessels: 15  # unitless
     number_of_elements_per_vessel: 7  # unitless
-    # For Train 2 data on 2/20/21
+    # For Train 1 data on 8/19/21
     water_recovery_mass_phase: 0.516  # unitless
     pressure_drop: 
       value: -7
       units: psi
-    header_loss:
-      value: -41.9
-      units: psi
+
+headers:
+  pro_header_loss:
+    value: -24.6
+    units: psi
+  tsro_header_loss:
+    value: -41.9
+    units: psi
 
 uf_pumps:
-  number_trains: 1 # This number is unused for now. Assuming PRO trains = UF trains
-  pump_1:
-    pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
-      value: 35.4
+  number_trains: 1 # This number is uf_pumps now
+  pump:
+    pump_outlet_pressure:  
+      # This value is based on the value observed on SCADA during a site visit. 
+      # To be updated with actual UF pump pressure when available.
+      # Assuming all pump have the same pressure
+      value: 60  
       units: psi 
-  pump_2:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi  
-  pump_3:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi
-  pump_4:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi
-
+  
+# Chemical addition data for 8/19/21
 chemical_addition:
   ammonium_sulfate:
     chemical_dosage:
@@ -211,7 +208,7 @@ chemical_addition:
       value: 0.35
       units: dimensionless
     unit_cost:    
-      value: 556
+      value: 584.1
       units: USD_2021/ton
   sodium_hydroxide: 
     chemical_dosage:
@@ -242,5 +239,14 @@ chemical_addition:
 
 electricity_cost:
   electricity_cost:
-    value: 0.21
+   # Unit cost from ARC Costs SCE Tab, col Q / col R, or total consumption / total cost
+    value: 0.203
     units: USD_2021/kWh
+feedwater_cost:
+  feedwater_cost:
+    value: 0.16
+    units: USD_2021/m**3
+brine_disposal_cost:
+  brine_disposal_cost:
+    value: 0.43
+    units: USD_2021/m**3

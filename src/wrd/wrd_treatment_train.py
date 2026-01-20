@@ -29,7 +29,15 @@ from srp.utils import touch_flow_and_conc
 from models import HeadLoss, Source
 
 
-def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=None):
+def build_wrd_system(
+    num_uf_pump=3,
+    uf_split_fraction=None,
+    num_pro_trains=4,
+    num_stages=2,
+    num_tsro_trains=None,
+    tsro_split_fraction=None,
+    file=None,
+):
 
     if file is None:
         raise ValueError("Input file must be provided to build WRD system.")
@@ -79,8 +87,15 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
 
     # UF
     build_uf_system(
-        m=m, num_trains=num_pro_trains, prop_package=m.fs.properties, file=file
+        m=m,
+        num_trains=num_uf_pump,
+        prop_package=m.fs.properties,
+        file=file,
+        split_fraction=uf_split_fraction,
     )
+    # Pressure Drop
+    m.fs.pro_header = HeadLoss(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.pro_header)
 
     # PRO System
     build_ro_system(
@@ -96,12 +111,21 @@ def build_wrd_system(num_pro_trains=4, num_tsro_trains=None, num_stages=2, file=
     # m.fs.tsro_header = StateJunction(property_package=m.fs.properties)
     m.fs.tsro_header = HeadLoss(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.tsro_header)
+    tsro_feed_outlet_list = [f"to_tsro{i}" for i in m.fs.tsro_trains]
     m.fs.tsro_feed_separator = Separator(
         property_package=m.fs.properties,
-        outlet_list=[f"to_tsro{i}" for i in m.fs.tsro_trains],
+        outlet_list=tsro_feed_outlet_list,
         split_basis=SplittingType.componentFlow,
     )
-    m.fs.tsro_feed_separator.even_split = 1 / len(m.fs.tsro_trains)
+
+    if tsro_split_fraction is None:
+        # Even Split
+        m.fs.tsro_feed_separator.split_frac_input = (
+            1.0 / len(tsro_feed_outlet_list) * ones(len(tsro_feed_outlet_list))
+        )
+    else:
+        m.fs.tsro_feed_separator.split_frac_input = tsro_split_fraction
+
     touch_flow_and_conc(m.fs.tsro_feed_separator)
     m.fs.tsro_train = FlowsheetBlock(m.fs.tsro_trains, dynamic=False)
 
@@ -214,9 +238,13 @@ def add_wrd_connections(m):
     m.fs.pre_chem_to_uf_system = Arc(
         source=last_chem.product.outlet, destination=m.fs.uf_feed_separator.inlet
     )
-    m.fs.uf_system_to_pro = Arc(
-        source=m.fs.uf_product_mixer.outlet, destination=m.fs.ro_feed_separator.inlet
+    m.fs.uf_system_to_pro_header = Arc(
+        source=m.fs.uf_product_mixer.outlet, destination=m.fs.pro_header.inlet
     )
+    m.fs.pro_header_to_pro = Arc(
+        source=m.fs.pro_header.outlet, destination=m.fs.ro_feed_separator.inlet
+    )
+
     #####
     m.fs.pro_to_tsro_header = Arc(
         source=m.fs.ro_brine_mixer.outlet, destination=m.fs.tsro_header.inlet
@@ -322,7 +350,7 @@ def set_wrd_inlet_conditions(m, Qin=None, Cin=None, Tin=None):
 
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): (Qin * m.num_pro_trains),
+            ("flow_vol_phase", ("Liq")): (Qin),
             ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin,
             ("temperature", None): Tin,
             ("pressure", None): 101325,
@@ -341,32 +369,43 @@ def set_wrd_operating_conditions(m):
 
     set_uf_system_op_conditions(m)
 
+    # m.fs.pro_header.PRO_header_loss = get_config_value(
+    #     m.fs.config_data, "pro_header_loss", "headers"
+    # )
+    m.fs.pro_header.control_volume.deltaP[0].fix(
+        get_config_value(m.fs.config_data, "pro_header_loss", "headers")
+    )
+
     set_ro_system_op_conditions(m)
+
+    # m.fs.tsro_header.TSRO_header_loss = get_config_value(
+    #     m.fs.config_data, "tsro_header_loss", "headers"
+    # )
+    m.fs.tsro_header.control_volume.deltaP[0].fix(
+        get_config_value(m.fs.config_data, "tsro_header_loss", "headers")
+    )
 
     for t in m.fs.tsro_trains:
         if t != m.fs.tsro_trains.first():
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].fix(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
         else:
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].set_value(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].set_value(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
         set_ro_stage_op_conditions(m.fs.tsro_train[t])
 
     set_uv_aop_op_conditions(m.fs.UV_aop)
 
     set_decarbonator_op_conditions(m.fs.decarbonator)
-    m.fs.tsro_header.TSRO_header_loss = get_config_value(
-        m.fs.config_data, "header_loss", "reverse_osmosis_1d", "stage_3"
-    )
-    m.fs.tsro_header.control_volume.deltaP[0].fix(m.fs.tsro_header.TSRO_header_loss)
+
     m.fs.ro_system_product_mixer.outlet.pressure[0].fix(101325)
     m.fs.tsro_brine_mixer.outlet.pressure[0].fix(101325)
     m.fs.disposal_mixer.outlet.pressure[0].fix(101325)
@@ -414,7 +453,10 @@ def initialize_wrd_system(m):
     m.fs.uf_disposal_mixer.initialize()
     propagate_state(m.fs.uf_disposal_to_disposal_mixer)
 
-    propagate_state(m.fs.uf_system_to_pro)
+    propagate_state(m.fs.uf_system_to_pro_header)
+    m.fs.pro_header.initialize()
+
+    propagate_state(m.fs.pro_header_to_pro)
     initialize_ro_system(m)
 
     propagate_state(m.fs.pro_to_ro_system_product_mixer)
@@ -467,9 +509,10 @@ def initialize_wrd_system(m):
     initialize_brine_disposal(m.fs.disposal)
 
 
-def add_wrd_system_costing(m, source_cost=0.15, cost_RO=False):
+def add_wrd_system_costing(m, cost_RO=False):
 
     m.fs.feed.costing = UnitModelCostingBlock(flowsheet_costing_block=m.fs.costing)
+    source_cost = get_config_value(m.fs.config_data, "feedwater_cost", "feedwater_cost")
     m.fs.costing.source.unit_cost.fix(source_cost)
 
     add_uf_system_costing(m, costing_package=m.fs.costing)
@@ -477,6 +520,10 @@ def add_wrd_system_costing(m, source_cost=0.15, cost_RO=False):
     cost_uv_aop(m.fs.UV_aop, costing_package=m.fs.costing)
     add_brine_disposal_costing(m.fs.disposal, costing_package=m.fs.costing)
     cost_decarbonator(m.fs.decarbonator, costing_package=m.fs.costing)
+    # Brine disposal cost set from yaml
+    # feed_unit_cost = get_config_value(m.fs.config_data, "feedwater_cost", "feedwater_cost")
+    # m.fs.costing.source.unit_cost.fix(feed_unit_cost)
+
     for t in m.fs.tsro_trains:
         add_ro_stage_costing(
             m.fs.tsro_train[t], costing_package=m.fs.costing, cost_RO=cost_RO
@@ -585,26 +632,6 @@ def report_wrd_comparison_metrics(m, w=30):
         f'{f"Decarbonator Energy Use":<{w}s}{value(pyunits.convert(m.fs.decarbonator.unit.power_consumption, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
 
-    # Costs
-    if m.fs.find_component("costing") is not None:
-        title = f"Flow Costs"
-        side = int(((3 * w) - len(title)) / 2) - 1
-        header = "-" * side + f" {title} " + "-" * side
-        print(f"\n{header}\n")
-        print(
-            f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
-        )
-        for key in m.fs.costing.aggregate_flow_costs:
-            print(
-                f'{f"{key}":<{w}s}{value(m.fs.costing.aggregate_flow_costs[key]):<{w}.3f}{"$/yr"}'
-            )
-        print(
-            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{"$/yr"}'
-        )
-        print(
-            f'{f"Feed Opex":<{w}s}{value(m.fs.feed.costing.variable_operating_cost):<{w}.3f}{"$/yr"}'
-        )
-
 
 def report_wrd(m, w=30, add_comp_metrics=False):
 
@@ -710,6 +737,27 @@ def report_wrd(m, w=30, add_comp_metrics=False):
         f'{f"Total Pumping Power":<{w}s}{value(pyunits.convert(m.fs.total_system_pump_power, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
     print(sep)
+
+    # Costs
+    if m.fs.find_component("costing") is not None:
+        title = f"Flow Costs"
+        side = int(((3 * w) - len(title)) / 2) - 1
+        header = "-" * side + f" {title} " + "-" * side
+        print(f"\n{header}\n")
+        print(
+            f'{f"Levelized Cost of Water":<{w}s}{value(pyunits.convert(m.fs.costing.LCOW, to_units=pyunits.USD_2021  / pyunits.m**3)):<{w}.3f}{"$/m3"}'
+        )
+        for key in m.fs.costing.aggregate_flow_costs:
+            print(
+                f'{f"{key}":<{w}s}{value(m.fs.costing.aggregate_flow_costs[key]):<{w}.3f}{"$/yr"}'
+            )
+        print(
+            f'{f"Brine Disposal Opex":<{w}s}{value(m.fs.disposal.unit.costing.variable_operating_cost):<{w}.2f}{"$/yr"}'
+        )
+        print(
+            f'{f"Feed Opex":<{w}s}{value(m.fs.feed.costing.variable_operating_cost):<{w}.3f}{"$/yr"}'
+        )
+
     if add_comp_metrics:
         report_wrd_comparison_metrics(m, w=w)
 
@@ -740,16 +788,22 @@ def report_wrd_costing_flows(m, w=30):
 
 
 def main(
+    num_uf_pump=3,
+    uf_split_fraction=None,
     num_pro_trains=4,
     num_tsro_trains=None,
     num_pro_stages=2,
+    tsro_split_fraction=None,
     file=None,
 ):
 
     m = build_wrd_system(
+        num_uf_pump=num_uf_pump,
+        uf_split_fraction=uf_split_fraction,
         num_pro_trains=num_pro_trains,
-        num_tsro_trains=num_tsro_trains,
         num_stages=num_pro_stages,
+        num_tsro_trains=num_tsro_trains,
+        tsro_split_fraction=tsro_split_fraction,
         file=file,
     )
     add_wrd_connections(m)
@@ -761,20 +815,34 @@ def main(
     print(f"{degrees_of_freedom(m)} degrees of freedom after setting op conditions")
     assert degrees_of_freedom(m) == 0
     initialize_wrd_system(m)
-
     add_wrd_system_costing(m)
 
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
-    report_wrd(m, add_comp_metrics=True)
     return m
 
 
 if __name__ == "__main__":
-    num_pro_trains = 1
+    num_uf_pump = 3
+    uf_split_fraction = [0.4, 0.4, 0.2]
+    num_pro_trains = 4
+    num_tsro_trains = 4
+    tsro_split_fraction = None
+
     file = "wrd_inputs_8_19_21.yaml"
-    m = main(num_pro_trains=num_pro_trains, file=file)
+
+    m = main(
+        num_uf_pump=num_uf_pump,
+        uf_split_fraction=uf_split_fraction,
+        num_pro_trains=num_pro_trains,
+        num_tsro_trains=num_tsro_trains,
+        tsro_split_fraction=tsro_split_fraction,
+        file=file,
+    )
+
+    report_wrd(m, add_comp_metrics=True)
+
     # See what membrane permeablity would yield the desired recovery (8/19/21 WRD Recoveries)
     # m.fs.train[1].stage[1].ro.unit.A_comp.unfix()
     # m.fs.train[1].stage[1].ro.unit.recovery_vol_phase[0, "Liq"].fix(0.6098)

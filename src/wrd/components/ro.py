@@ -149,7 +149,9 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5, file="wrd_inputs_8_19_21.yaml"):
 
     config_data = load_config(get_config_file(file))
 
-    Pout = get_config_value(config_data, "pump_outlet_pressure", "pumps", f"pump_1")
+    Pout = get_config_value(
+        config_data, "pump_outlet_pressure", "ro_pumps", f"pump_stage_1"
+    )
 
     m.fs.feed.properties.calculate_state(
         var_args={

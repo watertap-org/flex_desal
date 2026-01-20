@@ -1,7 +1,7 @@
-# Feed stream for Train 1 data on 3/13/21
+# Feed stream for whole plant on 3/13/21
 feed_stream:
   feed_flow_water: 
-    value: 2476
+    value: 9907
     units: gal/min
   feed_density_water: 
     value: 1000
@@ -19,10 +19,10 @@ feed_stream:
     value: 14.5
     units: psi 
 
-# Pump pressure for Train 1 data on 3/13/21.  
-pumps:
-  pump_1:
-    pump_flowrate: # Currently only used for pump tests
+# RO pump pressure for Train 1 data on 3/13/21.  
+ro_pumps:
+  pump_stage_1:
+    pump_flowrate: # Currently only used for pump tests. The feedstream gives the flow for the flowsheet.
       value: 2452.2
       units: gal/min
     feed_conductivity: # Currently only used for pump tests
@@ -34,8 +34,8 @@ pumps:
     pump_outlet_pressure: # Used in the ro system and pump test
       value: 153.5
       units: psi 
-  pump_2:
-    pump_flowrate: 
+  pump_stage_2:
+    pump_flowrate: # Currently only used for pump tests.
       value: 1047.4
       units: gal/min
     feed_conductivity: 
@@ -47,8 +47,8 @@ pumps:
     pump_outlet_pressure: 
       value: 172.5
       units: psi  
-  pump_3:
-    pump_flowrate: # Currently only used for pump tests
+  pump_stage_3:
+    pump_flowrate:  # Currently only used for pump tests.
       value: 517.3
       units: gal / min
     feed_conductivity: 
@@ -60,7 +60,9 @@ pumps:
     pump_outlet_pressure: 
       value: 153.3 
       units: psi
-# A and B coefficients for the RO system from Josh estimates
+# A and B coefficients for the RO system updated for each stage.
+# The A and B values are the average of the WaterTAP modeled A and B for March 2021 data.
+# Data used for each stage is in src/wrd/membrane_properties/cleaned_data...
 reverse_osmosis_1d:
   number_of_trains: 4  # unitless
   stage_1:
@@ -78,7 +80,7 @@ reverse_osmosis_1d:
     # WRD design document
     number_of_vessels: 72 # unitless
     number_of_elements_per_vessel: 7  # unitless
-    # For Train 2 data on 2/20/21
+    # For Train 1 data on 3/13/21
     water_recovery_mass_phase: 0.573  # unitless
     pressure_drop: 
       value: -10.0
@@ -97,7 +99,7 @@ reverse_osmosis_1d:
     # WRD design document
     number_of_vessels: 30 # unitless
     number_of_elements_per_vessel: 7  # unitless
-    # For Train 2 data on 2/20/21
+    # For Train 1 data on 3/13/21
     water_recovery_mass_phase: 0.589  # unitless
     pressure_drop: 
       value: -6.9
@@ -117,38 +119,35 @@ reverse_osmosis_1d:
     # WRD design document
     number_of_vessels: 15  # unitless
     number_of_elements_per_vessel: 7  # unitless
-    # For Train 2 data on 2/20/21
+    # For Train 1 data on 3/13/21
     water_recovery_mass_phase: 0.55  # unitless
     pressure_drop: 
       value: -7.7
       units: psi
-    header_loss:
-      value: -59.3
-      units: psi      
+    
+headers:
+  pro_header_loss:
+    value: -24.6
+    units: psi
+  tsro_header_loss:
+    value: -59.3
+    units: psi
+  
 uf_pumps:
   number_trains: 1 # This number is distinct from the number of RO trains, but they should match for testing
-  pump_1:
-    pump_outlet_pressure: # Assuming the outlet pressure is the same for all pumps and equal to the inlet pressure of the ro 
-      value: 35.4
+  pump:
+    pump_outlet_pressure:  
+      # This value is based on the value observed on SCADA during a site visit. 
+      # To be updated with actual UF pump pressure when available.
+      # Assuming all pump have the same pressure
+      value: 60  
       units: psi 
-  pump_2:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi  
-  pump_3:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi
-  pump_4:
-    pump_outlet_pressure: 
-      value: 35.4
-      units: psi
 
-# ALL CHEMICAL ADDITION VALUES ARE FOR AUGUST AND NOT ACCURATE FOR MARCH
+# Chemical addition data for 3/13/21
 chemical_addition:
   ammonium_sulfate:
     chemical_dosage:
-      value: 2.23
+      value: 1.83
       units: mg/L
     solution_density:
       value: 1200
@@ -161,7 +160,7 @@ chemical_addition:
       units: USD_2021/gallon 
   sodium_hypochlorite:
     chemical_dosage:
-      value: 8.1 # UF + UV/AOP dosing 
+      value: 4.89 # UF + UV/AOP dosing 
       units: mg/L
     solution_density:
       value: 1200
@@ -170,11 +169,11 @@ chemical_addition:
       value: 0.125
       units: dimensionless
     unit_cost: 
-      value: 0.757
+      value: 0.69
       units: USD_2021/gallon
   sulfuric_acid:
     chemical_dosage:
-      value: 41.49
+      value: 47.72
       units: mg/L
     solution_density:
       value: 1840
@@ -183,11 +182,11 @@ chemical_addition:
       value: 0.93
       units: dimensionless
     unit_cost: 
-      value: 188.76
+      value: 171.6
       units: USD_2021/ton 
   scale_inhibitor:
     chemical_dosage:
-      value: 4.77
+      value: 5
       units: mg/L
     solution_density:
       value: 1150 
@@ -209,11 +208,11 @@ chemical_addition:
       value: 0.35
       units: dimensionless
     unit_cost:    
-      value: 556
+      value: 584.1
       units: USD_2021/ton
   sodium_hydroxide: 
     chemical_dosage:
-      value: 6.98
+      value: 38.93
       units: mg/L
     solution_density:
       value: 1300
@@ -222,11 +221,11 @@ chemical_addition:
       value: 0.25
       units: dimensionless  
     unit_cost: 
-      value: 557.55
+      value: 531.0
       units: USD_2021/ton
   sodium_bisulfite:
     chemical_dosage:
-      value: 9.36
+      value: 7.4
       units: mg/L
     solution_density:
       value: 1200
@@ -235,10 +234,19 @@ chemical_addition:
       value: 0.4
       units: dimensionless
     unit_cost: 
-      value: 2.94 # August 2021 data 
+      value: 2.66 
       units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py\
 
 electricity_cost:
   electricity_cost:
-    value: 0.17
+  # Unit cost from ARC Costs SCE Tab, col Q / col R, or total consumption / total cost
+    value: 0.146
     units: USD_2021/kWh
+feedwater_cost:
+  feedwater_cost:
+    value: 0.15
+    units: USD_2021/m**3
+brine_disposal_cost:
+  brine_disposal_cost:
+    value: 0.46
+    units: USD_2021/m**3

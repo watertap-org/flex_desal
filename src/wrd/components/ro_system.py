@@ -1,3 +1,4 @@
+from numpy import ones
 from pyomo.environ import (
     ConcreteModel,
     Expression,
@@ -39,7 +40,7 @@ def build_ro_system(
     m=None,
     num_trains=3,
     num_stages=3,
-    split_fractions=None,
+    split_fraction=None,
     prop_package=None,
     file="wrd_inputs_8_19_21.yaml",
 ):
@@ -75,10 +76,12 @@ def build_ro_system(
         split_basis=SplittingType.componentFlow,
     )
 
-    if split_fractions is None:
-        m.fs.ro_feed_separator.even_split = 1.0 / len(outlet_list)
+    if split_fraction is None:
+        m.fs.ro_feed_separator.split_frac_input = (
+            1.0 / len(outlet_list) * ones(len(outlet_list))
+        )
     else:
-        raise NotImplementedError("Custom split fractions not yet implemented.")
+        m.fs.ro_feed_separator.split_frac_input = split_fraction
 
     perm_inlet_list = [f"perm_inlet{i}" for i in m.fs.trains]
 
@@ -196,17 +199,17 @@ def set_ro_system_op_conditions(m):
         set_ro_train_op_conditions(m.fs.train[i])
         if i != m.fs.trains.first():
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "H2O"].fix(
-                m.fs.ro_feed_separator.even_split
+                m.fs.ro_feed_separator.split_frac_input[i - 1]
             )
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "NaCl"].fix(
-                m.fs.ro_feed_separator.even_split
+                m.fs.ro_feed_separator.split_frac_input[i - 1]
             )
         else:
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "H2O"].set_value(
-                m.fs.ro_feed_separator.even_split
+                m.fs.ro_feed_separator.split_frac_input[i - 1]
             )
             m.fs.ro_feed_separator.split_fraction[0, f"train{i}", "NaCl"].set_value(
-                m.fs.ro_feed_separator.even_split
+                m.fs.ro_feed_separator.split_frac_input[i - 1]
             )
 
 
