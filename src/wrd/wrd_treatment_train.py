@@ -94,8 +94,8 @@ def build_wrd_system(
         split_fraction=uf_split_fraction,
     )
     # Pressure Drop
-    m.fs.ro_header = HeadLoss(property_package=m.fs.properties)
-    touch_flow_and_conc(m.fs.ro_header)
+    m.fs.pro_header = HeadLoss(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.pro_header)
 
     # PRO System
     build_ro_system(
@@ -111,16 +111,18 @@ def build_wrd_system(
     # m.fs.tsro_header = StateJunction(property_package=m.fs.properties)
     m.fs.tsro_header = HeadLoss(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.tsro_header)
+    tsro_feed_outlet_list = [f"to_tsro{i}" for i in m.fs.tsro_trains]
     m.fs.tsro_feed_separator = Separator(
         property_package=m.fs.properties,
-        outlet_list=[f"to_tsro{i}" for i in m.fs.tsro_trains],
+        outlet_list=tsro_feed_outlet_list,
         split_basis=SplittingType.componentFlow,
     )
-    # m.fs.tsro_feed_separator.even_split = 1 / len(m.fs.tsro_trains)
 
     if tsro_split_fraction is None:
         # Even Split
-        m.fs.tsro_feed_separator.split_frac_input = 1 / len(m.fs.tsro_trains)
+        m.fs.tsro_feed_separator.split_frac_input = (
+            1.0 / len(tsro_feed_outlet_list) * ones(len(tsro_feed_outlet_list))
+        )
     else:
         m.fs.tsro_feed_separator.split_frac_input = tsro_split_fraction
 
@@ -236,11 +238,11 @@ def add_wrd_connections(m):
     m.fs.pre_chem_to_uf_system = Arc(
         source=last_chem.product.outlet, destination=m.fs.uf_feed_separator.inlet
     )
-    m.fs.uf_system_to_ro_header = Arc(
-        source=m.fs.uf_product_mixer.outlet, destination=m.fs.ro_header.inlet
+    m.fs.uf_system_to_pro_header = Arc(
+        source=m.fs.uf_product_mixer.outlet, destination=m.fs.pro_header.inlet
     )
-    m.fs.ro_header_to_pro = Arc(
-        source=m.fs.ro_header.outlet, destination=m.fs.ro_feed_separator.inlet
+    m.fs.pro_header_to_pro = Arc(
+        source=m.fs.pro_header.outlet, destination=m.fs.ro_feed_separator.inlet
     )
 
     #####
@@ -367,32 +369,36 @@ def set_wrd_operating_conditions(m):
 
     set_uf_system_op_conditions(m)
 
-    m.fs.ro_header.RO_header_loss = get_config_value(
-        m.fs.config_data, "ro_header_loss", "headers"
+    # m.fs.pro_header.PRO_header_loss = get_config_value(
+    #     m.fs.config_data, "pro_header_loss", "headers"
+    # )
+    m.fs.pro_header.control_volume.deltaP[0].fix(
+        get_config_value(m.fs.config_data, "pro_header_loss", "headers")
     )
-    m.fs.ro_header.control_volume.deltaP[0].fix(m.fs.ro_header.RO_header_loss)
 
     set_ro_system_op_conditions(m)
 
-    m.fs.tsro_header.TSRO_header_loss = get_config_value(
-        m.fs.config_data, "tsro_header_loss", "headers"
+    # m.fs.tsro_header.TSRO_header_loss = get_config_value(
+    #     m.fs.config_data, "tsro_header_loss", "headers"
+    # )
+    m.fs.tsro_header.control_volume.deltaP[0].fix(
+        get_config_value(m.fs.config_data, "tsro_header_loss", "headers")
     )
-    m.fs.tsro_header.control_volume.deltaP[0].fix(m.fs.tsro_header.TSRO_header_loss)
 
     for t in m.fs.tsro_trains:
         if t != m.fs.tsro_trains.first():
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].fix(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
         else:
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].set_value(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].set_value(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
         set_ro_stage_op_conditions(m.fs.tsro_train[t])
 
@@ -447,10 +453,10 @@ def initialize_wrd_system(m):
     m.fs.uf_disposal_mixer.initialize()
     propagate_state(m.fs.uf_disposal_to_disposal_mixer)
 
-    propagate_state(m.fs.uf_system_to_ro_header)
-    m.fs.ro_header.initialize()
+    propagate_state(m.fs.uf_system_to_pro_header)
+    m.fs.pro_header.initialize()
 
-    propagate_state(m.fs.ro_header_to_pro)
+    propagate_state(m.fs.pro_header_to_pro)
     initialize_ro_system(m)
 
     propagate_state(m.fs.pro_to_ro_system_product_mixer)
