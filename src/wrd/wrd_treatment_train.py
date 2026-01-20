@@ -111,15 +111,18 @@ def build_wrd_system(
     # m.fs.tsro_header = StateJunction(property_package=m.fs.properties)
     m.fs.tsro_header = HeadLoss(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.tsro_header)
+    tsro_feed_outlet_list = [f"to_tsro{i}" for i in m.fs.tsro_trains]
     m.fs.tsro_feed_separator = Separator(
         property_package=m.fs.properties,
-        outlet_list=[f"to_tsro{i}" for i in m.fs.tsro_trains],
+        outlet_list=tsro_feed_outlet_list,
         split_basis=SplittingType.componentFlow,
     )
 
     if tsro_split_fraction is None:
         # Even Split
-        m.fs.tsro_feed_separator.split_frac_input = 1 / len(m.fs.tsro_trains)
+        m.fs.tsro_feed_separator.split_frac_input = (
+            1.0 / len(tsro_feed_outlet_list) * ones(len(tsro_feed_outlet_list))
+        )
     else:
         m.fs.tsro_feed_separator.split_frac_input = tsro_split_fraction
 
@@ -385,17 +388,17 @@ def set_wrd_operating_conditions(m):
     for t in m.fs.tsro_trains:
         if t != m.fs.tsro_trains.first():
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].fix(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].fix(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
         else:
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "H2O"].set_value(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
             m.fs.tsro_feed_separator.split_fraction[0, f"to_tsro{t}", "NaCl"].set_value(
-                1 / len(m.fs.tsro_trains)
+                m.fs.tsro_feed_separator.split_frac_input[t - 1]
             )
         set_ro_stage_op_conditions(m.fs.tsro_train[t])
 

@@ -22,7 +22,7 @@ feed_stream:
 # RO pump pressure for Train 1 data on 8/19/21.  
 ro_pumps:
   pump_stage_1:
-    pump_flowrate: # Currently only used for pump tests. This is updated at the flowsheet level based on recovery.
+    pump_flowrate: # Currently only used for pump tests. The feedstream gives the flow for the flowsheet.
       value: 2637.1
       units: gal/min
     feed_conductivity: # Currently only used for pump tests
@@ -35,8 +35,7 @@ ro_pumps:
       value: 141.9 
       units: psi 
   pump_stage_2:
-    pump_flowrate: # Currently only used for pump tests. This is updated at the flowsheet level based on recovery.
-      value: 1028.9
+    pump_flowrate: # Currently only used for pump tests. 
       units: gal /min
     feed_conductivity: 
       value: 2495.8
@@ -48,7 +47,7 @@ ro_pumps:
       value: 160.5 
       units: psi  
   pump_stage_3:
-    pump_flowrate: # Currently only used for pump tests. This is updated at the flowsheet level based on recovery.
+    pump_flowrate: # Currently only used for pump tests.
       value: 383.6
       units: gal/min
     feed_conductivity: 
