@@ -7,8 +7,10 @@ from pyomo.environ import (
     assert_optimal_termination,
     value,
     units as pyunits,
+    Block,
 )
 from pyomo.network import Arc
+from pyomo.util.calc_var_value import calculate_variable_from_constraint
 
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
@@ -34,7 +36,6 @@ __all__ = [
 ]
 
 solver = get_solver()
-
 
 def build_system(stage_num=1, speed=1, file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
@@ -76,29 +77,142 @@ def build_system(stage_num=1, speed=1, file="wrd_inputs_8_19_21.yaml"):
 
     return m
 
-
-def set_pump_efficiency(blk, stage_num=1, uf=False, speed=1):
-
-    blk.unit.efficiency_fluid = Var(
-        initialize=0.7,
+def find_pump_speed(blk, stage_num=1, uf=False):
+    # Create variable for pump speed and reference (100% speed) flow and head
+    
+    blk.unit.eff.speed = Var(
+        initialize= 1,
         units=pyunits.dimensionless,
-        bounds=(0, 1),
-        doc="Efficiency from pump curves",
+        bounds = (0,1),
+        doc="Pump speed ratio (actual speed / maximum speed)",
     )
 
-    # Load Values for surrogate model
+    blk.unit.eff.ref_head = Var(
+        initialize= 1,
+        units=pyunits.feet,
+        bounds = (0,None),
+        doc= "Pump reference head at 100% speed (ft)",
+    )
+
+    blk.unit.eff.ref_flow = Var(
+        initialize= .1,
+        units=pyunits.m**3 / pyunits.s,
+        bounds = (0,None),
+        doc="Pump reference flow at 100% speed (m3/s)",
+    )
+
+    # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
+    flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','ro_pumps',f'pump_stage_{stage_num}'), to_units=pyunits.m**3 / pyunits.s)
+    head = 2.31*get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}')
+    
+    blk.unit.eff.head = Param(
+        initialize= head,
+        units=pyunits.feet,
+        mutable=True,
+        doc="Pump pressure differential as head (ft)",
+    )
+
+    # Possibly redundant
+    blk.unit.eff.flow = Param(
+        initialize= flow,
+        units=pyunits.m**3 / pyunits.s,
+        mutable=True,
+        doc="Feed Flowrate",
+    )
+
+    # EQ 1 
+    # the pump affinity laws into Constraints
+    blk.unit.eff.eq_head_affinity_law = Constraint(
+        expr= blk.unit.eff.head == blk.unit.eff.ref_head * blk.unit.eff.speed**2,
+        doc="Pump head affinity law equation",
+    )
+    # EQ 2
+    blk.unit.eff.eq_flow_affinity_law = Constraint(
+        expr= blk.unit.eff.flow == blk.unit.eff.ref_flow * blk.unit.eff.speed,
+        doc = "Pump flow affinity law equation",
+    )
+    # Load head "surrogate" for 100% speed curve
+    if uf:
+        head = 50
+        b_0 = 50
+        b_1 = 0
+        b_2 = 0
+        b_3 = 0
+    elif stage_num == 1:
+        b_0 = 0.389
+        b_1 = -0.535
+        b_2 = 41.373
+        b_3 = -138.820
+    elif stage_num == 2:
+        b_0 = 95
+        b_1 = 0
+        b_2 = 0
+        b_3 = 0
+    else:
+        # Still missing TSRO pump curves
+        b_0 = 0.067
+        b_1 = 21.112
+        b_2 = -133.157
+        b_3 = -234.386
+    
+    # Create Variables for simple "surrogate"
+    blk.unit.eff.ref_head_constant = Param(
+        initialize=b_0,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Constant term of Efficiency equation",
+    )
+
+    blk.unit.eff.ref_head_linear_coeff = Param(
+        initialize=b_1,
+        mutable=True,
+        units=(pyunits.m**3 / pyunits.s) ** -1,
+        doc="Linear term of Efficiency equation",
+    )
+
+    blk.unit.eff.ref_head_squared_coeff = Param(
+        initialize=b_2,
+        mutable=True,
+        units=(pyunits.m**3 / pyunits.s) ** -2,
+        doc="Squared term of Efficiency equation",
+    )
+    
+    blk.unit.eff.ref_head_cubed_coeff = Param(
+        initialize=b_3,
+        mutable=True,
+        units=(pyunits.m**3 / pyunits.s) ** -3,
+    )
+
+    # EQ 3
+    blk.unit.eff.ref_head_surr = Constraint(
+        expr = blk.unit.eff.ref_head
+        == blk.unit.eff.ref_head_cubed_coeff * blk.unit.eff.ref_flow**3
+        + blk.unit.eff.ref_head_squared_coeff * blk.unit.eff.ref_flow**2
+        + blk.unit.eff.ref_head_linear_coeff * blk.unit.eff.ref_flow
+        + blk.unit.eff.ref_head_constant,
+        doc="Head surrogate equation",
+    )
+
+    # calculate_variable_from_constraint(blk.unit.eff.speed, blk.unit.eff.eq_head_affinity_law) # Is that the right eq?
+    solver.solve(blk.unit.eff)
+    
+    print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
+
+def set_pump_efficiency(blk, stage_num=1, uf=False, flow = None):
+    blk.unit.eff = Block()
+    blk.unit.eff.efficiency_fluid = Var(
+        initialize= 1,
+        units=pyunits.dimensionless,
+        bounds = (0,1),
+        doc="Pump efficiency from pump curves",
+    )
+    # Load Values for efficiency surrogate model
     if uf:
         # Below are estimated for 100% speed
         a_0 = 0.0677
         a_1 = 5.357
         a_2 = -4.475
         a_3 = -19.578
-        # apply pump affinity laws
-        # Below are estimated for 75% speed
-        # a_0 = 0.0677
-        # a_1 = 7.142
-        # a_2 = -7.956
-        # a_3 = -46.408
     elif stage_num == 1:
         a_0 = 0.389
         a_1 = -0.535
@@ -115,49 +229,54 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, speed=1):
         a_1 = 21.112
         a_2 = -133.157
         a_3 = -234.386
-
+            
     # Create Variables for simple "surrogate"
-    blk.unit.efficiency_constant = Param(
+    blk.unit.eff.efficiency_constant = Param(
         initialize=a_0,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Constant term of Efficiency equation",
     )
 
-    blk.unit.efficiency_linear_coeff = Param(
+    blk.unit.eff.efficiency_linear_coeff = Param(
         initialize=a_1,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -1,
         doc="Linear term of Efficiency equation",
     )
 
-    blk.unit.efficiency_squared_coeff = Param(
+    blk.unit.eff.efficiency_squared_coeff = Param(
         initialize=a_2,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -2,
         doc="Squared term of Efficiency equation",
     )
 
-    blk.unit.efficiency_cubed_coeff = Param(
+    blk.unit.eff.efficiency_cubed_coeff = Param(
         initialize=a_3,
         mutable=True,
         units=(pyunits.m**3 / pyunits.s) ** -3,
         doc="Cubed term of Efficiency equation",
     )
 
-    flow = blk.feed.properties[0].flow_vol_phase["Liq"]
-    equiv_flow_at_100_spd = flow / speed
+    
+    find_pump_speed(blk, stage_num=stage_num, uf=uf)
+    
+    # ref_flow = flow at 100% speed with the same efficiency
+    # ref_flow = blk.feed.properties[0].flow_vol_phase["Liq"] / blk.unit.eff.speed
 
-    blk.unit.eq_efficiency_surr = Constraint(
-        expr=blk.unit.efficiency_fluid
-        == blk.unit.efficiency_cubed_coeff * equiv_flow_at_100_spd**3
-        + blk.unit.efficiency_squared_coeff * equiv_flow_at_100_spd**2
-        + blk.unit.efficiency_linear_coeff * equiv_flow_at_100_spd
-        + blk.unit.efficiency_constant,
+    blk.unit.eff.eq_efficiency_surr = Constraint(
+        expr=blk.unit.eff.efficiency_fluid
+        == blk.unit.eff.efficiency_cubed_coeff * blk.unit.eff.ref_flow**3
+        + blk.unit.eff.efficiency_squared_coeff * blk.unit.eff.ref_flow**2
+        + blk.unit.eff.efficiency_linear_coeff * blk.unit.eff.ref_flow
+        + blk.unit.eff.efficiency_constant,
         doc="Efficiency surrogate equation",
     )
-    blk.unit.efficiency_pump.bounds = (0, 1)
+    blk.unit.efficiency_pump.bounds = (0, 1) # Is this needed?
 
+    solver.solve(blk.unit.eff)
+    print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
 def build_pump(
     blk,
@@ -181,7 +300,7 @@ def build_pump(
     blk.unit = Pump(property_package=prop_package)
 
     blk.product = StateJunction(property_package=prop_package)
-    set_pump_efficiency(blk, stage_num=stage_num, speed=speed, uf=uf)
+    set_pump_efficiency(blk, stage_num=stage_num, uf=uf)
 
     # Create variable for the efficiency from the pump curves
     blk.unit.efficiency_motor = Param(
@@ -210,7 +329,7 @@ def build_pump(
         == (
             blk.unit.efficiency_motor
             * blk.unit.efficiency_vfd
-            * blk.unit.efficiency_fluid
+            * blk.unit.eff.efficiency_fluid
         )
         - blk.unit.efficiency_loss
     )
@@ -321,6 +440,8 @@ def report_pump(blk, w=30, add_costing=False):
     print(
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
+    print(f'{f"Pump Speed Ratio (%)":<{w}s}{100*value(blk.unit.speed):<{w}.3f}{"%"}')
+
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.unit.efficiency_pump[0]):<{w}.3f}{"-"}')
     if add_costing:
         m = blk.model()
