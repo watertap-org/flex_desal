@@ -126,7 +126,7 @@ reverse_osmosis_1d:
       units: psi
     
 headers:
-  ro_header_loss:
+  pro_header_loss:
     value: -24.6
     units: psi
   tsro_header_loss:
@@ -234,7 +234,7 @@ chemical_addition:
       value: 0.4
       units: dimensionless
     unit_cost: 
-      value: 2.66 # August 2021 data 
+      value: 2.66 
       units: USD_2021/gallon # Could use $/ton if desired, but must change units in src/costing/chemical_addition.py\
 
 electricity_cost:
