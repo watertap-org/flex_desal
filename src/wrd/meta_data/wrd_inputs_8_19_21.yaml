@@ -137,12 +137,16 @@ headers:
 uf_pumps:
   number_trains: 1 # This number is uf_pumps now
   pump:
+    pump_flowrate: # Currently only used for pump tests. Determined by uf split fraction in full flowsheet
+      value: 3894
+      units: gal/min
     pump_outlet_pressure:  
       # This value is based on the value observed on SCADA during a site visit. 
       # To be updated with actual UF pump pressure when available.
       # Assuming all pump have the same pressure
       value: 60  
       units: psi 
+
   
 # Chemical addition data for 8/19/21
 chemical_addition:

@@ -37,7 +37,7 @@ __all__ = [
 
 solver = get_solver()
 
-def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
+def build_system(stage_num=1, uf=False,file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -49,6 +49,7 @@ def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     build_pump(
         m.fs.pump,
         stage_num=stage_num,
+        uf=uf,
         file=file,
         prop_package=m.fs.properties,
     )
@@ -99,11 +100,14 @@ def find_pump_speed(blk, stage_num=1, uf=False):
         bounds = (0,None),
         doc="Pump reference flow at 100% speed (m3/s)",
     )
-
-    # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
-    flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','ro_pumps',f'pump_stage_{stage_num}'), to_units=pyunits.m**3 / pyunits.s)
-    head = 2.31*(get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}'))
-    
+    if uf:
+        flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','uf_pumps','pump'), to_units=pyunits.m**3 / pyunits.s)
+        head = 2.31*(get_config_value(blk.config_data,'pump_outlet_pressure','uf_pumps','pump') - 14.5*pyunits.psi) # Assuming atmopheric suct. pressure
+    else:
+        # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
+        flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','ro_pumps',f'pump_stage_{stage_num}'), to_units=pyunits.m**3 / pyunits.s)
+        head = 2.31*(get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}'))
+        
     blk.unit.eff.head = Param(
         initialize= head,
         units=pyunits.feet,
@@ -132,15 +136,15 @@ def find_pump_speed(blk, stage_num=1, uf=False):
     )
     # Load head curve for 100% speed
     if uf:
-        b_0 = 0
-        b_1 = 0
-        b_2 = 0
-        b_3 = 0
+        b_0 = 323.88
+        b_1 = -403.68
+        b_2 = 1449.8
+        b_3 = -6297.6
     elif stage_num == 1:
-        b_0 = 0
-        b_1 = 0
-        b_2 = 0
-        b_3 = 0
+        b_0 = 374.73
+        b_1 = -1347.1
+        b_2 = 8953.8
+        b_3 = -26539
     elif stage_num == 2:
         b_0 = 100.72
         b_1 = -189.57
@@ -153,7 +157,7 @@ def find_pump_speed(blk, stage_num=1, uf=False):
         b_2 = 0
         b_3 = 0
     
-    # Create Variables for simple "surrogate"
+    # Create parameters for the fit for 100% speed
     blk.unit.eff.ref_head_constant = Param(
         initialize=b_0,
         mutable=True,
@@ -196,6 +200,8 @@ def find_pump_speed(blk, stage_num=1, uf=False):
     print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
 def set_pump_efficiency(blk, stage_num=1, uf=False):
+   
+    # Creating a subblock for all the efficiency related vars, param, and constraints. That way, they can be solved without solve whole pump for trouble shooting. Can remove if not useful later.
     blk.unit.eff = Block()
     blk.unit.eff.efficiency_fluid = Var(
         initialize= 1,
@@ -453,15 +459,16 @@ def main(
     Tin=302,
     Pin=101325, #Not being passed to efficiency calc atm
     stage_num=1,
+    uf=False,
     file="wrd_inputs_8_19_21.yaml",
     add_costing=True,
 ):
 
-    m = build_system(stage_num=stage_num, file=file)
+    m = build_system(stage_num=stage_num, uf=uf, file=file)
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump)
+    set_pump_op_conditions(m.fs.pump, uf=uf)
 
     if add_costing:
         add_pump_costing(m.fs.pump)
@@ -488,12 +495,13 @@ if __name__ == "__main__":
     # m = main()
     # Testing at a lower speed
     m = main(
-        Qin=983.2,
+        Qin=3894,
         Cin=1.2,
         Tin=302,
-        Pin=131.2 * pyunits.psi,
-        stage_num=2,
+        Pin=14.5 * pyunits.psi,
+        stage_num=None,
         file="wrd_inputs_8_19_21.yaml",
+        uf=True,
         )
     # Stage 2
     # m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
