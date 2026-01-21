@@ -37,7 +37,7 @@ __all__ = [
 
 solver = get_solver()
 
-def build_system(stage_num=1, speed=1, file="wrd_inputs_8_19_21.yaml"):
+def build_system(stage_num=1, file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -49,7 +49,6 @@ def build_system(stage_num=1, speed=1, file="wrd_inputs_8_19_21.yaml"):
     build_pump(
         m.fs.pump,
         stage_num=stage_num,
-        speed=speed,
         file=file,
         prop_package=m.fs.properties,
     )
@@ -103,7 +102,7 @@ def find_pump_speed(blk, stage_num=1, uf=False):
 
     # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
     flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','ro_pumps',f'pump_stage_{stage_num}'), to_units=pyunits.m**3 / pyunits.s)
-    head = 2.31*get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}')
+    head = 2.31*(get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}'))
     
     blk.unit.eff.head = Param(
         initialize= head,
@@ -131,29 +130,28 @@ def find_pump_speed(blk, stage_num=1, uf=False):
         expr= blk.unit.eff.flow == blk.unit.eff.ref_flow * blk.unit.eff.speed,
         doc = "Pump flow affinity law equation",
     )
-    # Load head "surrogate" for 100% speed curve
+    # Load head curve for 100% speed
     if uf:
-        head = 50
-        b_0 = 50
+        b_0 = 0
         b_1 = 0
         b_2 = 0
         b_3 = 0
     elif stage_num == 1:
-        b_0 = 0.389
-        b_1 = -0.535
-        b_2 = 41.373
-        b_3 = -138.820
-    elif stage_num == 2:
-        b_0 = 95
+        b_0 = 0
         b_1 = 0
         b_2 = 0
         b_3 = 0
+    elif stage_num == 2:
+        b_0 = 100.72
+        b_1 = -189.57
+        b_2 = 4535.7
+        b_3 = -87520
     else:
         # Still missing TSRO pump curves
-        b_0 = 0.067
-        b_1 = 21.112
-        b_2 = -133.157
-        b_3 = -234.386
+        b_0 = 0
+        b_1 = 0
+        b_2 = 0
+        b_3 = 0
     
     # Create Variables for simple "surrogate"
     blk.unit.eff.ref_head_constant = Param(
@@ -194,11 +192,10 @@ def find_pump_speed(blk, stage_num=1, uf=False):
     )
 
     # calculate_variable_from_constraint(blk.unit.eff.speed, blk.unit.eff.eq_head_affinity_law) # Is that the right eq?
-    solver.solve(blk.unit.eff)
-    
+    solver.solve(blk.unit.eff) 
     print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
-def set_pump_efficiency(blk, stage_num=1, uf=False, flow = None):
+def set_pump_efficiency(blk, stage_num=1, uf=False):
     blk.unit.eff = Block()
     blk.unit.eff.efficiency_fluid = Var(
         initialize= 1,
@@ -230,7 +227,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, flow = None):
         a_2 = -133.157
         a_3 = -234.386
             
-    # Create Variables for simple "surrogate"
+    # Create Variables for max speed efficiency curve
     blk.unit.eff.efficiency_constant = Param(
         initialize=a_0,
         mutable=True,
@@ -259,7 +256,6 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, flow = None):
         doc="Cubed term of Efficiency equation",
     )
 
-    
     find_pump_speed(blk, stage_num=stage_num, uf=uf)
     
     # ref_flow = flow at 100% speed with the same efficiency
@@ -281,7 +277,6 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, flow = None):
 def build_pump(
     blk,
     stage_num=1,
-    speed=1,
     file="wrd_inputs_8_19_21.yaml",
     prop_package=None,
     uf=False,
@@ -440,7 +435,7 @@ def report_pump(blk, w=30, add_costing=False):
     print(
         f'{f"Work Mech. (kW)":<{w}s}{value(pyunits.convert(work, to_units=pyunits.kW)):<{w}.3f}{"kW"}'
     )
-    print(f'{f"Pump Speed Ratio (%)":<{w}s}{100*value(blk.unit.speed):<{w}.3f}{"%"}')
+    print(f'{f"Pump Speed Ratio (%)":<{w}s}{100*value(blk.unit.eff.speed):<{w}.3f}{"%"}')
 
     print(f'{f"Efficiency (-)":<{w}s}{value(blk.unit.efficiency_pump[0]):<{w}.3f}{"-"}')
     if add_costing:
@@ -456,14 +451,13 @@ def main(
     Qin=2637,
     Cin=0.5,
     Tin=302,
-    Pin=101325,
-    speed=1,
+    Pin=101325, #Not being passed to efficiency calc atm
     stage_num=1,
     file="wrd_inputs_8_19_21.yaml",
     add_costing=True,
 ):
 
-    m = build_system(stage_num=stage_num, speed=speed, file=file)
+    m = build_system(stage_num=stage_num, file=file)
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
@@ -497,10 +491,9 @@ if __name__ == "__main__":
         Qin=983.2,
         Cin=1.2,
         Tin=302,
-        Pin=143.3 * pyunits.psi,
-        speed=1,
+        Pin=131.2 * pyunits.psi,
         stage_num=2,
-        file="wrd_inputs_2_20_21.yaml",
+        file="wrd_inputs_8_19_21.yaml",
         )
     # Stage 2
     # m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
