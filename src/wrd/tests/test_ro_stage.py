@@ -82,3 +82,4 @@ def test_TSRO():
 
     assert value(actual_power) == pytest.approx(value(expected_power), rel=1e-3)
     assert value(actual_perm_flow) == pytest.approx(value(expected_perm_flow), rel=1e-3)
+    # Add permeate salinity check?

@@ -7,7 +7,7 @@ feed_stream:
     value: 1000
     units: kg/m**3
   feed_conductivity: 
-    value: 1055
+    value: 1055 # Check this value!
     units: uS/cm
   feed_conductivity_conversion: 
     value: 0.5
