@@ -3,7 +3,7 @@ from pyomo.environ import value, units as pyunits
 from wrd.components.pump import main
 
 
-@pytest.mark.skip
+@pytest.mark.skip  # Pending new pump model updates
 def test_pump_main():
     # August 19, 2021 Data
     # Stage 1 is default
