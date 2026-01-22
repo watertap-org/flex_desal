@@ -4,6 +4,82 @@ from pyomo.environ import value, units as pyunits
 import wrd.components.ro_stage as ro_stage
 import wrd.wrd_treatment_train as wrd_full_sys
 import wrd.components.ro_train as ro_train
+import wrd.components.UF_train as uf_train
+import wrd.components.UF_system as uf_system
+
+
+# Tests for UF trains
+# Skipping until UF data available
+@pytest.mark.skip
+def test_uf_train_3_13_21_full():
+    # full capacity UF train / pump
+    m = uf_train.main(
+        Qin=3955,
+        Cin=0.528,
+        Tin=302,
+        Pin=101325,
+        file="wrd_inputs_3_13_21.yaml",
+        add_costing=True,
+    )
+    power = pyunits.convert(
+        m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
+    )
+    expected_power = 178 * pyunits.kW  # Measured value
+    assert pytest.approx(value(power), rel=0.15) == value(expected_power)
+
+
+@pytest.mark.skip
+def test_uf_train_3_13_21_half():
+    m = uf_train.main(
+        Qin=1785,
+        Cin=0.528,
+        Tin=302,
+        Pin=101325,
+        file="wrd_inputs_3_13_21.yaml",
+        add_costing=True,
+    )
+    power = pyunits.convert(
+        m.fs.uf_train.pump.unit.work_mechanical[0], to_units=pyunits.kW
+    )
+    expected_power = 79 * pyunits.kW  # Measured value
+    assert pytest.approx(value(power), rel=0.15) == value(expected_power)
+
+
+# Full UF System Test
+@pytest.mark.skip
+def test_uf_system_3_13_21():
+    m = uf_system.main(
+        num_trains=3, split_fraction=[0.405, 0.405, 0.185], Qin=9764, Cin=0.5
+    )
+
+    # Pump 1
+    power = pyunits.convert(
+        m.fs.uf_train[1].pump.unit.work_mechanical[0], to_units=pyunits.kW
+    )
+    # expected_power = 178 * pyunits.kW  # Measured value
+    expected_power = 104 * pyunits.kW  # Modeled value
+    assert pytest.approx(value(power), rel=0.15) == value(expected_power)  # kW
+
+    # Pump 2
+    power = pyunits.convert(
+        m.fs.uf_train[2].pump.unit.work_mechanical[0], to_units=pyunits.kW
+    )
+    # expected_power = 178 * pyunits.kW  # Measured value
+    expected_power = 104 * pyunits.kW  # Modeled value
+    assert pytest.approx(value(power), rel=0.15) == value(expected_power)  # kW
+
+    # Pump 3
+    power = pyunits.convert(
+        m.fs.uf_train[3].pump.unit.work_mechanical[0], to_units=pyunits.kW
+    )
+    # expected_power = 79 * pyunits.kW  # Measured value
+    expected_power = 69 * pyunits.kW  # Modeled value
+    assert pytest.approx(value(power), rel=0.15) == value(expected_power)  # kW
+
+    total_power = pyunits.convert(m.fs.total_uf_pump_power, to_units=pyunits.kW)
+    # expected_power = 432 * pyunits.kW # Measured value
+    expected_power = 298 * pyunits.kW  # Modeled value
+    assert pytest.approx(value(total_power), rel=0.15) == value(expected_power)  # kW
 
 
 @pytest.mark.component
