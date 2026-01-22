@@ -177,8 +177,8 @@ def report_brine_disposal(blk, w=25):
 
 
 def main(
-    Qin=2637,
-    Cin=0.5,
+    Qin=717.7,
+    Cin=7.558,
     Tin=302,
     Pin=101325,
     file="wrd_inputs_8_19_21.yaml",
