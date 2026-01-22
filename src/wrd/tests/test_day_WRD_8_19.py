@@ -6,21 +6,22 @@ import wrd.components.ro_stage as ro_stage
 import wrd.wrd_treatment_train as wrd_full_sys
 import wrd.components.ro_train as ro_train
 
+
 # RO stage tests
-@pytest.mark.skip
+@pytest.mark.component
 def test_ro_PRO1_8_19_21():
     # Stage 1
     m = ro_stage.main(
-        Qin=2637, # <--- measured value
-        Cin=0.528, # <--- measured value
-        Tin=302, # Why are we testing everything at this temp and not 298 K?
-        Pin=35.4 * pyunits.psi, # <--- measured value
+        Qin=2637,  # <--- measured value
+        Cin=0.528,  # <--- measured value
+        Tin=302,  # Why are we testing everything at this temp and not 298 K?
+        Pin=35.4 * pyunits.psi,  # <--- measured value
         stage_num=1,
         file="wrd_inputs_8_19_21.yaml",
     )
 
     expected_power = 196.25 * pyunits.kW  # <--- measured value
-    expected_perm_flow = 1608.2 * pyunits.gal / pyunits.min # <--- measured value
+    expected_perm_flow = 1608.2 * pyunits.gal / pyunits.min  # <--- measured value
 
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW
@@ -34,11 +35,11 @@ def test_ro_PRO1_8_19_21():
     assert value(actual_perm_flow) == pytest.approx(value(expected_perm_flow), rel=0.15)
 
 
-@pytest.mark.skip
+@pytest.mark.component
 def test_ro_PRO2_8_19_21():
     m = ro_stage.main(
-        Qin=1029,  
-        Cin=1.2479, 
+        Qin=1029,
+        Cin=1.2479,
         Tin=302,
         Pin=131.2 * pyunits.psi,
         stage_num=2,
@@ -46,7 +47,7 @@ def test_ro_PRO2_8_19_21():
     )
 
     expected_power = 22.71 * pyunits.kW  # <--- measured value
-    expected_perm_flow = 635 * pyunits.gal / pyunits.min # <--- measured value
+    expected_perm_flow = 635 * pyunits.gal / pyunits.min  # <--- measured value
 
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW
@@ -60,11 +61,12 @@ def test_ro_PRO2_8_19_21():
     assert value(actual_perm_flow) == pytest.approx(value(expected_perm_flow), rel=0.15)
     # Add permeate salinity check?
 
-@pytest.mark.skip
+
+@pytest.mark.component
 def test_TSRO_8_19_21():
     m = ro_stage.main(
         Qin=384,
-        Cin= 2.4235,
+        Cin=2.4235,
         Tin=302,
         Pin=112.6 * pyunits.psi,  # Suction pressure (includes headloss)
         stage_num=3,
@@ -72,7 +74,7 @@ def test_TSRO_8_19_21():
     )
 
     expected_power = 29.3 * pyunits.kW  # <--- measured value
-    expected_perm_flow = 198 * pyunits.gal / pyunits.min # <--- measured value
+    expected_perm_flow = 198 * pyunits.gal / pyunits.min  # <--- measured value
 
     actual_power = pyunits.convert(
         m.fs.ro_stage.pump.unit.work_mechanical[0], to_units=pyunits.kW
@@ -83,6 +85,7 @@ def test_TSRO_8_19_21():
     )
     assert value(actual_power) == pytest.approx(value(expected_power), rel=0.15)
     assert value(actual_perm_flow) == pytest.approx(value(expected_perm_flow), rel=0.15)
+
 
 # Arguably these tests are overkill because they are just testing the stages again
 @pytest.mark.component
@@ -109,10 +112,12 @@ def test_ro_train1_8_19_21():
 
 # BECAUSE TOTAL FLOWRATE NOW IN YAML, ONLY THE FULL 4 TRAINS CASE WILL WORK
 @pytest.mark.parametrize("num_pro_trains", [4])
-@pytest.mark.skip
+@pytest.mark.component
 def test_wrd_treatment_train_8_19_21(num_pro_trains):
     file = "wrd_inputs_8_19_21.yaml"
-    m = wrd_full_sys.main(num_pro_trains=num_pro_trains, uf_split_fraction=[0.4, 0.4, 0.2], file=file)
+    m = wrd_full_sys.main(
+        num_pro_trains=num_pro_trains, uf_split_fraction=[0.4, 0.4, 0.2], file=file
+    )
 
     if num_pro_trains == 4:
         # Expected chemical addition flows are from '2108 GRIP CHEMICALS REPORT.pdf'
@@ -178,4 +183,3 @@ def test_wrd_treatment_train_8_19_21(num_pro_trains):
     ) == value(expected_feed_flow_cost)
     # TODO: Add more tests against facility data.
     # power of some pumps, or total plant power use.
-

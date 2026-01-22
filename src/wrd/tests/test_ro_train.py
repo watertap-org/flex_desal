@@ -2,6 +2,7 @@ import pytest
 from pyomo.environ import value, units as pyunits
 from wrd.components.ro_train import main
 
+
 @pytest.mark.component
 def test_ro_train_main_no_costing():
     m = main(add_costing=False)
@@ -17,7 +18,13 @@ def test_ro_train1():
         expected_power / expected_product_flow, to_units=pyunits.kWh / pyunits.m**3
     )
 
-    m = main(Qin=2452, Cin=0.503, Tin=302, Pin=34.2*pyunits.psi, file="wrd_inputs_3_13_21.yaml")
+    m = main(
+        Qin=2452,
+        Cin=0.503,
+        Tin=302,
+        Pin=34.2 * pyunits.psi,
+        file="wrd_inputs_3_13_21.yaml",
+    )
 
     actual_power = pyunits.convert(m.fs.ro_train.total_pump_power, to_units=pyunits.kW)
     assert pytest.approx(value(actual_power), rel=1e-3) == value(expected_power)
@@ -30,4 +37,3 @@ def test_ro_train1():
         expected_product_flow
     )
     assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == value(expected_SEC)
-

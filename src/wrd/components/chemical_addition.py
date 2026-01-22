@@ -210,7 +210,7 @@ def add_chem_addition_costing(
         if chem_cost is None:
             raise ValueError("chem_cost must be provided to add_chem_addition_costing")
     else:
-        chem_cost=chem_cost * pyunits.USD_2021 / pyunits.gal
+        chem_cost = chem_cost * pyunits.USD_2021 / pyunits.gal
     if costing_package is None:
         m = blk.model()
         costing_package = m.fs.costing
@@ -293,5 +293,5 @@ def main(
 
 if __name__ == "__main__":
     chem = "sodium_bisulfite"
-    flow1 = 10652 
+    flow1 = 10652
     main(chemical_name="sodium_bisulfite", Qin=flow1, dose=150, chem_cost=1)
