@@ -170,7 +170,8 @@ def set_chem_addition_op_conditions(blk, dose=None):
         dose = blk.chem_config["chemical_dosage"]
         if dose is None:
             raise ValueError("dose must be provided to set_chem_addition_op_conditions")
-
+    else:
+        dose = dose * pyunits.mg / pyunits.L
     blk.unit.dose.fix(dose)
 
     ratio_in_solution = blk.chem_config["ratio_in_solution"]
@@ -208,7 +209,8 @@ def add_chem_addition_costing(
         print(blk.unit.config.chemical, chem_cost(), pyunits.get_units(chem_cost))
         if chem_cost is None:
             raise ValueError("chem_cost must be provided to add_chem_addition_costing")
-
+    else:
+        chem_cost=chem_cost * pyunits.USD_2021 / pyunits.gal
     if costing_package is None:
         m = blk.model()
         costing_package = m.fs.costing
@@ -269,8 +271,8 @@ def main(
     Qin=2637,
     Cin=0.5,
     # If hard coding, need to pass units somewhere
-    dose=None,  # 0.01,
-    chem_cost=None,  # 0.5,
+    dose=None,  # mg/L ONLY
+    chem_cost=None,  # $/gal ONLY
 ):
     m = build_system(chemical_name=chemical_name)
     # Add units to chem_cost after costing system defines currency units
@@ -291,4 +293,5 @@ def main(
 
 if __name__ == "__main__":
     chem = "sodium_bisulfite"
-    m = main(chemical_name=chem, Qin=10800)
+    flow1 = 10652 
+    main(chemical_name="sodium_bisulfite", Qin=flow1, dose=150, chem_cost=1)
