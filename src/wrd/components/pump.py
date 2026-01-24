@@ -23,7 +23,7 @@ from watertap.property_models.NaCl_T_dep_prop_pack import NaClParameterBlock
 from watertap.unit_models.pressure_changer import Pump
 from watertap.core.solvers import get_solver
 
-from wrd.utilities import load_config, get_config_value, get_config_file
+from wrd.utilities import load_config, get_config_value, get_config_file, ft_head_to_psi, psi_to_ft_head
 from srp.utils import touch_flow_and_conc
 
 __all__ = [
@@ -37,7 +37,7 @@ __all__ = [
 
 solver = get_solver()
 
-def build_system(stage_num=1, uf=False,file="wrd_inputs_8_19_21.yaml"):
+def build_system(stage_num=1, uf=False,Qin=None,head=None,file="wrd_inputs_8_19_21.yaml"):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -52,6 +52,8 @@ def build_system(stage_num=1, uf=False,file="wrd_inputs_8_19_21.yaml"):
         uf=uf,
         file=file,
         prop_package=m.fs.properties,
+        Qin=Qin,
+        head=head,
     )
     m.fs.product = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.product)
@@ -77,37 +79,38 @@ def build_system(stage_num=1, uf=False,file="wrd_inputs_8_19_21.yaml"):
 
     return m
 
-def find_pump_speed(blk, stage_num=1, uf=False):
+def find_pump_speed(blk, stage_num=1, uf=False, Qin=None, head=None):
     # Create variable for pump speed and reference (100% speed) flow and head
     
     blk.unit.eff.speed = Var(
         initialize= 1,
         units=pyunits.dimensionless,
-        bounds = (0,1),
+        bounds = (0,1.02),
         doc="Pump speed ratio (actual speed / maximum speed)",
     )
 
     blk.unit.eff.ref_head = Var(
         initialize= 1,
         units=pyunits.feet,
-        bounds = (0,None),
+        bounds = (0,None), # Should actually have bounds
         doc= "Pump reference head at 100% speed (ft)",
     )
 
     blk.unit.eff.ref_flow = Var(
         initialize= .1,
         units=pyunits.m**3 / pyunits.s,
-        bounds = (0,None),
+        bounds = (0,None), # Should actually have bounds
         doc="Pump reference flow at 100% speed (m3/s)",
     )
-    if uf:
-        flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','uf_pumps','pump'), to_units=pyunits.m**3 / pyunits.s)
-        head = 2.31*(get_config_value(blk.config_data,'pump_outlet_pressure','uf_pumps','pump') - 14.5*pyunits.psi) # Assuming atmopheric suct. pressure
-    else:
-        # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
-        flow = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','ro_pumps',f'pump_stage_{stage_num}'), to_units=pyunits.m**3 / pyunits.s)
-        head = 2.31*(get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}'))
-        
+
+    if head is None:
+        if uf:
+            head = psi_to_ft_head(get_config_value(blk.config_data,'pump_outlet_pressure','uf_pumps','pump') - 14.5*pyunits.psi) # Assuming atmopheric suct. pressure
+        else:
+            head = psi_to_ft_head(get_config_value(blk.config_data,'pump_outlet_pressure','ro_pumps',f'pump_stage_{stage_num}') - get_config_value(blk.config_data,'pump_suction_pressure','ro_pumps',f'pump_stage_{stage_num}'))
+    
+    flow = pyunits.convert(Qin, to_units=pyunits.m**3 / pyunits.s)
+
     blk.unit.eff.head = Param(
         initialize= head,
         units=pyunits.feet,
@@ -196,10 +199,10 @@ def find_pump_speed(blk, stage_num=1, uf=False):
     )
 
     # calculate_variable_from_constraint(blk.unit.eff.speed, blk.unit.eff.eq_head_affinity_law) # Is that the right eq?
-    solver.solve(blk.unit.eff) 
-    print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
+    # solver.solve(blk.unit.eff) 
+    # print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
-def set_pump_efficiency(blk, stage_num=1, uf=False):
+def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None):
    
     # Creating a subblock for all the efficiency related vars, param, and constraints. That way, they can be solved without solve whole pump for trouble shooting. Can remove if not useful later.
     blk.unit.eff = Block()
@@ -262,7 +265,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False):
         doc="Cubed term of Efficiency equation",
     )
 
-    find_pump_speed(blk, stage_num=stage_num, uf=uf)
+    find_pump_speed(blk, stage_num=stage_num, uf=uf,Qin=Qin, head=head)
     
     # ref_flow = flow at 100% speed with the same efficiency
     # ref_flow = blk.feed.properties[0].flow_vol_phase["Liq"] / blk.unit.eff.speed
@@ -276,9 +279,9 @@ def set_pump_efficiency(blk, stage_num=1, uf=False):
         doc="Efficiency surrogate equation",
     )
     blk.unit.efficiency_pump.bounds = (0, 1) # Is this needed?
-
+    assert degrees_of_freedom(blk.unit.eff)==0
     solver.solve(blk.unit.eff)
-    print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
+    # print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
 def build_pump(
     blk,
@@ -286,7 +289,8 @@ def build_pump(
     file="wrd_inputs_8_19_21.yaml",
     prop_package=None,
     uf=False,
-):
+    Qin=None,
+    head=None):
 
     if prop_package is None:
         m = blk.model()
@@ -301,7 +305,7 @@ def build_pump(
     blk.unit = Pump(property_package=prop_package)
 
     blk.product = StateJunction(property_package=prop_package)
-    set_pump_efficiency(blk, stage_num=stage_num, uf=uf)
+    set_pump_efficiency(blk, stage_num=stage_num, uf=uf,Qin=Qin,head=head)
 
     # Create variable for the efficiency from the pump curves
     blk.unit.efficiency_motor = Param(
@@ -342,32 +346,37 @@ def build_pump(
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_pump_op_conditions(blk, uf=False):
-    if uf:
-        # All the pumps are assumed to have the same outlet pressure for UF pumps because they collect in a header
-        Pout = get_config_value(
-            blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump"
-        )
+def set_pump_op_conditions(blk, uf=False, head=None, Pin=14.5):
+    
+    if head is None:
+        if uf:
+            # All the pumps are assumed to have the same outlet pressure for UF pumps because they collect in a header
+            Pout = get_config_value(
+                blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump"
+            )
+        else:
+            Pout = get_config_value(
+                blk.config_data,
+                "pump_outlet_pressure",
+                "ro_pumps",
+                f"pump_stage_{blk.stage_num}",
+            )
+            print(
+                f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
+            )
     else:
-        Pout = get_config_value(
-            blk.config_data,
-            "pump_outlet_pressure",
-            "ro_pumps",
-            f"pump_stage_{blk.stage_num}",
-        )
-        print(
-            f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
-        )
+        head = head * pyunits.feet
+        Pout = ft_head_to_psi(head) + Pin*pyunits.psi 
+
     blk.unit.control_volume.properties_out[0].pressure.fix(Pout)
 
 
-def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=302, Pin=101325):
-
+def set_inlet_conditions(m, Qin=None, Cin=0.5, Tin=302, Pin=14.5):
     m.fs.feed.properties.calculate_state(
         var_args={
-            ("flow_vol_phase", ("Liq")): Qin * pyunits.gallons / pyunits.minute,
+            ("flow_vol_phase", ("Liq")): Qin,
             ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin * pyunits.g / pyunits.L,
-            ("pressure", None): Pin,
+            ("pressure", None): Pin * pyunits.psi,
             ("temperature", None): Tin,
         },
         hold_state=True,
@@ -454,21 +463,31 @@ def report_pump(blk, w=30, add_costing=False):
 
 
 def main(
-    Qin=2637,
+    Qin=None,
+    head=None, # Entering head value will override the Pout value in the yaml
     Cin=0.5,
     Tin=302,
-    Pin=101325, #Not being passed to efficiency calc atm
+    Pin=14.5, #psi
     stage_num=1,
     uf=False,
     file="wrd_inputs_8_19_21.yaml",
     add_costing=True,
 ):
+    # Handling loading Qin here b/c it's an input to both build_pump and set_inlet_conditions
+    if Qin is None:
+        if uf:
+            Qin = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','uf_pumps','pump'), to_units=pyunits.gal/ pyunits.minute)
+        else:
+            # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
+            Qin = pyunits.convert(get_config_value(blk.config_data,'pump_flowrate','ro_pumps',f'pump_stage_{stage_num}'), to_units=pyunits.gal / pyunits.minute)
+    else:
+        Qin = Qin * pyunits.gal / pyunits.minute
 
-    m = build_system(stage_num=stage_num, uf=uf, file=file)
+    m = build_system(stage_num=stage_num, uf=uf, file=file,Qin=Qin,head=head)
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
-    set_pump_op_conditions(m.fs.pump, uf=uf)
+    set_pump_op_conditions(m.fs.pump, head=head, Pin=Pin, uf=uf)
 
     if add_costing:
         add_pump_costing(m.fs.pump)
@@ -496,9 +515,10 @@ if __name__ == "__main__":
     # Testing at a lower speed
     m = main(
         Qin=3894,
+        head = None,
         Cin=1.2,
         Tin=302,
-        Pin=14.5 * pyunits.psi,
+        Pin=14.5,
         stage_num=None,
         file="wrd_inputs_8_19_21.yaml",
         uf=True,
