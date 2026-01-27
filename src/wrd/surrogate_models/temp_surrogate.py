@@ -10,9 +10,9 @@ from idaes.core.surrogate.pysmo_surrogate import (
 # load data
 pump_data = pd.read_csv(os.path.join(os.path.dirname(__file__), 'RO_feed_pump_head_curves_data.csv'))
 input_labels = ['Flow (gpm)']
-output_labels= ['Head Min (ft)']
+output_labels= ['Head 100% Speed (ft)']
 pump_data.dropna(inplace=True,subset=output_labels)
-pump_data.drop(columns= ['Head 100% Speed (ft)','MCSF (ft)'],inplace=True)
+pump_data.drop(columns= ['Head Min (ft)','MCSF (ft)'],inplace=True)
 input_data = pump_data[input_labels]
 output_data = pump_data[output_labels]
 

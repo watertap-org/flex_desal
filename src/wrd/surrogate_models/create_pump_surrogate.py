@@ -37,25 +37,25 @@ from watertap.core.solvers import get_solver
 def head_limit(flow):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
-    # Flow must be units of m3/s. Head is in ft.
-    b_0 = 374.73
-    b_1 = -1347.1
-    b_2 = 8953.8
-    b_3 = -26539
-    head = b_0 + b_1 * flow + b_2 * flow**2 + b_3 * flow**3
+    # Flow must be units of scaled gpm. Head is in ft.
+    b_0 = 3.127555
+    b_1 = -0.09634
+    b_2 = 0.051555
+    b_3 = -0.026339
+    head = (b_0 + b_1 * (flow) + b_2 * (flow)**2 + b_3 * (flow)**3)
     return head
 
 
 def MCSF(flow):
     """Helper function to define max head for given flowrate along the minimum continuous stable flow."""
     # Coefficients from pump curve data
-    # Flow must be in units of gpm. Head is in ft.
+    # Flow must be in units of scaled gpm. Head is in ft.
     c_0 = 0.838
     c_1 = -1.869681
     c_2 = 2.477258
     c_3 = 0
-    head = 100 * (
-        c_0 + c_1 * (flow / 1e3) + c_2 * (flow / 1e3) ** 2 + c_3 * (flow / 1e3) ** 3
+    head = (
+        c_0 + c_1 * (flow) + c_2 * (flow) ** 2 + c_3 * (flow) ** 3
     )
     return head
 
@@ -68,7 +68,7 @@ def min_head_limit(flow):
     a_1 = -0.202589
     a_2 = 0.148054
     a_3 = -0.060852
-    head = 100 * (a_0 + a_1 * (flow / 1e3) + a_2 * (flow / 1e3) ** 2 + a_3 * (flow / 1e3) ** 3)
+    head = a_0 + a_1 * (flow) + a_2 * (flow) ** 2 + a_3 * (flow) ** 3
     return head
 
 
@@ -152,9 +152,9 @@ for i in range(num_points):
     for j in range(num_points):
         # Filter out infeasible points
         if (
-            y_vals[j] > head_limit(x_vals[i] / 264.2 / 60 * 1e3) / 1e2
-            or y_vals[j] > MCSF(x_vals[i] * 1e3) / 1e2
-            or y_vals[j] < min_head_limit(x_vals[i] * 1e3) / 1e2
+            y_vals[j] > head_limit(x_vals[i]) 
+            or y_vals[j] > MCSF(x_vals[i])
+            or y_vals[j] < min_head_limit(x_vals[i])
         ): 
             z_vals[i, j] = np.nan
             continue
