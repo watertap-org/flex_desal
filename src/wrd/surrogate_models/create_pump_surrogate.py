@@ -34,47 +34,70 @@ from watertap.core.solvers import get_solver
 
 
 # Helper Function, stealing fit from pump head curve, but could also make a surrogate from json data
-def head_limit(flow):
+def min_head_limit(flow,pump_type):
+    """Helper function to define minimum head for given flowrate."""
+    # Coefficients from pump curve data
+    # Flow must be units of gpm. Head is in ft.
+    if pump_type == 'RO_feed':
+        a_0 = 1.8033
+        a_1 = -0.202589
+        a_2 = 0.148054
+        a_3 = -0.060852
+    if pump_type == 'RO_IS':
+        a_0 = 0.607309
+        a_1 = -0.059714
+        a_2 = -0.105637
+        a_3 = -0.10102
+    head = a_0 + a_1 * (flow) + a_2 * (flow) ** 2 + a_3 * (flow) ** 3
+    return head
+
+
+def head_limit(flow,pump_type):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
     # Flow must be units of scaled gpm. Head is in ft.
-    b_0 = 3.127555
-    b_1 = -0.09634
-    b_2 = 0.051555
-    b_3 = -0.026339
+    if pump_type == 'RO_feed':
+        b_0 = 3.127555
+        b_1 = -0.09634
+        b_2 = 0.051555
+        b_3 = -0.026339
+    if pump_type == 'RO_IS':
+        b_0 = 1.02801
+        b_1 = -0.21038
+        b_2 = 0.284634
+        b_3 = -0.253384
     head = (b_0 + b_1 * (flow) + b_2 * (flow)**2 + b_3 * (flow)**3)
     return head
 
 
-def MCSF(flow):
+def MCSF(flow,pump_type):
     """Helper function to define max head for given flowrate along the minimum continuous stable flow."""
     # Coefficients from pump curve data
     # Flow must be in units of scaled gpm. Head is in ft.
-    c_0 = 0.838
-    c_1 = -1.869681
-    c_2 = 2.477258
-    c_3 = 0
+    if pump_type == 'RO_feed':
+        c_0 = 0.838
+        c_1 = -1.869681
+        c_2 = 2.477258
+        c_3 = 0
+    if pump_type == 'RO_IS':
+        c_0 = 0.185777
+        c_1 = -1.584001
+        c_2 = 9.184983
+        c_3 = 0
     head = (
         c_0 + c_1 * (flow) + c_2 * (flow) ** 2 + c_3 * (flow) ** 3
     )
     return head
 
 
-def min_head_limit(flow):
-    """Helper function to define minimum head for given flowrate."""
-    # Coefficients from pump curve data
-    # Flow must be units of gpm. Head is in ft.
-    a_0 = 1.8033
-    a_1 = -0.202589
-    a_2 = 0.148054
-    a_3 = -0.060852
-    head = a_0 + a_1 * (flow) + a_2 * (flow) ** 2 + a_3 * (flow) ** 3
-    return head
 
+# Select Types
+pump_type = 'RO_IS'
+fittype = "rbf"
 
 # load data
 pump_data = pd.read_csv(
-    os.path.join(os.path.dirname(__file__), "RO_feed_pump_eff_curve_data.csv")
+    os.path.join(os.path.dirname(__file__), f"{pump_type}_pump_eff_curve_data.csv")
 )
 input_labels = ["Flow (gpm)", "Head (ft)"]
 output_labels = ["efficiency"]
@@ -97,7 +120,7 @@ input_bounds = {
 
 # Create Surrogate Type and trainer
 # Create the trainer
-fittype = "rbf"
+
 if fittype == "poly":
     trainer = PysmoPolyTrainer(
         input_labels=input_labels,
@@ -152,9 +175,9 @@ for i in range(num_points):
     for j in range(num_points):
         # Filter out infeasible points
         if (
-            y_vals[j] > head_limit(x_vals[i]) 
-            or y_vals[j] > MCSF(x_vals[i])
-            or y_vals[j] < min_head_limit(x_vals[i])
+            y_vals[j] > head_limit(x_vals[i],pump_type) 
+            or y_vals[j] > MCSF(x_vals[i],pump_type)
+            or y_vals[j] < min_head_limit(x_vals[i],pump_type)
         ): 
             z_vals[i, j] = np.nan
             continue
@@ -184,21 +207,34 @@ fig1 = plt.contourf(
 )
 plt.colorbar(label="Efficiency (%)")
 # Add countour lines for specific efficiencies in the orginial plot
+if pump_type == 'RO_feed':
+    plt.xlim(0, 4500)
+    plt.ylim(0, 400)
+    levels=[59,68,75,80,83]
+    labels=["59%","68%","75%","80%","83%"]
+
+elif pump_type == 'RO_IS':
+    plt.xlim(0, 1600)
+    plt.ylim(0, 150)
+    levels=[52,62,71,77,81,82]
+    labels=["52%","62%","71%","77%","81%","82%"]
+
+
 iso_eff = plt.contour(
     X,
     Y,
     Z,
-    levels=[59,68,75,80,83],
-    labels=["59%","68%","75%","80%","83%"],
+    levels=levels,
+    labels=labels,
     colors='red',
 )
 plt.clabel(iso_eff, inline=True, fontsize=8, fmt="%1.0f%%", colors='black')
 
 plt.xlabel("Flow (gpm)")
 plt.ylabel("Head (ft)")
-plt.title("RO Feed Pump Efficiency Contour Plot")
-plt.xlim(0, 4500)
-plt.ylim(0, 400)
+plt.title(f"{pump_type.replace('_', ' ').title()} Pump Efficiency Contour Plot")
+
+
 plt.show()
 
 

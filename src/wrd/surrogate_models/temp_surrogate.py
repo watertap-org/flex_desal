@@ -8,11 +8,11 @@ from idaes.core.surrogate.pysmo_surrogate import (
 )
 
 # load data
-pump_data = pd.read_csv(os.path.join(os.path.dirname(__file__), 'RO_feed_pump_head_curves_data.csv'))
+pump_data = pd.read_csv(os.path.join(os.path.dirname(__file__), 'RO_IS_pump_head_curves_data.csv'))
 input_labels = ['Flow (gpm)']
-output_labels= ['Head 100% Speed (ft)']
+output_labels= ['MCSF (ft)']
 pump_data.dropna(inplace=True,subset=output_labels)
-pump_data.drop(columns= ['Head Min (ft)','MCSF (ft)'],inplace=True)
+pump_data.drop(columns= ['Head 100% Speed (ft)','Min Head (ft)'],inplace=True)
 input_data = pump_data[input_labels]
 output_data = pump_data[output_labels]
 
@@ -34,7 +34,7 @@ trainer = PysmoPolyTrainer(
         output_labels=output_labels,
         training_dataframe=Data_scaled, # NOT spliting data for training and validation because there's not that much data to begin with.
     )
-trainer.config.maximum_polynomial_order = 3
+trainer.config.maximum_polynomial_order = 2
     # Train Data
 trained_surr = trainer.train_surrogate()
 
