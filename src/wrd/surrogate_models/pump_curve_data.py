@@ -2,7 +2,7 @@ import pandas as pd
 import json
 
 # Load the JSON file as a dictionary first
-with open(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\wpd_project.json', 'r') as f:
+with open(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_IS_pump_curves.json', 'r') as f:
     data = json.load(f)
 
 datasets = data['datasetColl']
@@ -28,7 +28,7 @@ for dataset in datasets:
 
 
 print(eff_data.head())
-eff_data.to_csv(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_feed_pump_eff_curve_data.csv', index=False)
+eff_data.to_csv(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_IS_pump_eff_curve_data.csv', index=False)
 
 print(head_data.head())
-head_data.to_csv(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_feed_pump_head_curves_data.csv', index=False)
+head_data.to_csv(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_IS_pump_head_curves_data.csv', index=False)
