@@ -8,27 +8,27 @@ with open(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\wpd_project.js
 datasets = data['datasetColl']
 
 # Convert specific datasets to DataFrames
-pump_data = pd.DataFrame()
+eff_data = pd.DataFrame()
+head_data = pd.DataFrame()
 for dataset in datasets:
     name = dataset['name']
     df = pd.DataFrame(dataset['data'])
     try:
         eff = int(name[:2])  # Extract first 2 characters and convert to int
         df['efficiency'] = eff  # add efficiency column with every value the same
-        pump_data = pd.concat([pump_data, df], ignore_index=True)
+        df['Flow (gpm)'] = df['value'].apply(lambda x: x[0])
+        df['Head (ft)'] = df['value'].apply(lambda x: x[1])
+        df.drop(columns=['x','y','value'], inplace=True)
+        eff_data = pd.concat([eff_data, df], ignore_index=True)
     except:
-        pass
-print(f"\nColumns before cleanup: {pump_data.columns.tolist()}")
+        df['Flow (gpm)'] = df['value'].apply(lambda x: x[0])
+        df[name+' (ft)'] = df['value'].apply(lambda x: x[1])
+        df.drop(columns=['x','y','value'], inplace=True)
+        head_data = pd.concat([head_data, df], ignore_index=True)
 
-# Drop the 'value' column if it exists
-if 'value' in pump_data.columns:
-    pump_data.drop(columns=['value'], inplace=True)
 
-# Rename columns
-pump_data.rename(columns={'x': 'Flow (gpm)', 'y': 'Head (ft)'}, inplace=True)
+print(eff_data.head())
+eff_data.to_csv(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_feed_pump_eff_curve_data.csv', index=False)
 
-print(f"\nCombined pump data shape: {pump_data.shape}")
-print(f"Columns after cleanup: {pump_data.columns.tolist()}")
-print(pump_data.head())
-print(f"\nUnique efficiencies: {sorted(pump_data['efficiency'].unique())}")
-
+print(head_data.head())
+head_data.to_csv(r'C:\Users\rchurchi\flex_desal\src\wrd\surrogate_models\RO_feed_pump_head_curves_data.csv', index=False)
