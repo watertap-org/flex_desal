@@ -103,12 +103,12 @@ fittype = "rbf"
 
 # load data
 # filename = f"{pump_type}_pump_eff_curve_data.csv"
-filename = "RO_feed_aff_laws_surr_1.csv"
+filename = "RO_feed_aff_laws_surr_2.csv"
 pump_data = pd.read_csv(
     os.path.join(os.path.dirname(__file__), filename)
 )
 input_labels = ["Flow (gpm)", "Head (ft)"]
-output_labels = ["efficiency"]
+output_labels = ["total_efficiency"]
 input_data = pump_data[input_labels]
 output_data = pump_data[output_labels]
 
@@ -142,7 +142,7 @@ if fittype == "rbf":
         input_labels=input_labels,
         output_labels=output_labels,
         training_dataframe=Data_scaled,
-        basis_function="linear",
+        basis_function="cubic",
     )
 
 # Train Data
@@ -193,7 +193,7 @@ for i in range(num_points):
         m.flowrate.fix(x_vals[i])
         m.head.fix(y_vals[j])
         calculate_variable_from_constraint(
-            m.eff, m.surrogate_blk.pysmo_constraint["efficiency"]
+            m.eff, m.surrogate_blk.pysmo_constraint["total_efficiency"]
         )
         # print(m.flowrate.value, m.head.value)
         # print(value(m.eff))
@@ -214,7 +214,7 @@ fig1 = plt.contourf(
     levels=25,
     cmap="viridis",
 )
-plt.colorbar(label="Efficiency (%)")
+plt.colorbar(label="Total Efficiency (%)")
 # Add countour lines for specific efficiencies in the orginial plot
 if pump_type == 'RO_feed':
     plt.xlim(0, 4500)
@@ -236,16 +236,17 @@ plt.title(f"{pump_type.replace('_', ' ').title()} Pump Efficiency Contour Plot")
 m.flowrate.fix(2778/1e3)
 m.head.fix(150.8/1e2)
 calculate_variable_from_constraint(
-    m.eff, m.surrogate_blk.pysmo_constraint["efficiency"]
+    m.eff, m.surrogate_blk.pysmo_constraint["total_efficiency"]
 )
 print(m.flowrate.value, m.head.value)
 print(value(m.eff))
 
 # BELOW CODE WON'T WORK ANYMORE. WE ONLY HAVE A FEW ACTUAL DATA POINTS (100% CURVE, PLUS ONE 80% SPEED POINT)
 # # Data points vs. surrogate outputs
-# X_data = pump_data["Flow (gpm)"] * 1e3
-# Y_data = pump_data["Head (ft)"] * 1e2
-# Z_data = pump_data["efficiency"] * 1e2
+X_data = pump_data["Flow (gpm)"] * 1e3
+Y_data = pump_data["Head (ft)"] * 1e2
+Z_data = pump_data["total_efficiency"] * 1e2
+plt.scatter(X_data, Y_data, color="red", s=10)
 
 # for l in levels:
 #     X_points = X_data[Z_data == l]
