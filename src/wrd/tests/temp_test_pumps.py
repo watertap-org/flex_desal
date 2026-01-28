@@ -6,13 +6,18 @@ from wrd.components.pump import main
 
 # TODO: Consider applying the param sweep tool that already exists in WaterTAP if using this to generate data for a surrogate model.
 
-def create_test_pairs(flow_ub = 2700,flow_lb = 2600,head_ub = 270,head_lb = 250,num_points = 2):
+def create_test_pairs(flow_ub = 2700,flow_lb = 2600,head_ub = 270,head_lb = 250,num_points = 2, additional_points = None ):
 
     test_pairs = pd.DataFrame(columns=['flow','head'])
     flow_vals = np.linspace(flow_lb, flow_ub, num=num_points)
     head_vals = np.linspace(head_lb, head_ub, num=num_points)
     test_pairs['flow'] = np.repeat(flow_vals, num_points)
     test_pairs['head'] = np.tile(head_vals, num_points) 
+    if additional_points is not None:
+        for point in additional_points:
+            # Seems clunky
+            new_row = pd.DataFrame({'flow': [point[0]], 'head': [point[1]]})
+            test_pairs = pd.concat([test_pairs, new_row], ignore_index=True)
     return test_pairs
 
 def test_pump_param_sweep(test_pairs=None, pump_type='RO_feed', Pin=14.5):
@@ -104,7 +109,8 @@ def filter_pump_test_points(pump_data, pump_type='RO_feed'):
 
 if __name__ == "__main__":
     #
-    test_pairs = create_test_pairs(flow_ub = 3500,flow_lb = 1100, head_ub = 320,head_lb = 220,num_points = 8)
+    additional_points = [(3000,254),(3000,240),(3330,230),(2640,230),(2640,250),(1980,270),(2280,270)]
+    test_pairs = create_test_pairs(flow_ub = 3500,flow_lb = 1100, head_ub = 320,head_lb = 220,num_points = 1,additional_points = additional_points)
     print("Test Pairs:")
     print(test_pairs)
     filtered_test_pairs = filter_pump_test_points(test_pairs,pump_type='RO_feed')
@@ -113,4 +119,4 @@ if __name__ == "__main__":
     dataset = test_pump_param_sweep(test_pairs=filtered_test_pairs,pump_type='RO_feed',Pin=14.5)
     print("Dataset:")
     print(dataset)
-    dataset.to_csv("temp_pump_surr_data.csv", index=False) 
+    dataset.to_csv("temp_pump_surr_data_1.csv", index=False) 
