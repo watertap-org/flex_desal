@@ -89,21 +89,23 @@ def max_flows(flow,pump_type):
         d_2 = 0.23183
         d_3 = -0.00942
     if pump_type == 'RO_IS':
-        d_0 = 1600
+        # No multispeed head curve available
+        # I think using affinity laws to determine the max flow for this pump
+        d_0 = 0
         d_1 = 0
-        d_2 = 0
+        d_2 = 0.387369 
         d_3 = 0
     head = d_0 + d_1 * (flow) + d_2 * (flow) ** 2 + d_3 * (flow) ** 3
     return head
 
 
 # Select Types
-pump_type = 'RO_feed'
+pump_type = 'RO_IS'
 fittype = "rbf"
 
 # load data
 # filename = f"{pump_type}_pump_eff_curve_data.csv"
-filename = "RO_feed_aff_laws_surr_3.csv"
+filename = "RO_IS_aff_laws_surr_2.csv"
 pump_data = pd.read_csv(
     os.path.join(os.path.dirname(__file__), filename)
 )
@@ -128,7 +130,6 @@ input_bounds = {
 
 # Create Surrogate Type and trainer
 # Create the trainer
-
 if fittype == "poly":
     trainer = PysmoPolyTrainer(
         input_labels=input_labels,
@@ -174,7 +175,7 @@ m.surrogate_blk.pysmo_constraint.display()  # display()
 # minx, maxx = m.flowrate.bounds
 # miny, maxy = m.power.bounds
 
-num_points = 30
+num_points = 50
 x_vals = np.linspace(min_flow, max_flow, num=num_points)
 y_vals = np.linspace(min_head, max_head, num=num_points)
 z_vals = np.zeros((num_points, num_points))
@@ -253,7 +254,7 @@ plt.scatter(X_data, Y_data, color="red", s=10)
 #     Y_points = Y_data[Z_data == l]    
 #     plt.scatter(X_points, Y_points, color="red", s=10, label=f"{l}%")
 #     plt.text(X_points.iloc[0]+20,Y_points.iloc[0]+3, f"{l}%",color="red")
-# plt.show()
+plt.show()
 
 # Data Validation Scatter plot
 

@@ -81,15 +81,17 @@ def max_flows(flow,pump_type):
     """Helper function to define maximum flow for given flowrate along the maximum pump capacity across different speeds."""
     # Flow must be in units of scaled gpm. Head is in scaled ft.
     if pump_type == 'RO_feed':
+        # Using end points for multi-speed head curves
         d_0 = 0.19338
         d_1 = -0.21424
         d_2 = 0.23183
         d_3 = -0.00942
     if pump_type == 'RO_IS':
-        # Missing!!!
-        d_0 = 1600
+        # No multispeed head curve available
+        # I think using affinity laws to determine the max flow for this pump
+        d_0 = 0
         d_1 = 0
-        d_2 = 0
+        d_2 = 0.387369 
         d_3 = 0
     head = d_0 + d_1 * (flow) + d_2 * (flow) ** 2 + d_3 * (flow) ** 3
     return head
@@ -109,14 +111,17 @@ def filter_pump_test_points(pump_data, pump_type='RO_feed'):
 
 if __name__ == "__main__":
     #
-    additional_points = [(3000,254),(3000,240),(3330,230),(2640,230),(2640,250),(1980,270),(2280,270)]
-    test_pairs = create_test_pairs(flow_ub = 3500,flow_lb = 1100, head_ub = 320,head_lb = 220,num_points = 1,additional_points = additional_points)
+    # additional_points = [(3000,254),(3000,240),(3330,230),(2640,230),(2640,250),(1980,270),(2280,270)] # RO Feed Pump
+    additional_points = [(1300,66),(1200,56),(1250,61),(850,55),(850,65)] # RO IS Pump
+    test_pairs = create_test_pairs(flow_ub = 1300, flow_lb = 400, head_ub = 100, head_lb = 50, num_points = 1,additional_points = additional_points)
     print("Test Pairs:")
     print(test_pairs)
-    filtered_test_pairs = filter_pump_test_points(test_pairs,pump_type='RO_feed')
+    filtered_test_pairs = filter_pump_test_points(test_pairs,pump_type='RO_IS')
     print("Filtered test pairs:")
     print(filtered_test_pairs)
-    dataset = test_pump_param_sweep(test_pairs=filtered_test_pairs,pump_type='RO_feed',Pin=14.5)
+    dataset = test_pump_param_sweep(test_pairs=filtered_test_pairs,pump_type='RO_IS',Pin=150) #Not sure Pin really matters here
     print("Dataset:")
     print(dataset)
-    dataset.to_csv("temp_pump_surr_data_1.csv", index=False) 
+    dataset.rename(columns={'flow': 'Flow (gpm)'}, inplace=True)
+    dataset.rename(columns={'head': 'Head (ft)'}, inplace=True)
+    dataset.to_csv("RO_IS_aff_laws_surr_3.csv", index=False) 
