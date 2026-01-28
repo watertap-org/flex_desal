@@ -20,7 +20,7 @@ def test_pump_param_sweep(test_pairs=None, pump_type='RO_feed', Pin=14.5):
     # Flow and Head pairs
     if test_pairs is None:
         test_pairs = pd.DataFrame([[2778.0,271.1],[2778.0,150.8]], columns=['flow','head'])
-    outputs = pd.DataFrame(columns=['efficiency','speed'])
+    outputs = pd.DataFrame(columns=['speed','pump_efficiency','total_efficiency','power'])
     if pump_type == 'RO_feed':
         stage_num = 1
     elif pump_type == 'RO_IS':
@@ -44,9 +44,13 @@ def test_pump_param_sweep(test_pairs=None, pump_type='RO_feed', Pin=14.5):
         rpm = value(m.fs.pump.unit.eff.speed * 1780)
         print(f"Pump RPM: {rpm}")
         fluid_efficiency = value(m.fs.pump.unit.eff.efficiency_fluid)
+        total_efficiency = value(m.fs.pump.unit.efficiency_pump[0])
+        power =value(pyunits.convert(m.fs.pump.unit.work_mechanical[0], to_units=pyunits.kW))
         print(f"Fluid efficiency: {fluid_efficiency}")
-        outputs.at[i, 'efficiency'] = fluid_efficiency * 100
+        outputs.at[i, 'pump_efficiency'] = fluid_efficiency * 100
+        outputs.at[i, 'total_efficiency'] = total_efficiency * 100
         outputs.at[i, 'speed'] = speed * 100
+        outputs.at[i, 'power'] = power
     test_pairs.reset_index(drop=True, inplace=True)
     dataset = pd.concat([test_pairs, outputs], axis=1)
     return dataset
@@ -100,7 +104,7 @@ def filter_pump_test_points(pump_data, pump_type='RO_feed'):
 
 if __name__ == "__main__":
     #
-    test_pairs = create_test_pairs(flow_ub = 3750,flow_lb = 1000,head_ub = 315,head_lb = 140,num_points = 10)
+    test_pairs = create_test_pairs(flow_ub = 3500,flow_lb = 1100, head_ub = 320,head_lb = 220,num_points = 8)
     print("Test Pairs:")
     print(test_pairs)
     filtered_test_pairs = filter_pump_test_points(test_pairs,pump_type='RO_feed')
@@ -109,4 +113,4 @@ if __name__ == "__main__":
     dataset = test_pump_param_sweep(test_pairs=filtered_test_pairs,pump_type='RO_feed',Pin=14.5)
     print("Dataset:")
     print(dataset)
-    dataset.to_csv("temp_pump_surr_data.csv", index=False)
+    dataset.to_csv("temp_pump_surr_data.csv", index=False) 

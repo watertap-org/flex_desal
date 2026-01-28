@@ -309,14 +309,14 @@ def build_pump(
 
     # Create variable for the efficiency from the pump curves
     blk.unit.efficiency_motor = Param(
-        initialize=0.938,
+        initialize=0.95,
         mutable=True,
         units=pyunits.dimensionless,
         doc="Efficiency of motor and VFD",
     )
 
     blk.unit.efficiency_vfd = Param(
-        initialize=0.95,
+        initialize=0.97, 
         mutable=True,
         units=pyunits.dimensionless,
         doc="Efficiency of VFD",
