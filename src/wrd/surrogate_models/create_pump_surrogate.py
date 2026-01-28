@@ -103,7 +103,7 @@ fittype = "rbf"
 
 # load data
 # filename = f"{pump_type}_pump_eff_curve_data.csv"
-filename = "RO_feed_aff_laws_surr_2.csv"
+filename = "RO_feed_aff_laws_surr_3.csv"
 pump_data = pd.read_csv(
     os.path.join(os.path.dirname(__file__), filename)
 )
@@ -253,7 +253,7 @@ plt.scatter(X_data, Y_data, color="red", s=10)
 #     Y_points = Y_data[Z_data == l]    
 #     plt.scatter(X_points, Y_points, color="red", s=10, label=f"{l}%")
 #     plt.text(X_points.iloc[0]+20,Y_points.iloc[0]+3, f"{l}%",color="red")
-plt.show()
+# plt.show()
 
 # Data Validation Scatter plot
 
@@ -295,9 +295,9 @@ plt.show()
 # plt.show()
 
 
-# # Get the absolute path of the current script
-# current_script_path = os.path.abspath(__file__)
-# # Get the directory containing the current script
-# current_directory = os.path.dirname(current_script_path)
-# surr_name = f"UV_power_poly_fit_order_{trainer.config.maximum_polynomial_order}.json"
-# Surrogate.save_to_file(current_directory+surr_name, overwrite=True)
+# Get the absolute path of the current script
+current_script_path = os.path.abspath(__file__)
+# Get the directory containing the current script
+current_directory = os.path.dirname(current_script_path)
+surr_name = f"{pump_type}_total_efficiency_rbf_fit.json"
+Surrogate.save_to_file(os.path.join(current_directory, surr_name), overwrite=True)
