@@ -27,6 +27,7 @@ def min_head_limit(flow,pump_type):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
     # Flow must be units of gpm. Head is in ft.
+    # This isn't valid anymore b/ it was for a smaller pump impeller diameter,not speed
     if pump_type == 'RO_feed':
         a_0 = 1.8033
         a_1 = -0.202589
@@ -101,8 +102,10 @@ pump_type = 'RO_feed'
 fittype = "rbf"
 
 # load data
+# filename = f"{pump_type}_pump_eff_curve_data.csv"
+filename = "RO_feed_aff_laws_surr_1.csv"
 pump_data = pd.read_csv(
-    os.path.join(os.path.dirname(__file__), f"{pump_type}_pump_eff_curve_data.csv")
+    os.path.join(os.path.dirname(__file__), filename)
 )
 input_labels = ["Flow (gpm)", "Head (ft)"]
 output_labels = ["efficiency"]
@@ -182,7 +185,7 @@ for i in range(num_points):
         if (
             y_vals[j] > head_limit(x_vals[i],pump_type) 
             or y_vals[j] > MCSF(x_vals[i],pump_type)
-            or y_vals[j] < min_head_limit(x_vals[i],pump_type)
+            # or y_vals[j] < min_head_limit(x_vals[i],pump_type)
             or y_vals[j] < max_flows(x_vals[i],pump_type)
         ): 
             z_vals[i, j] = np.nan
@@ -229,31 +232,41 @@ plt.xlabel("Flow (gpm)")
 plt.ylabel("Head (ft)")
 plt.title(f"{pump_type.replace('_', ' ').title()} Pump Efficiency Contour Plot")
 
-# Data points vs. surrogate outputs
-X_data = pump_data["Flow (gpm)"] * 1e3
-Y_data = pump_data["Head (ft)"] * 1e2
-Z_data = pump_data["efficiency"] * 1e2
+# Test value at 80% speed point
+m.flowrate.fix(2778/1e3)
+m.head.fix(150.8/1e2)
+calculate_variable_from_constraint(
+    m.eff, m.surrogate_blk.pysmo_constraint["efficiency"]
+)
+print(m.flowrate.value, m.head.value)
+print(value(m.eff))
 
-for l in levels:
-    X_points = X_data[Z_data == l]
-    Y_points = Y_data[Z_data == l]    
-    plt.scatter(X_points, Y_points, color="red", s=10, label=f"{l}%")
-    plt.text(X_points.iloc[0]+20,Y_points.iloc[0]+3, f"{l}%",color="red")
+# BELOW CODE WON'T WORK ANYMORE. WE ONLY HAVE A FEW ACTUAL DATA POINTS (100% CURVE, PLUS ONE 80% SPEED POINT)
+# # Data points vs. surrogate outputs
+# X_data = pump_data["Flow (gpm)"] * 1e3
+# Y_data = pump_data["Head (ft)"] * 1e2
+# Z_data = pump_data["efficiency"] * 1e2
+
+# for l in levels:
+#     X_points = X_data[Z_data == l]
+#     Y_points = Y_data[Z_data == l]    
+#     plt.scatter(X_points, Y_points, color="red", s=10, label=f"{l}%")
+#     plt.text(X_points.iloc[0]+20,Y_points.iloc[0]+3, f"{l}%",color="red")
 plt.show()
 
 # Data Validation Scatter plot
 
-Z_modeled = pd.DataFrame()
+# Z_modeled = pd.DataFrame()
 
-for i in range(len(X_data)):
-    m.flowrate.fix(X_data[i]/1e3)
-    m.head.fix(Y_data[i]/1e2)
-    calculate_variable_from_constraint(m.eff, m.surrogate_blk.pysmo_constraint["efficiency"])
-    Z_modeled.at[i, "efficiency_modeled"] = value(m.eff)*1e2
+# for i in range(len(X_data)):
+#     m.flowrate.fix(X_data[i]/1e3)
+#     m.head.fix(Y_data[i]/1e2)
+#     calculate_variable_from_constraint(m.eff, m.surrogate_blk.pysmo_constraint["efficiency"])
+#     Z_modeled.at[i, "efficiency_modeled"] = value(m.eff)*1e2
 
-# # Create 3D scatter plot
-fig2 = plt.figure(figsize=(10, 8))
-ax2 = fig2.add_subplot(111, projection="3d")
+# # # Create 3D scatter plot
+# fig2 = plt.figure(figsize=(10, 8))
+# ax2 = fig2.add_subplot(111, projection="3d")
 
 # Flatten the data for scatter plot
 # X_flat = X.flatten()
@@ -266,19 +279,19 @@ ax2 = fig2.add_subplot(111, projection="3d")
 # Y_clean = Y_flat[mask]
 # Z_clean = Z_flat[mask]
 
-# Create scatter plot with color mapping
-scatter = ax2.scatter(X_data, Y_data, Z_data, color='red', s=50, alpha=0.6)
+# # Create scatter plot with color mapping
+# scatter = ax2.scatter(X_data, Y_data, Z_data, color='red', s=50, alpha=0.6)
 
-# Plot actual data points
-ax2.scatter(X_data,Y_data,Z_modeled["efficiency_modeled"], color="black", s=20, label="Modeled Points")
+# # Plot actual data points
+# ax2.scatter(X_data,Y_data,Z_modeled["efficiency_modeled"], color="black", s=20, label="Modeled Points")
 
-ax2.set_xlabel("Flow (gpm)")
-ax2.set_ylabel("Head (ft)")
-ax2.set_zlabel("Efficiency (%)")
-ax2.set_title("RO Feed Pump Efficiency 3D Scatter Plot")
-ax2.set_xlim(0, 4500)
-ax2.set_ylim(0, 400)
-plt.show()
+# ax2.set_xlabel("Flow (gpm)")
+# ax2.set_ylabel("Head (ft)")
+# ax2.set_zlabel("Efficiency (%)")
+# ax2.set_title("RO Feed Pump Efficiency 3D Scatter Plot")
+# ax2.set_xlim(0, 4500)
+# ax2.set_ylim(0, 400)
+# plt.show()
 
 
 # # Get the absolute path of the current script

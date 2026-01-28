@@ -169,14 +169,14 @@ def build_pump(
     blk.unit.efficiency_pump.bounds = (0, 1)
 
     blk.unit.efficiency_motor = Param(
-        initialize=0.938,
+        initialize=0.938, # Where did this value come from?
         mutable=True,
         units=pyunits.dimensionless,
-        doc="Efficiency of motor and VFD",
+        doc="Efficiency of motor",
     )
 
     blk.unit.efficiency_vfd = Param(
-        initialize=0.95,
+        initialize=0.95, # More likely 96-97%. Would change significantly if pump speed is below like 63%
         mutable=True,
         units=pyunits.dimensionless,
         doc="Efficiency of VFD",
