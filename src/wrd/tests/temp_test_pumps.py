@@ -28,9 +28,13 @@ def test_pump_param_sweep(test_pairs=None, pump_type='RO_feed', Pin=14.5):
     outputs = pd.DataFrame(columns=['speed','pump_efficiency','total_efficiency','power'])
     if pump_type == 'RO_feed':
         stage_num = 1
+        uf=False
     elif pump_type == 'RO_IS':
         stage_num = 2
-
+        uf = False
+    elif pump_type == 'UF':
+        stage_num = 1
+        uf = True
     for i in range(len(test_pairs)):
         flow = test_pairs.iloc[i, 0]
         head = test_pairs.iloc[i, 1]
@@ -40,7 +44,7 @@ def test_pump_param_sweep(test_pairs=None, pump_type='RO_feed', Pin=14.5):
             Tin=298.15,
             Pin=Pin, #psi
             stage_num=stage_num,
-            uf=False,
+            uf=uf,
             file="wrd_inputs_8_19_21.yaml",
             add_costing=True,
             )
@@ -69,11 +73,16 @@ def head_limit(flow,pump_type):
         b_1 = -0.09634
         b_2 = 0.051555
         b_3 = -0.026339
-    if pump_type == 'RO_IS':
+    elif pump_type == 'RO_IS':
         b_0 = 1.02801
         b_1 = -0.21038
         b_2 = 0.284634
         b_3 = -0.253384
+    elif pump_type == 'UF':
+        b_0 = 3.199441
+        b_1 = -0.252764
+        b_2 = 0.060008
+        b_3 = -0.015999
     head = (b_0 + b_1 * (flow) + b_2 * (flow)**2 + b_3 * (flow)**3)
     return head
 
@@ -86,12 +95,19 @@ def max_flows(flow,pump_type):
         d_1 = -0.21424
         d_2 = 0.23183
         d_3 = -0.00942
-    if pump_type == 'RO_IS':
+    elif pump_type == 'RO_IS':
         # No multispeed head curve available
         # I think using affinity laws to determine the max flow for this pump
         d_0 = 0
         d_1 = 0
         d_2 = 0.387369 
+        d_3 = 0
+    elif pump_type == 'UF':
+        # No multispeed head curve available
+        # I think using affinity laws to determine the max flow for this pump
+        d_0 = 0
+        d_1 = 0
+        d_2 = 0.04354
         d_3 = 0
     head = d_0 + d_1 * (flow) + d_2 * (flow) ** 2 + d_3 * (flow) ** 3
     return head
@@ -112,16 +128,17 @@ def filter_pump_test_points(pump_data, pump_type='RO_feed'):
 if __name__ == "__main__":
     #
     # additional_points = [(3000,254),(3000,240),(3330,230),(2640,230),(2640,250),(1980,270),(2280,270)] # RO Feed Pump
-    additional_points = [(1300,66),(1200,56),(1250,61),(850,55),(850,65)] # RO IS Pump
-    test_pairs = create_test_pairs(flow_ub = 1300, flow_lb = 400, head_ub = 100, head_lb = 50, num_points = 1,additional_points = additional_points)
+    # additional_points = [(1300,66),(1200,56),(1250,61),(850,55),(850,65)] # RO IS Pump
+    additional_points = [(4690,145),(4690,110),(3585,215),(3065,235),(2000,200),(2000,250),(2000,100),(2000,75),(2600,150),(2600,75),(2600,115)] # UF Pump
+    test_pairs = create_test_pairs(flow_ub = 5500, flow_lb = 600, head_ub = 280, head_lb = 50, num_points = 1, additional_points = additional_points)
     print("Test Pairs:")
     print(test_pairs)
-    filtered_test_pairs = filter_pump_test_points(test_pairs,pump_type='RO_IS')
+    filtered_test_pairs = filter_pump_test_points(test_pairs,pump_type='UF')
     print("Filtered test pairs:")
     print(filtered_test_pairs)
-    dataset = test_pump_param_sweep(test_pairs=filtered_test_pairs,pump_type='RO_IS',Pin=150) #Not sure Pin really matters here
+    dataset = test_pump_param_sweep(test_pairs=filtered_test_pairs,pump_type='UF',Pin=150) #Not sure Pin really matters here
     print("Dataset:")
     print(dataset)
     dataset.rename(columns={'flow': 'Flow (gpm)'}, inplace=True)
     dataset.rename(columns={'head': 'Head (ft)'}, inplace=True)
-    dataset.to_csv("RO_IS_aff_laws_surr_3.csv", index=False) 
+    dataset.to_csv("UF_aff_laws_surr_2.csv", index=False) 

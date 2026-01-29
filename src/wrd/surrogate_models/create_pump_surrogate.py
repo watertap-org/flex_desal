@@ -51,11 +51,16 @@ def head_limit(flow,pump_type):
         b_1 = -0.09634
         b_2 = 0.051555
         b_3 = -0.026339
-    if pump_type == 'RO_IS':
+    elif pump_type == 'RO_IS':
         b_0 = 1.02801
         b_1 = -0.21038
         b_2 = 0.284634
         b_3 = -0.253384
+    elif pump_type == 'UF':
+        b_0 = 3.199441
+        b_1 = -0.252764
+        b_2 = 0.060008
+        b_3 = -0.015999
     head = (b_0 + b_1 * (flow) + b_2 * (flow)**2 + b_3 * (flow)**3)
     return head
 
@@ -69,10 +74,15 @@ def MCSF(flow,pump_type):
         c_1 = -1.869681
         c_2 = 2.477258
         c_3 = 0
-    if pump_type == 'RO_IS':
+    elif pump_type == 'RO_IS':
         c_0 = 0.185777
         c_1 = -1.584001
         c_2 = 9.184983
+        c_3 = 0
+    elif pump_type == 'UF':
+        c_0 = -0.124779
+        c_1 = 0.390064
+        c_2 = 3.300655
         c_3 = 0
     head = (
         c_0 + c_1 * (flow) + c_2 * (flow) ** 2 + c_3 * (flow) ** 3
@@ -88,24 +98,31 @@ def max_flows(flow,pump_type):
         d_1 = -0.21424
         d_2 = 0.23183
         d_3 = -0.00942
-    if pump_type == 'RO_IS':
+    elif pump_type == 'RO_IS':
         # No multispeed head curve available
         # I think using affinity laws to determine the max flow for this pump
         d_0 = 0
         d_1 = 0
         d_2 = 0.387369 
         d_3 = 0
+    elif pump_type == 'UF':
+        # No multispeed head curve available
+        # I think using affinity laws to determine the max flow for this pump
+        d_0 = 0
+        d_1 = 0
+        d_2 = 0.04354
+        d_3 = 0
     head = d_0 + d_1 * (flow) + d_2 * (flow) ** 2 + d_3 * (flow) ** 3
     return head
 
 
 # Select Types
-pump_type = 'RO_IS'
+pump_type = 'UF'
 fittype = "rbf"
 
 # load data
 # filename = f"{pump_type}_pump_eff_curve_data.csv"
-filename = "RO_IS_aff_laws_surr_2.csv"
+filename = "UF_aff_laws_surr_1.csv"
 pump_data = pd.read_csv(
     os.path.join(os.path.dirname(__file__), filename)
 )
@@ -229,9 +246,13 @@ elif pump_type == 'RO_IS':
     levels=[52,62,71,77,81,82]
     labels=["52%","62%","71%","77%","81%","82%"]
 
+elif pump_type == 'UF':
+    plt.xlim(0, 6000)
+    plt.ylim(0, 400)
+    
 plt.xlabel("Flow (gpm)")
 plt.ylabel("Head (ft)")
-plt.title(f"{pump_type.replace('_', ' ').title()} Pump Efficiency Contour Plot")
+plt.title(f"{pump_type.replace('_', ' ').title()} Total Efficiency Contour Plot")
 
 # Test value at 80% speed point
 m.flowrate.fix(2778/1e3)
