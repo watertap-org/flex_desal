@@ -23,17 +23,17 @@ from watertap.core.solvers import get_solver
 
 
 # Helper Function, stealing fit from pump head curve, but could also make a surrogate from json data
-def min_head_limit(flow,pump_type):
+def min_head_limit(flow, pump_type):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
     # Flow must be units of gpm. Head is in ft.
     # This isn't valid anymore b/ it was for a smaller pump impeller diameter,not speed
-    if pump_type == 'RO_feed':
+    if pump_type == "RO_feed":
         a_0 = 1.8033
         a_1 = -0.202589
         a_2 = 0.148054
         a_3 = -0.060852
-    if pump_type == 'RO_IS':
+    if pump_type == "RO_IS":
         a_0 = 0.607309
         a_1 = -0.059714
         a_2 = -0.105637
@@ -42,70 +42,68 @@ def min_head_limit(flow,pump_type):
     return head
 
 
-def head_limit(flow,pump_type):
+def head_limit(flow, pump_type):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
     # Flow must be units of scaled gpm. Head is in ft.
-    if pump_type == 'RO_feed':
+    if pump_type == "RO_feed":
         b_0 = 3.127555
         b_1 = -0.09634
         b_2 = 0.051555
         b_3 = -0.026339
-    elif pump_type == 'RO_IS':
+    elif pump_type == "RO_IS":
         b_0 = 1.02801
         b_1 = -0.21038
         b_2 = 0.284634
         b_3 = -0.253384
-    elif pump_type == 'UF':
+    elif pump_type == "UF":
         b_0 = 3.199441
         b_1 = -0.252764
         b_2 = 0.060008
         b_3 = -0.015999
-    head = (b_0 + b_1 * (flow) + b_2 * (flow)**2 + b_3 * (flow)**3)
+    head = b_0 + b_1 * (flow) + b_2 * (flow) ** 2 + b_3 * (flow) ** 3
     return head
 
 
-def MCSF(flow,pump_type):
+def MCSF(flow, pump_type):
     """Helper function to define max head for given flowrate along the minimum continuous stable flow."""
     # Coefficients from pump curve data
     # Flow must be in units of scaled gpm. Head is in scaled ft.
-    if pump_type == 'RO_feed':
+    if pump_type == "RO_feed":
         c_0 = 0.838
         c_1 = -1.869681
         c_2 = 2.477258
         c_3 = 0
-    elif pump_type == 'RO_IS':
+    elif pump_type == "RO_IS":
         c_0 = 0.185777
         c_1 = -1.584001
         c_2 = 9.184983
         c_3 = 0
-    elif pump_type == 'UF':
+    elif pump_type == "UF":
         c_0 = -0.124779
         c_1 = 0.390064
         c_2 = 3.300655
         c_3 = 0
-    head = (
-        c_0 + c_1 * (flow) + c_2 * (flow) ** 2 + c_3 * (flow) ** 3
-    )
+    head = c_0 + c_1 * (flow) + c_2 * (flow) ** 2 + c_3 * (flow) ** 3
     return head
 
 
-def max_flows(flow,pump_type):
+def max_flows(flow, pump_type):
     """Helper function to define maximum flow for given flowrate along the maximum pump capacity across different speeds."""
     # Flow must be in units of scaled gpm. Head is in scaled ft.
-    if pump_type == 'RO_feed':
+    if pump_type == "RO_feed":
         d_0 = 0.19338
         d_1 = -0.21424
         d_2 = 0.23183
         d_3 = -0.00942
-    elif pump_type == 'RO_IS':
+    elif pump_type == "RO_IS":
         # No multispeed head curve available
         # I think using affinity laws to determine the max flow for this pump
         d_0 = 0
         d_1 = 0
-        d_2 = 0.387369 
+        d_2 = 0.387369
         d_3 = 0
-    elif pump_type == 'UF':
+    elif pump_type == "UF":
         # No multispeed head curve available
         # I think using affinity laws to determine the max flow for this pump
         d_0 = 0
@@ -117,15 +115,13 @@ def max_flows(flow,pump_type):
 
 
 # Select Types
-pump_type = 'UF'
+pump_type = "UF"
 fittype = "rbf"
 
 # load data
 # filename = f"{pump_type}_pump_eff_curve_data.csv"
 filename = "UF_aff_laws_surr_1.csv"
-pump_data = pd.read_csv(
-    os.path.join(os.path.dirname(__file__), filename)
-)
+pump_data = pd.read_csv(os.path.join(os.path.dirname(__file__), filename))
 input_labels = ["Flow (gpm)", "Head (ft)"]
 output_labels = ["total_efficiency"]
 input_data = pump_data[input_labels]
@@ -152,7 +148,7 @@ if fittype == "poly":
         input_labels=input_labels,
         output_labels=output_labels,
         training_dataframe=Data_scaled,  # NOT spliting data for training and validation because there's not that much data to begin with.
-)
+    )
     trainer.config.maximum_polynomial_order = 3
 
 if fittype == "rbf":
@@ -201,11 +197,11 @@ for i in range(num_points):
     for j in range(num_points):
         # Filter out infeasible points
         if (
-            y_vals[j] > head_limit(x_vals[i],pump_type) 
-            or y_vals[j] > MCSF(x_vals[i],pump_type)
+            y_vals[j] > head_limit(x_vals[i], pump_type)
+            or y_vals[j] > MCSF(x_vals[i], pump_type)
             # or y_vals[j] < min_head_limit(x_vals[i],pump_type)
-            or y_vals[j] < max_flows(x_vals[i],pump_type)
-        ): 
+            or y_vals[j] < max_flows(x_vals[i], pump_type)
+        ):
             z_vals[i, j] = np.nan
             continue
         m.flowrate.fix(x_vals[i])
@@ -234,29 +230,29 @@ fig1 = plt.contourf(
 )
 plt.colorbar(label="Total Efficiency (%)")
 # Add countour lines for specific efficiencies in the orginial plot
-if pump_type == 'RO_feed':
+if pump_type == "RO_feed":
     plt.xlim(0, 4500)
     plt.ylim(0, 400)
-    levels=[59,68,75,80,83]
-    labels=["59%","68%","75%","80%","83%"]
+    levels = [59, 68, 75, 80, 83]
+    labels = ["59%", "68%", "75%", "80%", "83%"]
 
-elif pump_type == 'RO_IS':
+elif pump_type == "RO_IS":
     plt.xlim(0, 1600)
     plt.ylim(0, 150)
-    levels=[52,62,71,77,81,82]
-    labels=["52%","62%","71%","77%","81%","82%"]
+    levels = [52, 62, 71, 77, 81, 82]
+    labels = ["52%", "62%", "71%", "77%", "81%", "82%"]
 
-elif pump_type == 'UF':
+elif pump_type == "UF":
     plt.xlim(0, 6000)
     plt.ylim(0, 400)
-    
+
 plt.xlabel("Flow (gpm)")
 plt.ylabel("Head (ft)")
 plt.title(f"{pump_type.replace('_', ' ').title()} Total Efficiency Contour Plot")
 
 # Test value at 80% speed point
-m.flowrate.fix(2778/1e3)
-m.head.fix(150.8/1e2)
+m.flowrate.fix(2778 / 1e3)
+m.head.fix(150.8 / 1e2)
 calculate_variable_from_constraint(
     m.eff, m.surrogate_blk.pysmo_constraint["total_efficiency"]
 )
@@ -272,7 +268,7 @@ plt.scatter(X_data, Y_data, color="red", s=10)
 
 # for l in levels:
 #     X_points = X_data[Z_data == l]
-#     Y_points = Y_data[Z_data == l]    
+#     Y_points = Y_data[Z_data == l]
 #     plt.scatter(X_points, Y_points, color="red", s=10, label=f"{l}%")
 #     plt.text(X_points.iloc[0]+20,Y_points.iloc[0]+3, f"{l}%",color="red")
 plt.show()
