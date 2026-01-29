@@ -58,7 +58,9 @@ def build_system(stage_num=1, file="wrd_ro_inputs_8_19_21.yaml"):
     )
 
     m.fs.product = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.product)
     m.fs.brine = Product(property_package=m.fs.properties)
+    touch_flow_and_conc(m.fs.brine)
 
     # Arcs to connect the unit models
     m.fs.feed_to_ro_stage = Arc(
@@ -221,10 +223,12 @@ def main(
     return m
 
 
+# TODO: Make sure the input salinities are accurate!
 def run_august_stages():
     # August 19, 2021 Data
     # Stage 1
     m = main()
+
     # Stage 2
     m = main(
         Qin=1029,
@@ -234,19 +238,19 @@ def run_august_stages():
         stage_num=2,
         file="wrd_inputs_8_19_21.yaml",
     )
+
     # Stage 3
     m = main(
         Qin=384,
-        Cin=4.847 / 2,
+        Cin=3.6,
         Tin=302,
-        Pin=(112.6 - 41.9) * pyunits.psi,
+        Pin=112.6 * pyunits.psi,  # Is this the right pressure?
         stage_num=3,
         file="wrd_inputs_8_19_21.yaml",
     )
 
 
 def run_march_stages():
-
     # March 13, 2021 Data
     # Stage 1
     m = main(
@@ -257,6 +261,7 @@ def run_march_stages():
         stage_num=1,
         file="wrd_inputs_3_13_21.yaml",
     )
+
     # Stage 2
     m = main(
         Qin=1047,
@@ -266,15 +271,23 @@ def run_march_stages():
         stage_num=2,
         file="wrd_inputs_3_13_21.yaml",
     )
+
     # Stage 3
     m = main(
         Qin=506.5,
         Cin=2.7,
         Tin=295,
-        Pin=(106.3 - 59.3) * pyunits.psi,
+        Pin=106.3 * pyunits.psi,
         stage_num=3,
-        file="wrd_ro_inputs_3_13_21.yaml",
+        file="wrd_inputs_3_13_21.yaml",
     )
+    # Leaving this example for calculating A and B, but see ro_memb_test
+    # m.fs.ro_stage.ro.unit.A_comp.unfix()
+    # m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.5499)
+    # solver = get_solver()
+    # results = solver.solve(m)
+    # assert_optimal_termination(results)
+    # m.fs.ro_stage.ro.unit.A_comp.display()
 
 
 if __name__ == "__main__":

@@ -52,13 +52,13 @@ __all__ = [
     "set_ro_op_conditions",
     "set_ro_scaling",
     "report_ro",
-    "add_ro_costing",
+    "main,",
 ]
 
 solver = get_solver()
 
 
-def build_system():
+def build_system(stage_num=1):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = NaClParameterBlock()
@@ -69,7 +69,7 @@ def build_system():
 
     m.fs.ro = FlowsheetBlock(dynamic=False)
 
-    build_ro(m.fs.ro, prop_package=m.fs.properties)
+    build_ro(m.fs.ro, prop_package=m.fs.properties, stage_num=stage_num)
 
     m.fs.product = Product(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.product)
@@ -145,20 +145,14 @@ def build_ro(
     TransformationFactory("network.expand_arcs").apply_to(blk)
 
 
-def set_inlet_conditions(m, Qin=2637, Cin=0.5, file="wrd_inputs_8_19_21.yaml"):
-
-    config_data = load_config(get_config_file(file))
-
-    Pout = get_config_value(
-        config_data, "pump_outlet_pressure", "ro_pumps", f"pump_stage_1"
-    )
+def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=302, Pin=141.9):
 
     m.fs.feed.properties.calculate_state(
         var_args={
             ("flow_vol_phase", ("Liq")): Qin * pyunits.gallons / pyunits.minute,
             ("conc_mass_phase_comp", ("Liq", "NaCl")): Cin * pyunits.g / pyunits.L,
-            ("pressure", None): Pout,
-            ("temperature", None): 273.15 + 27,
+            ("pressure", None): Pin * pyunits.psi,
+            ("temperature", None): Tin * pyunits.kelvin,
         },
         hold_state=True,
     )
@@ -187,7 +181,7 @@ def set_ro_scaling(blk):
         set_scaling_factor(c, 1e4)
 
 
-def set_ro_op_conditions(blk):
+def set_ro_op_conditions(blk, Pout=141.9, Pin=152.6):
 
     # Set RO configuration for each stage
     print(f"Setting RO {blk.stage_num} operating conditions")
@@ -258,14 +252,8 @@ def set_ro_op_conditions(blk):
         )
     )
 
-    blk.unit.deltaP.fix(
-        get_config_value(
-            blk.config_data,
-            "pressure_drop",
-            "reverse_osmosis_1d",
-            f"stage_{blk.stage_num}",
-        )
-    )
+    deltaP = (Pout - Pin) * pyunits.psi
+    blk.unit.deltaP.fix(deltaP)
 
     blk.unit.recovery_vol_phase[0, "Liq"].set_value(  # Note this is unfixed!
         get_config_value(
@@ -396,17 +384,13 @@ def add_ro_costing(blk, costing_package=None):
     blk.unit.costing = UnitModelCostingBlock(flowsheet_costing_block=costing_package)
 
 
-def main(file="wrd_inputs_8_19_21.yaml"):
+def solve_ro_module(Qin=2637, Cin=0.5, Tin=302, Pin=141, Pout=152.6, stage_num=1):
 
-    m = build_system()
+    m = build_system(stage_num=stage_num)
     set_ro_scaling(m.fs.ro)
     calculate_scaling_factors(m)
-    set_inlet_conditions(m, file=file)
-    set_ro_op_conditions(m.fs.ro)
-
-    add_ro_costing(m.fs.ro)
-    m.fs.costing.cost_process()
-    m.fs.costing.add_LCOW(m.fs.product.properties[0].flow_vol_phase["Liq"])
+    set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
+    set_ro_op_conditions(m.fs.ro, Pout=Pout, Pin=Pin)
 
     assert degrees_of_freedom(m) == 0
     initialize_system(m)
@@ -419,4 +403,4 @@ def main(file="wrd_inputs_8_19_21.yaml"):
 
 
 if __name__ == "__main__":
-    m = main()
+    m = solve_ro_module()

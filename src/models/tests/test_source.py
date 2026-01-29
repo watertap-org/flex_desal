@@ -59,7 +59,7 @@ def build_source():
 
 
 @pytest.mark.component
-def test_head_loss():
+def test_source():
     m = build_source()
 
     assert not hasattr(m.fs.unit, "inlet")  # only has an outlet
