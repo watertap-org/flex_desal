@@ -151,40 +151,57 @@ def filter_pump_test_points(pump_data, pump_type="RO_feed"):
 
 
 if __name__ == "__main__":
-    #
-    # additional_points = [(3000,254),(3000,240),(3330,230),(2640,230),(2640,250),(1980,270),(2280,270)] # RO Feed Pump
-    # additional_points = [(1300,66),(1200,56),(1250,61),(850,55),(850,65)] # RO IS Pump
-    additional_points = [
-        (4690, 145),
-        (4690, 110),
-        (3585, 215),
-        (3065, 235),
-        (2000, 200),
-        (2000, 250),
-        (2000, 100),
-        (2000, 75),
-        (2600, 150),
-        (2600, 75),
-        (2600, 115),
-    ]  # UF Pump
-    test_pairs = create_test_pairs(
+    pump_type = "RO_feed"
+    if pump_type == "RO_feed":
+        flow_ub=3800,
+        flow_lb=1000,
+        head_ub=320,
+        head_lb=100,
+        additional_points = [(3000,254),(3000,240),(3330,230),(2640,230),(2640,250),(1980,270),(2280,270)] # RO Feed Pump
+    elif pump_type == "RO_IS":
+        flow_ub=1350,
+        flow_lb=400,
+        head_ub=100,
+        head_lb=40
+        additional_points = [(1300,66),(1200,56),(1250,61),(850,55),(850,65)] # RO IS Pump
+    elif pump_type == "UF":
         flow_ub=5500,
         flow_lb=600,
         head_ub=280,
         head_lb=50,
+        additional_points = [
+            (4690, 145),
+            (4690, 110),
+            (3585, 215),
+            (3065, 235),
+            (2000, 200),
+            (2000, 250),
+            (2000, 100),
+            (2000, 75),
+            (2600, 150),
+            (2600, 75),
+            (2600, 115),
+        ]  # UF Pump
+
+    
+    test_pairs = create_test_pairs(
+        flow_ub=flow_ub,
+        flow_lb=flow_lb,
+        head_ub=head_ub,
+        head_lb=head_lb,
         num_points=1,
         additional_points=additional_points,
     )
     print("Test Pairs:")
     print(test_pairs)
-    filtered_test_pairs = filter_pump_test_points(test_pairs, pump_type="UF")
+    filtered_test_pairs = filter_pump_test_points(test_pairs, pump_type=pump_type)
     print("Filtered test pairs:")
     print(filtered_test_pairs)
     dataset = test_pump_param_sweep(
-        test_pairs=filtered_test_pairs, pump_type="UF", Pin=150
+        test_pairs=filtered_test_pairs, pump_type=pump_type, Pin=150
     )  # Not sure Pin really matters here
     print("Dataset:")
     print(dataset)
     dataset.rename(columns={"flow": "Flow (gpm)"}, inplace=True)
     dataset.rename(columns={"head": "Head (ft)"}, inplace=True)
-    dataset.to_csv("UF_aff_laws_surr_2.csv", index=False)
+    dataset.to_csv(f"{pump_type}_aff_laws_surr_2.csv", index=False)

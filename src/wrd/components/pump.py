@@ -93,14 +93,14 @@ def find_pump_speed(blk, stage_num=1, uf=False, Qin=None, head=None):
     # Create variable for pump speed and reference (100% speed) flow and head
 
     blk.unit.eff.speed = Var(
-        initialize=1,
+        initialize=.9,
         units=pyunits.dimensionless,
         bounds=(0, 1.02),
         doc="Pump speed ratio (actual speed / maximum speed)",
     )
 
     blk.unit.eff.ref_head = Var(
-        initialize=1,
+        initialize=100,
         units=pyunits.feet,
         bounds=(0, None),  # Should actually have bounds
         doc="Pump reference head at 100% speed (ft)",
@@ -236,7 +236,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None):
     # Creating a subblock for all the efficiency related vars, param, and constraints. That way, they can be solved without solve whole pump for trouble shooting. Can remove if not useful later.
     blk.unit.eff = Block()
     blk.unit.eff.efficiency_fluid = Var(
-        initialize=1,
+        initialize=.6,
         units=pyunits.dimensionless,
         bounds=(0, 1),
         doc="Pump efficiency from pump curves",
@@ -309,7 +309,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None):
     )
     blk.unit.efficiency_pump.bounds = (0, 1)  # Is this needed?
     assert degrees_of_freedom(blk.unit.eff) == 0
-    solver.solve(blk.unit.eff)
+    # solver.solve(blk.unit.eff)
     # print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
 
