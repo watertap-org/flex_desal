@@ -21,7 +21,7 @@ from watertap_contrib.reflo.unit_models.deep_well_injection import (
     DeepWellInjection as BrineDisposal,
 )  # just for fun
 
-from wrd.utilities import load_config, get_config_file
+from wrd.utilities import load_config, get_config_file, get_config_value
 from srp.utils import touch_flow_and_conc
 
 solver = get_solver()
@@ -41,6 +41,9 @@ def build_system(file="wrd_inputs_8_19_21.yaml"):
     m.fs.properties = NaClParameterBlock()
     m.fs.costing = WaterTAPCosting()
     m.fs.costing.base_currency = pyunits.USD_2021
+
+    config = get_config_file(file)
+    m.fs.config_data = load_config(config)
 
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
@@ -120,10 +123,9 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=302, Pin=101325):
     )
 
 
-def add_brine_disposal_costing(blk, costing_package=None, brine_disposal_cost=0.49):
-
+def add_brine_disposal_costing(blk, costing_package=None):
+    m = blk.model()
     if costing_package is None:
-        m = blk.model()
         costing_package = m.fs.costing
 
     blk.unit.costing = UnitModelCostingBlock(
@@ -131,10 +133,10 @@ def add_brine_disposal_costing(blk, costing_package=None, brine_disposal_cost=0.
         costing_method_arguments={"cost_method": "as_opex"},
     )
 
-    # this could be read in from yaml instead
-    costing_package.deep_well_injection.dwi_lcow.fix(
-        brine_disposal_cost * pyunits.USD_2021 / pyunits.m**3
+    brine_disposal_cost = get_config_value(
+        m.fs.config_data, "brine_disposal_cost", "brine_disposal_cost"
     )
+    costing_package.deep_well_injection.dwi_lcow.fix(brine_disposal_cost)
 
 
 def report_brine_disposal(blk, w=25):
