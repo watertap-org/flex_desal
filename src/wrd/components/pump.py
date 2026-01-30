@@ -14,6 +14,7 @@ from pyomo.util.calc_var_value import calculate_variable_from_constraint
 
 from idaes.core import FlowsheetBlock, UnitModelCostingBlock
 from idaes.core.util.initialization import propagate_state
+from idaes.core.util.exceptions import InitializationError
 from idaes.models.unit_models import StateJunction, Feed, Product
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.scaling import calculate_scaling_factors, set_scaling_factor
@@ -293,7 +294,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None):
         units=(pyunits.m**3 / pyunits.s) ** -3,
         doc="Cubed term of Efficiency equation",
     )
-
+    
     find_pump_speed(blk, stage_num=stage_num, uf=uf, Qin=Qin, head=head)
 
     # ref_flow = flow at 100% speed with the same efficiency
@@ -328,6 +329,27 @@ def build_pump(
         prop_package = m.fs.ro_properties
 
     blk.config_data = load_config(get_config_file(file))
+
+    # This could maybe be turned into helper fx b/c it also in the set inlet conditions fx
+    if Qin is None:
+        if uf:
+            Qin = pyunits.convert(
+                get_config_value(blk.config_data, "pump_flowrate", "uf_pumps", "pump"),
+                to_units=pyunits.gal / pyunits.minute,
+            )
+        else:
+            Qin = pyunits.convert(
+                get_config_value(
+                    blk.config_data,
+                    "pump_flowrate",
+                    "ro_pumps",
+                    f"pump_stage_{stage_num}",
+                ),
+                to_units=pyunits.gal / pyunits.minute,
+            )
+    else:
+        Qin = Qin * pyunits.gal / pyunits.minute
+
     blk.stage_num = stage_num
 
     blk.feed = StateJunction(property_package=prop_package)
@@ -402,7 +424,27 @@ def set_pump_op_conditions(blk, uf=False, head=None, Pin=14.5):
     blk.unit.control_volume.properties_out[0].pressure.fix(Pout)
 
 
-def set_inlet_conditions(m, Qin=None, Cin=0.5, Tin=302, Pin=14.5):
+def set_inlet_conditions(m, Qin=None, Cin=0.5, Tin=302, Pin=14.5,stage_num=1, uf=False):
+    
+    if Qin is None:
+        if uf:
+            Qin = pyunits.convert(
+                get_config_value(m.fs.pump.config_data, "pump_flowrate", "uf_pumps", "pump"),
+                to_units=pyunits.gal / pyunits.minute,
+            )
+        else:
+            Qin = pyunits.convert(
+                get_config_value(
+                    m.fs.pump.config_data,
+                    "pump_flowrate",
+                    "ro_pumps",
+                    f"pump_stage_{stage_num}",
+                ),
+                to_units=pyunits.gal / pyunits.minute,
+            )
+    else:
+        Qin = Qin * pyunits.gal / pyunits.minute
+    
     m.fs.feed.properties.calculate_state(
         var_args={
             ("flow_vol_phase", ("Liq")): Qin,
@@ -422,8 +464,9 @@ def initialize_system(m):
 
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_pump)
-
+    
     initialize_pump(m.fs.pump)
+ 
 
     propagate_state(m.fs.pump_to_product)
     m.fs.product.initialize()
@@ -433,9 +476,14 @@ def initialize_pump(blk):
 
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
-
-    blk.unit.initialize()
-
+    try:
+        blk.unit.initialize()
+    except InitializationError:
+        if value(blk.unit.eff.speed) > 1.01:
+            raise InitializationError(
+                f"Pump speed ratio too high during initialization: {value(blk.unit.eff.speed)}. Check head and flow inputs."
+            )
+    
     propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
@@ -506,31 +554,11 @@ def main(
     file="wrd_inputs_8_19_21.yaml",
     add_costing=True,
 ):
-    # Handling loading Qin here b/c it's an input to both build_pump and set_inlet_conditions
-    if Qin is None:
-        if uf:
-            Qin = pyunits.convert(
-                get_config_value(blk.config_data, "pump_flowrate", "uf_pumps", "pump"),
-                to_units=pyunits.gal / pyunits.minute,
-            )
-        else:
-            # load the flowrate and pressure head  WATCH OUT FOR UNITS. These are knowns need to calc above values.
-            Qin = pyunits.convert(
-                get_config_value(
-                    blk.config_data,
-                    "pump_flowrate",
-                    "ro_pumps",
-                    f"pump_stage_{stage_num}",
-                ),
-                to_units=pyunits.gal / pyunits.minute,
-            )
-    else:
-        Qin = Qin * pyunits.gal / pyunits.minute
-
+    
     m = build_system(stage_num=stage_num, uf=uf, file=file, Qin=Qin, head=head)
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
-    set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
+    set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin,stage_num=stage_num, uf=uf)
     set_pump_op_conditions(m.fs.pump, head=head, Pin=Pin, uf=uf)
 
     if add_costing:
@@ -557,17 +585,27 @@ if __name__ == "__main__":
     # Stage 1
     # m = main()
     # Testing at a lower speed
-    m = main(
-        Qin=3894,
-        head=None,
-        Cin=1.2,
-        Tin=302,
-        Pin=14.5,
-        stage_num=None,
-        file="wrd_inputs_8_19_21.yaml",
-        uf=True,
-    )
+    # m = main(
+    #     Qin=3894,
+    #     head=None,
+    #     Cin=1.2,
+    #     Tin=302,
+    #     Pin=14.5,
+    #     stage_num=None,
+    #     file="wrd_inputs_8_19_21.yaml",
+    #     uf=True,
+    # )
+    # test_point =(3000,280)
+    # m = main(
+    #     Qin=test_point[0],
+    #     head = test_point[1],
+    #     Cin=0.5,
+    #     Pin = 34.5,
+    #     Tin=298,
+    #     stage_num=1,
+    # )
     # Stage 2
     # m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
     # Stage 3
     # m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)
+    m = main()

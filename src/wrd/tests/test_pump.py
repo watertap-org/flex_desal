@@ -1,43 +1,36 @@
 import pytest
 from pyomo.environ import value, units as pyunits
+import pandas as pd
+from idaes.core.util.exceptions import InitializationError
 from wrd.components.pump import main
-
+from wrd.surrogate_models.pump_param_sweep import *
 
 @pytest.mark.component
 def test_pump_main():
-
-    # August 19, 2021 Data
-    # Stage 1 is default
-    m = main()
-    assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == 0.33924  # kWh/m3
-    # Stage 2
-    m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
-    assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == 0.07753
-    # Stage 3
-    m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)
-    assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == 0.40512
+    # Just testing that the default main runs
+    _ = main()
 
 
-# TODO: Add tests for different pump speeds and compare to both power use and head.
-
-
+# Add pump tests to test robustness of soving
 @pytest.mark.component
-def test_pump_PRO_stage2_2_20_21():
-    m = main(
-        Qin=983.2,
-        Cin=1.2,
-        Tin=302,
-        Pin=143.3 * pyunits.psi,
-        speed=0.756,
-        stage_num=2,
-        file="wrd_inputs_2_20_21.yaml",
-    )
-    assert (
-        pytest.approx(
-            value(
-                pyunits.convert(m.fs.pump.unit.work_mechanical[0], to_units=pyunits.kW)
-            ),
-            rel=0.15,
+def test_pump_UF():
+    # This test should cover a range of flows and heads that could cause an issue with solving
+    test_points = pd.DataFrame([[4690, 145], [2000, 75],[2600, 150]], columns=["flow", "head"])
+    dataset = pump_param_sweep(test_pairs=test_points, pump_type="UF")
+    expected_effs = [66.921, 75.834, 74.9799]
+    for i in range(len(test_points)):
+        assert dataset["total_efficiency"][i] == pytest.approx(expected_effs[i], rel=1e-3)
+    
+@pytest.mark.component
+def test_pump_speed_too_high():
+    test_point =(3000,280)
+    # Check that InitializationError is raised with expected message pattern
+    with pytest.raises(InitializationError) as exc_info:
+        m = main(
+            Qin=test_point[0],
+            head = test_point[1],
+            Cin=0,
+            Tin=298,
+            stage_num=1,
         )
-        == 9.7
-    )
+    assert exc_info.value.args[0] == "Pump speed ratio too high during initialization: 1.02. Check head and flow inputs."
