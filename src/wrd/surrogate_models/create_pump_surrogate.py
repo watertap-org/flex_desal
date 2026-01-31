@@ -119,8 +119,8 @@ pump_type = "UF"
 fittype = "rbf"
 
 # load data
-# filename = f"{pump_type}_pump_eff_curve_data.csv"
-filename = "UF_aff_laws_surr_1.csv"
+# filename = "UF_aff_laws_surr_1.csv"
+filename = f"{pump_type}_pump_aff_law_data_for_surrogate.csv"
 pump_data = pd.read_csv(os.path.join(os.path.dirname(__file__), filename))
 input_labels = ["Flow (gpm)", "Head (ft)"]
 output_labels = ["total_efficiency"]
