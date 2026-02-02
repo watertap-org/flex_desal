@@ -86,11 +86,10 @@ def create_test_pairs(
 
     flow_vals = np.linspace(flow_lb, flow_ub, num=num_points)
     head_vals = np.linspace(head_lb, head_ub, num=num_points)
-    flow_grid, head_grid = np.meshgrid(flow_vals, head_vals, indexing='ij')
-    test_pairs = pd.DataFrame({
-        "flow": flow_grid.flatten(),
-        "head": head_grid.flatten()
-    })
+    flow_grid, head_grid = np.meshgrid(flow_vals, head_vals, indexing="ij")
+    test_pairs = pd.DataFrame(
+        {"flow": flow_grid.flatten(), "head": head_grid.flatten()}
+    )
     if additional_points is not None:
         for point in additional_points:
             # Seems clunky
@@ -174,22 +173,37 @@ if __name__ == "__main__":
     pump_type = "RO_IS"
     num_points = 0
     if pump_type == "RO_feed":
-        flow_ub=3800,
-        flow_lb=1000,
-        head_ub=320,
-        head_lb=100,
-        additional_points = [(1760,290),(1840,289),(1930,288),(2110,280),(2725,263),(2000,254),(3350,225)] # RO Feed Pump
+        flow_ub = (3800,)
+        flow_lb = (1000,)
+        head_ub = (320,)
+        head_lb = (100,)
+        additional_points = [
+            (1760, 290),
+            (1840, 289),
+            (1930, 288),
+            (2110, 280),
+            (2725, 263),
+            (2000, 254),
+            (3350, 225),
+        ]  # RO Feed Pump
     elif pump_type == "RO_IS":
-        flow_ub=1400,
-        flow_lb=400,
-        head_ub=110,
-        head_lb=40
-        additional_points = [(778,90),(840,88),(590,92),(715,45),(830,45),(965,45)] # RO IS Pump
+        flow_ub = (1400,)
+        flow_lb = (400,)
+        head_ub = (110,)
+        head_lb = 40
+        additional_points = [
+            (778, 90),
+            (840, 88),
+            (590, 92),
+            (715, 45),
+            (830, 45),
+            (965, 45),
+        ]  # RO IS Pump
     elif pump_type == "UF":
-        flow_ub=5500,
-        flow_lb=600,
-        head_ub=280,
-        head_lb=50,
+        flow_ub = (5500,)
+        flow_lb = (600,)
+        head_ub = (280,)
+        head_lb = (50,)
         additional_points = [
             (4690, 145),
             (4690, 110),
@@ -204,7 +218,6 @@ if __name__ == "__main__":
             (2600, 115),
         ]  # UF Pump
 
-    
     test_pairs = create_test_pairs(
         flow_ub=flow_ub,
         flow_lb=flow_lb,
@@ -218,7 +231,8 @@ if __name__ == "__main__":
     filtered_test_pairs = filter_pump_test_points(test_pairs, pump_type=pump_type)
     print("Filtered test pairs:")
     print(filtered_test_pairs)
-    dataset = pump_param_sweep(test_pairs=filtered_test_pairs, pump_type=pump_type, Pin=150
+    dataset = pump_param_sweep(
+        test_pairs=filtered_test_pairs, pump_type=pump_type, Pin=150
     )  # Not sure Pin really matters here
     print("Dataset:")
     print(dataset)
@@ -228,4 +242,3 @@ if __name__ == "__main__":
 
     # test_points = pd.DataFrame([[4690, 145], [2000, 75],[2600, 150]], columns=["flow", "head"])
     # dataset = pump_param_sweep(test_pairs=test_points, pump_type="UF")
-   

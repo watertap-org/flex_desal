@@ -94,7 +94,7 @@ def find_pump_speed(blk, stage_num=1, uf=False, Qin=None, head=None):
     # Create variable for pump speed and reference (100% speed) flow and head
 
     blk.unit.eff.speed = Var(
-        initialize=.9,
+        initialize=0.9,
         units=pyunits.dimensionless,
         bounds=(0, 1.02),
         doc="Pump speed ratio (actual speed / maximum speed)",
@@ -237,7 +237,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None):
     # Creating a subblock for all the efficiency related vars, param, and constraints. That way, they can be solved without solve whole pump for trouble shooting. Can remove if not useful later.
     blk.unit.eff = Block()
     blk.unit.eff.efficiency_fluid = Var(
-        initialize=.6,
+        initialize=0.6,
         units=pyunits.dimensionless,
         bounds=(0, 1),
         doc="Pump efficiency from pump curves",
@@ -294,7 +294,7 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None):
         units=(pyunits.m**3 / pyunits.s) ** -3,
         doc="Cubed term of Efficiency equation",
     )
-    
+
     find_pump_speed(blk, stage_num=stage_num, uf=uf, Qin=Qin, head=head)
 
     # ref_flow = flow at 100% speed with the same efficiency
@@ -424,12 +424,16 @@ def set_pump_op_conditions(blk, uf=False, head=None, Pin=14.5):
     blk.unit.control_volume.properties_out[0].pressure.fix(Pout)
 
 
-def set_inlet_conditions(m, Qin=None, Cin=0.5, Tin=302, Pin=14.5,stage_num=1, uf=False):
-    
+def set_inlet_conditions(
+    m, Qin=None, Cin=0.5, Tin=302, Pin=14.5, stage_num=1, uf=False
+):
+
     if Qin is None:
         if uf:
             Qin = pyunits.convert(
-                get_config_value(m.fs.pump.config_data, "pump_flowrate", "uf_pumps", "pump"),
+                get_config_value(
+                    m.fs.pump.config_data, "pump_flowrate", "uf_pumps", "pump"
+                ),
                 to_units=pyunits.gal / pyunits.minute,
             )
         else:
@@ -444,7 +448,7 @@ def set_inlet_conditions(m, Qin=None, Cin=0.5, Tin=302, Pin=14.5,stage_num=1, uf
             )
     else:
         Qin = Qin * pyunits.gal / pyunits.minute
-    
+
     m.fs.feed.properties.calculate_state(
         var_args={
             ("flow_vol_phase", ("Liq")): Qin,
@@ -464,9 +468,8 @@ def initialize_system(m):
 
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_pump)
-    
+
     initialize_pump(m.fs.pump)
- 
 
     propagate_state(m.fs.pump_to_product)
     m.fs.product.initialize()
@@ -483,7 +486,7 @@ def initialize_pump(blk):
             raise InitializationError(
                 f"Pump speed ratio too high during initialization: {value(blk.unit.eff.speed)}. Check head and flow inputs."
             )
-    
+
     propagate_state(blk.unit_to_product)
     blk.product.initialize()
 
@@ -554,11 +557,13 @@ def main(
     file="wrd_inputs_8_19_21.yaml",
     add_costing=True,
 ):
-    
+
     m = build_system(stage_num=stage_num, uf=uf, file=file, Qin=Qin, head=head)
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
-    set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin,stage_num=stage_num, uf=uf)
+    set_inlet_conditions(
+        m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin, stage_num=stage_num, uf=uf
+    )
     set_pump_op_conditions(m.fs.pump, head=head, Pin=Pin, uf=uf)
 
     if add_costing:
