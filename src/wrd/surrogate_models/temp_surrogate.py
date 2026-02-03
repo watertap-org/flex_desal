@@ -1,25 +1,24 @@
 import pandas as pd
-import numpy as np
 import os
 from idaes.core.surrogate.pysmo_surrogate import (
-    PysmoRBFTrainer,
     PysmoPolyTrainer,
     PysmoSurrogate,
 )
 
 # load data
 pump_data = pd.read_csv(
-    os.path.join(os.path.dirname(__file__), "RO_UF_pump_head_curves_data.csv")
+    os.path.join(os.path.dirname(__file__), "pump_curve_data", "RO_UF_pump_head_curves_data.csv")
 )
 input_labels = ["Flow (gpm)"]
-output_labels = ["Head 100% Speed (ft)"]
+output_labels = ["Head 100% Speed (ft)"] # "MCSF (ft)"
 pump_data.dropna(inplace=True, subset=output_labels)
 pump_data.drop(columns=["MCSF (ft)"], inplace=True)
 input_data = pump_data[input_labels]
 output_data = pump_data[output_labels]
 
 # Scale Data
-Data_scaled = pump_data
+Data_scaled = pump_data.copy()
+# This scaling has to be consistent with surrogate implimentation 
 Data_scaled[output_labels[0]] = pump_data[output_labels[0]].mul(1e-2)  # head (ft)
 Data_scaled[input_labels[0]] = pump_data[input_labels[0]].mul(1e-3)  # Flow (gpm)
 min_flow = min(Data_scaled[input_labels[0]])
@@ -34,7 +33,7 @@ input_bounds = {
 trainer = PysmoPolyTrainer(
     input_labels=input_labels,
     output_labels=output_labels,
-    training_dataframe=Data_scaled,  # NOT spliting data for training and validation because there's not that much data to begin with.
+    training_dataframe=Data_scaled,  # NOT spliting data for training and validation because there's not much data to begin with.
 )
 trainer.config.maximum_polynomial_order = 3
 # Train Data

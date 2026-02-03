@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+from pathlib import Path
 
 from pyomo.environ import (
     Var,
@@ -22,30 +23,19 @@ from mpl_toolkits.mplot3d import Axes3D
 from watertap.core.solvers import get_solver
 
 
-# Helper Function, stealing fit from pump head curve, but could also make a surrogate from json data
-def min_head_limit(flow, pump_type):
-    """Helper function to define minimum head for given flowrate."""
-    # Coefficients from pump curve data
-    # Flow must be units of gpm. Head is in ft.
-    # This isn't valid anymore b/ it was for a smaller pump impeller diameter,not speed
-    if pump_type == "RO_feed":
-        a_0 = 1.8033
-        a_1 = -0.202589
-        a_2 = 0.148054
-        a_3 = -0.060852
-    if pump_type == "RO_IS":
-        a_0 = 0.607309
-        a_1 = -0.059714
-        a_2 = -0.105637
-        a_3 = -0.10102
-    head = a_0 + a_1 * (flow) + a_2 * (flow) ** 2 + a_3 * (flow) ** 3
-    return head
+# Helper Functions for pump curves that define plotting boundaries.
+# Specific to scaled flow (1e-3) and head (1e-2) units.
 
+__all__ = [
+    "create_test_pairs",
+    "filter_pump_test_points",
+    "pump_param_sweep",
+]
 
 def head_limit(flow, pump_type):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
-    # Flow must be units of scaled gpm. Head is in ft.
+    # Flow must be units of scaled gpm. Head is in scaled ft.
     if pump_type == "RO_feed":
         b_0 = 3.127555
         b_1 = -0.09634
@@ -114,208 +104,150 @@ def max_flows(flow, pump_type):
     return head
 
 
-# Select Types
-pump_type = "UF"
-fittype = "rbf"
+# User select Types
 
-# load data
-# filename = "UF_aff_laws_surr_1.csv"
-filename = f"{pump_type}_pump_aff_law_data_for_surrogate.csv"
-pump_data = pd.read_csv(os.path.join(os.path.dirname(__file__), filename))
-input_labels = ["Flow (gpm)", "Head (ft)"]
-output_labels = ["total_efficiency"]
-input_data = pump_data[input_labels]
-output_data = pump_data[output_labels]
 
-# Scale Data
-Data_scaled = pump_data
-Data_scaled[output_labels[0]] = pump_data[output_labels[0]].mul(1e-2)  # Efficiency (%)
-Data_scaled[input_labels[0]] = pump_data[input_labels[0]].mul(1e-3)  # Flow (gpm)
-Data_scaled[input_labels[1]] = pump_data[input_labels[1]].mul(1e-2)  # Head (ft)
-min_flow = min(Data_scaled[input_labels[0]])
-max_flow = max(Data_scaled[input_labels[0]])
-min_head = min(Data_scaled[input_labels[1]])
-max_head = max(Data_scaled[input_labels[1]])
-input_bounds = {
-    input_labels[0]: (min_flow, max_flow),
-    input_labels[1]: (min_head, max_head),
-}
+def create_surrogate(pump_type="UF", fittype='rbf'):
+    # load data proudced by pump_param_sweep.py
+    script_dir = Path(__file__).parent
+    data_dir = script_dir / "surrogate_data"
+    filename = f"{pump_type}_pump_aff_law_data_for_surrogate.csv"
+    pump_data = pd.read_csv(data_dir / filename)
+    input_labels = ["Flow (gpm)", "Head (ft)"]
+    output_labels = ["total_efficiency"]
+    input_data = pump_data[input_labels]
+    output_data = pump_data[output_labels]
 
-# Create Surrogate Type and trainer
-# Create the trainer
-if fittype == "poly":
-    trainer = PysmoPolyTrainer(
-        input_labels=input_labels,
-        output_labels=output_labels,
-        training_dataframe=Data_scaled,  # NOT spliting data for training and validation because there's not that much data to begin with.
-    )
-    trainer.config.maximum_polynomial_order = 3
+    # Scale Data
+    Data_scaled = pump_data.copy()
+    Data_scaled[output_labels[0]] = pump_data[output_labels[0]].mul(1e-2)  # Efficiency (%)
+    Data_scaled[input_labels[0]] = pump_data[input_labels[0]].mul(1e-3)  # Flow (gpm)
+    Data_scaled[input_labels[1]] = pump_data[input_labels[1]].mul(1e-2)  # Head (ft)
+    min_flow = min(Data_scaled[input_labels[0]])
+    max_flow = max(Data_scaled[input_labels[0]])
+    min_head = min(Data_scaled[input_labels[1]])
+    max_head = max(Data_scaled[input_labels[1]])
+    input_bounds = {
+        input_labels[0]: (min_flow, max_flow),
+        input_labels[1]: (min_head, max_head),
+    }
 
-if fittype == "rbf":
-    trainer = PysmoRBFTrainer(
-        input_labels=input_labels,
-        output_labels=output_labels,
-        training_dataframe=Data_scaled,
-        basis_function="cubic",
-    )
-
-# Train Data
-trained_surr = trainer.train_surrogate()
-
-# Create Surrogate Model
-Surrogate = PysmoSurrogate(
-    trained_surr,
-    input_labels,
-    output_labels,
-    input_bounds,
-)
-
-# Display Results of surrogate
-m = ConcreteModel()
-m.flowrate = Var()
-m.head = Var()
-m.eff = Var()
-
-m.surrogate_blk = SurrogateBlock(concrete=True)
-m.surrogate = Surrogate
-m.surrogate_blk.build_model(
-    m.surrogate,
-    input_vars=[m.flowrate, m.head],
-    output_vars=[m.eff],
-)
-m.surrogate_blk.pysmo_constraint.display()  # display()
-
-# minx, maxx = m.flowrate.bounds
-# miny, maxy = m.power.bounds
-
-num_points = 50
-x_vals = np.linspace(min_flow, max_flow, num=num_points)
-y_vals = np.linspace(min_head, max_head, num=num_points)
-z_vals = np.zeros((num_points, num_points))
-solver = get_solver()
-for i in range(num_points):
-    for j in range(num_points):
-        # Filter out infeasible points
-        if (
-            y_vals[j] > head_limit(x_vals[i], pump_type)
-            or y_vals[j] > MCSF(x_vals[i], pump_type)
-            # or y_vals[j] < min_head_limit(x_vals[i],pump_type)
-            or y_vals[j] < max_flows(x_vals[i], pump_type)
-        ):
-            z_vals[i, j] = np.nan
-            continue
-        m.flowrate.fix(x_vals[i])
-        m.head.fix(y_vals[j])
-        calculate_variable_from_constraint(
-            m.eff, m.surrogate_blk.pysmo_constraint["total_efficiency"]
+    # Create Surrogate Type and trainer
+    # Create the trainer
+    if fittype == "poly":
+        trainer = PysmoPolyTrainer(
+            input_labels=input_labels,
+            output_labels=output_labels,
+            training_dataframe=Data_scaled,  # NOT spliting data for training and validation because there's not that much data to begin with.
         )
-        # print(m.flowrate.value, m.head.value)
-        # print(value(m.eff))
-        z_vals[i, j] = value(m.eff)
-# Rescale the outputs
-flows = x_vals * 1e3  # gpm
-heads = y_vals * 1e2  # ft
-efficiencies = z_vals * 1e2  # %
+        trainer.config.maximum_polynomial_order = 3
 
-# Create Meshgrid to plot contour
-X, Y = np.meshgrid(flows, heads)
-Z = efficiencies.T  # Transpose Z to match X and Y dimensions
+    if fittype == "rbf":
+        trainer = PysmoRBFTrainer(
+            input_labels=input_labels,
+            output_labels=output_labels,
+            training_dataframe=Data_scaled,
+            basis_function="cubic",
+        )
 
-fig1 = plt.contourf(
-    X,
-    Y,
-    Z,
-    levels=25,
-    cmap="viridis",
-)
-plt.colorbar(label="Total Efficiency (%)")
-# Add countour lines for specific efficiencies in the orginial plot
-if pump_type == "RO_feed":
-    plt.xlim(0, 4500)
-    plt.ylim(0, 400)
-    levels = [59, 68, 75, 80, 83]
-    labels = ["59%", "68%", "75%", "80%", "83%"]
+    # Train Data
+    trained_surr = trainer.train_surrogate()
 
-elif pump_type == "RO_IS":
-    plt.xlim(0, 1600)
-    plt.ylim(0, 150)
-    levels = [52, 62, 71, 77, 81, 82]
-    labels = ["52%", "62%", "71%", "77%", "81%", "82%"]
+    # Create Surrogate Model
+    Surrogate = PysmoSurrogate(
+        trained_surr,
+        input_labels,
+        output_labels,
+        input_bounds,
+    )
 
-elif pump_type == "UF":
-    plt.xlim(0, 6000)
-    plt.ylim(0, 400)
+    # Display Results of surrogate
+    m = ConcreteModel()
+    m.flowrate = Var()
+    m.head = Var()
+    m.eff = Var()
 
-plt.xlabel("Flow (gpm)")
-plt.ylabel("Head (ft)")
-plt.title(f"{pump_type.replace('_', ' ').title()} Total Efficiency Contour Plot")
+    m.surrogate_blk = SurrogateBlock(concrete=True)
+    m.surrogate = Surrogate
+    m.surrogate_blk.build_model(
+        m.surrogate,
+        input_vars=[m.flowrate, m.head],
+        output_vars=[m.eff],
+    )
+    m.surrogate_blk.pysmo_constraint.display()  # display()
+   
+    # Get the absolute path of the current script
+    script_dir = Path(__file__).parent
+    data_dir = script_dir / "surrogate_data"
+    surr_name = f"{pump_type}_total_efficiency_rbf_fit.json"
+    Surrogate.save_to_file(os.path.join(data_dir, surr_name), overwrite=True)
 
-# Test value at 80% speed point
-m.flowrate.fix(2778 / 1e3)
-m.head.fix(150.8 / 1e2)
-calculate_variable_from_constraint(
-    m.eff, m.surrogate_blk.pysmo_constraint["total_efficiency"]
-)
-print(m.flowrate.value, m.head.value)
-print(value(m.eff))
+    # Plotting Surrogate
+    num_points = 50
+    x_vals = np.linspace(min_flow, max_flow, num=num_points)
+    y_vals = np.linspace(min_head, max_head, num=num_points)
+    z_vals = np.zeros((num_points, num_points))
+    for i in range(num_points):
+        for j in range(num_points):
+            # Filter out infeasible points
+            if (
+                y_vals[j] > head_limit(x_vals[i], pump_type)
+                or y_vals[j] > MCSF(x_vals[i], pump_type)
+                or y_vals[j] < max_flows(x_vals[i], pump_type)
+            ):
+                z_vals[i, j] = np.nan
+                continue
+            m.flowrate.fix(x_vals[i])
+            m.head.fix(y_vals[j])
+            calculate_variable_from_constraint(
+                m.eff, m.surrogate_blk.pysmo_constraint["total_efficiency"]
+            )
+            z_vals[i, j] = value(m.eff)
+    # Rescale the outputs
+    flows = x_vals * 1e3  # gpm
+    heads = y_vals * 1e2  # ft
+    efficiencies = z_vals * 1e2  # %
 
-# BELOW CODE WON'T WORK ANYMORE. WE ONLY HAVE A FEW ACTUAL DATA POINTS (100% CURVE, PLUS ONE 80% SPEED POINT)
-# # Data points vs. surrogate outputs
-X_data = pump_data["Flow (gpm)"] * 1e3
-Y_data = pump_data["Head (ft)"] * 1e2
-Z_data = pump_data["total_efficiency"] * 1e2
-plt.scatter(X_data, Y_data, color="red", s=10)
+    # Create Meshgrid to plot contour
+    X, Y = np.meshgrid(flows, heads)
+    Z = efficiencies.T  # Transpose Z to match X and Y dimensions
 
-# for l in levels:
-#     X_points = X_data[Z_data == l]
-#     Y_points = Y_data[Z_data == l]
-#     plt.scatter(X_points, Y_points, color="red", s=10, label=f"{l}%")
-#     plt.text(X_points.iloc[0]+20,Y_points.iloc[0]+3, f"{l}%",color="red")
-plt.show()
+    fig1 = plt.contourf(
+        X,
+        Y,
+        Z,
+        levels=25,
+        cmap="viridis",
+    )
 
-# Data Validation Scatter plot
+    plt.colorbar(label="Total Efficiency (%)")
+    # Add countour lines for specific efficiencies in the orginial plot
+    if pump_type == "RO_feed":
+        plt.xlim(0, 4500)
+        plt.ylim(0, 400)
 
-# Z_modeled = pd.DataFrame()
+    elif pump_type == "RO_IS":
+        plt.xlim(0, 1600)
+        plt.ylim(0, 150)
 
-# for i in range(len(X_data)):
-#     m.flowrate.fix(X_data[i]/1e3)
-#     m.head.fix(Y_data[i]/1e2)
-#     calculate_variable_from_constraint(m.eff, m.surrogate_blk.pysmo_constraint["efficiency"])
-#     Z_modeled.at[i, "efficiency_modeled"] = value(m.eff)*1e2
+    elif pump_type == "UF":
+        plt.xlim(0, 6000)
+        plt.ylim(0, 400)
 
-# # # Create 3D scatter plot
-# fig2 = plt.figure(figsize=(10, 8))
-# ax2 = fig2.add_subplot(111, projection="3d")
+    plt.xlabel("Flow (gpm)")
+    plt.ylabel("Head (ft)")
+    plt.title(f"{pump_type.replace('_', ' ').title()} Total Efficiency Contour Plot")
 
-# Flatten the data for scatter plot
-# X_flat = X.flatten()
-# Y_flat = Y.flatten()
-# Z_flat = Z.flatten()
+    # Plotting the training data points to reveal if there are poorly sampled regions
+    X_data = pump_data["Flow (gpm)"]
+    Y_data = pump_data["Head (ft)"]
+    # Z_data = pump_data["total_efficiency"]
+    plt.scatter(X_data, Y_data, color="red", s=10, label = 'Training Data')
+    plt.legend()
+    plt.show()
 
-# Remove NaN values for cleaner plot
-# mask = ~np.isnan(Z_flat)
-# X_clean = X_flat[mask]
-# Y_clean = Y_flat[mask]
-# Z_clean = Z_flat[mask]
+if __name__ == "main":
+    pump_type = "UF"
+    fittype = "rbf" 
+    create_surrogate(pump_type, fittype)
 
-# # Create scatter plot with color mapping
-# scatter = ax2.scatter(X_data, Y_data, Z_data, color='red', s=50, alpha=0.6)
-
-# # Plot actual data points
-# ax2.scatter(X_data,Y_data,Z_modeled["efficiency_modeled"], color="black", s=20, label="Modeled Points")
-
-# ax2.set_xlabel("Flow (gpm)")
-# ax2.set_ylabel("Head (ft)")
-# ax2.set_zlabel("Efficiency (%)")
-# ax2.set_title("RO Feed Pump Efficiency 3D Scatter Plot")
-# ax2.set_xlim(0, 4500)
-# ax2.set_ylim(0, 400)
-# plt.show()
-
-
-# Get the absolute path of the current script
-current_script_path = os.path.abspath(__file__)
-# Get the directory containing the current script
-current_directory = os.path.dirname(current_script_path)
-surr_name = f"{pump_type}_total_efficiency_rbf_fit.json"
-Surrogate.save_to_file(os.path.join(current_directory, surr_name), overwrite=True)

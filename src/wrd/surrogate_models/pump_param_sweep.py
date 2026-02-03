@@ -1,78 +1,28 @@
 import pytest
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from pyomo.environ import value, units as pyunits
 from wrd.components.pump import main
+from wrd.surrogate_models.create_pump_surrogate import head_limit, max_flows
 
-"""This function will perform a parameter sweep over head and flows using the pump affinity laws.
+"""pump_param_sweep function will perform a parameter sweep over head and flows using the pump affinity laws. 
 
 # Inputs are:
+    - number of points for each variable in the sweep (total points will be num_points^2, minus those filtered out)
     - additional_points: list of tuples of (flow, head) points to include in the sweep
     - Head and flow upper and lower bounds
-    - number of points for each variable in the sweep (total points will be num_points^2, minus those filtered out)
-    - Pump type
-        which determines the Surrogate for max head at 100% speed, and for efficiency at 100% speed ** Actually this is hard coded into the pump model rn
-        At the moment, this also defines the additional points and limits for sweep
-        Instead of handcoding the coefficients, they could be inputs or call the temp_surrogate function to create these curves. 
+    - Pump type: determines the surrogate curve for max head at 100% speed, and for efficiency at 100% speed 
+        ** These curves are hard coded into the pump model at the moment. They were generated using temp_surrogate. 
+        to make this more general, the data could be input and temp_surrogate called to gen curves.
+        ** Specific scaling used for the flow and head values in the curve surrogates (1e-2 for head and 1e-3 for flow).
 """
 
 __all__ = [
-    "head_limit",
-    "max_flows",
     "create_test_pairs",
     "filter_pump_test_points",
     "pump_param_sweep",
 ]
-
-
-def head_limit(flow, pump_type):
-    """Helper function to define minimum head for given flowrate."""
-    # Coefficients from pump curve data
-    # Flow must be units of scaled gpm. Head is in ft.
-    if pump_type == "RO_feed":
-        b_0 = 3.127555
-        b_1 = -0.09634
-        b_2 = 0.051555
-        b_3 = -0.026339
-    elif pump_type == "RO_IS":
-        b_0 = 1.02801
-        b_1 = -0.21038
-        b_2 = 0.284634
-        b_3 = -0.253384
-    elif pump_type == "UF":
-        b_0 = 3.199441
-        b_1 = -0.252764
-        b_2 = 0.060008
-        b_3 = -0.015999
-    head = b_0 + b_1 * (flow) + b_2 * (flow) ** 2 + b_3 * (flow) ** 3
-    return head
-
-
-def max_flows(flow, pump_type):
-    """Helper function to define maximum flow for given flowrate along the maximum pump capacity across different speeds."""
-    # Flow must be in units of scaled gpm. Head is in scaled ft.
-    if pump_type == "RO_feed":
-        # Using end points for multi-speed head curves
-        d_0 = 0.19338
-        d_1 = -0.21424
-        d_2 = 0.23183
-        d_3 = -0.00942
-    elif pump_type == "RO_IS":
-        # No multispeed head curve available
-        # I think using affinity laws to determine the max flow for this pump
-        d_0 = 0
-        d_1 = 0
-        d_2 = 0.387369
-        d_3 = 0
-    elif pump_type == "UF":
-        # No multispeed head curve available
-        # I think using affinity laws to determine the max flow for this pump
-        d_0 = 0
-        d_1 = 0
-        d_2 = 0.04354
-        d_3 = 0
-    head = d_0 + d_1 * (flow) + d_2 * (flow) ** 2 + d_3 * (flow) ** 3
-    return head
 
 
 def create_test_pairs(
@@ -101,7 +51,7 @@ def create_test_pairs(
 def filter_pump_test_points(pump_data, pump_type="RO_feed"):
     # Filter out points above upper bound of pump curve
     pump_data = pump_data[
-        pump_data["head"]
+        pump_data["head"] 
         <= head_limit(pump_data["flow"] / 1e3, pump_type=pump_type) * 1e2
     ]
     # Filter out points to the right of max flow at diff. speeds
@@ -109,11 +59,6 @@ def filter_pump_test_points(pump_data, pump_type="RO_feed"):
         pump_data["head"]
         >= max_flows(pump_data["flow"] / 1e3, pump_type=pump_type) * 1e2
     ]
-    # Filter out ????
-
-    # Filter out data points with speed less than 50%
-    # pump_data = pump_data[pump_data['speed'] >= 50]
-
     return pump_data
 
 
@@ -171,12 +116,13 @@ def pump_param_sweep(test_pairs=None, pump_type="RO_feed", Pin=14.5):
 
 if __name__ == "__main__":
     pump_type = "RO_IS"
-    num_points = 0
+    num_points = 8
+
     if pump_type == "RO_feed":
-        flow_ub = (3800,)
-        flow_lb = (1000,)
-        head_ub = (320,)
-        head_lb = (100,)
+        flow_ub = 3800
+        flow_lb = 1000
+        head_ub = 320
+        head_lb = 100
         additional_points = [
             (1760, 290),
             (1840, 289),
@@ -187,9 +133,9 @@ if __name__ == "__main__":
             (3350, 225),
         ]  # RO Feed Pump
     elif pump_type == "RO_IS":
-        flow_ub = (1400,)
-        flow_lb = (400,)
-        head_ub = (110,)
+        flow_ub = 1400
+        flow_lb = 400
+        head_ub = 110
         head_lb = 40
         additional_points = [
             (778, 90),
@@ -200,10 +146,10 @@ if __name__ == "__main__":
             (965, 45),
         ]  # RO IS Pump
     elif pump_type == "UF":
-        flow_ub = (5500,)
-        flow_lb = (600,)
-        head_ub = (280,)
-        head_lb = (50,)
+        flow_ub = 5500
+        flow_lb = 600
+        head_ub = 280
+        head_lb = 50
         additional_points = [
             (4690, 145),
             (4690, 110),
@@ -238,7 +184,10 @@ if __name__ == "__main__":
     print(dataset)
     dataset.rename(columns={"flow": "Flow (gpm)"}, inplace=True)
     dataset.rename(columns={"head": "Head (ft)"}, inplace=True)
-    dataset.to_csv(f"{pump_type}_pump_aff_law_data_for_surrogate_1.csv", index=False)
+    
+    data_dir = Path(__file__).parent / "surrogate_data"
+    data_dir.mkdir(exist_ok=True)
+    dataset.to_csv(data_dir / f"{pump_type}_pump_aff_law_data_for_surrogate.csv", index=False)
 
     # test_points = pd.DataFrame([[4690, 145], [2000, 75],[2600, 150]], columns=["flow", "head"])
     # dataset = pump_param_sweep(test_pairs=test_points, pump_type="UF")
