@@ -820,6 +820,8 @@ def main(
     solver = get_solver()
     results = solver.solve(m)
     assert_optimal_termination(results)
+    report_wrd(m, add_comp_metrics=False)
+
     return m
 
 
