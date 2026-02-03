@@ -51,7 +51,7 @@ def create_test_pairs(
 def filter_pump_test_points(pump_data, pump_type="RO_feed"):
     # Filter out points above upper bound of pump curve
     pump_data = pump_data[
-        pump_data["head"] 
+        pump_data["head"]
         <= head_limit(pump_data["flow"] / 1e3, pump_type=pump_type) * 1e2
     ]
     # Filter out points to the right of max flow at diff. speeds
@@ -184,10 +184,12 @@ if __name__ == "__main__":
     print(dataset)
     dataset.rename(columns={"flow": "Flow (gpm)"}, inplace=True)
     dataset.rename(columns={"head": "Head (ft)"}, inplace=True)
-    
+
     data_dir = Path(__file__).parent / "surrogate_data"
     data_dir.mkdir(exist_ok=True)
-    dataset.to_csv(data_dir / f"{pump_type}_pump_aff_law_data_for_surrogate.csv", index=False)
+    dataset.to_csv(
+        data_dir / f"{pump_type}_pump_aff_law_data_for_surrogate.csv", index=False
+    )
 
     # test_points = pd.DataFrame([[4690, 145], [2000, 75],[2600, 150]], columns=["flow", "head"])
     # dataset = pump_param_sweep(test_pairs=test_points, pump_type="UF")

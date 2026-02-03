@@ -7,10 +7,12 @@ from idaes.core.surrogate.pysmo_surrogate import (
 
 # load data
 pump_data = pd.read_csv(
-    os.path.join(os.path.dirname(__file__), "pump_curve_data", "RO_UF_pump_head_curves_data.csv")
+    os.path.join(
+        os.path.dirname(__file__), "pump_curve_data", "RO_UF_pump_head_curves_data.csv"
+    )
 )
 input_labels = ["Flow (gpm)"]
-output_labels = ["Head 100% Speed (ft)"] # "MCSF (ft)"
+output_labels = ["Head 100% Speed (ft)"]  # "MCSF (ft)"
 pump_data.dropna(inplace=True, subset=output_labels)
 pump_data.drop(columns=["MCSF (ft)"], inplace=True)
 input_data = pump_data[input_labels]
@@ -18,7 +20,7 @@ output_data = pump_data[output_labels]
 
 # Scale Data
 Data_scaled = pump_data.copy()
-# This scaling has to be consistent with surrogate implimentation 
+# This scaling has to be consistent with surrogate implimentation
 Data_scaled[output_labels[0]] = pump_data[output_labels[0]].mul(1e-2)  # head (ft)
 Data_scaled[input_labels[0]] = pump_data[input_labels[0]].mul(1e-3)  # Flow (gpm)
 min_flow = min(Data_scaled[input_labels[0]])

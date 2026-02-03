@@ -32,6 +32,7 @@ __all__ = [
     "pump_param_sweep",
 ]
 
+
 def head_limit(flow, pump_type):
     """Helper function to define minimum head for given flowrate."""
     # Coefficients from pump curve data
@@ -107,7 +108,7 @@ def max_flows(flow, pump_type):
 # User select Types
 
 
-def create_surrogate(pump_type="UF", fittype='rbf'):
+def create_surrogate(pump_type="UF", fittype="rbf"):
     # load data proudced by pump_param_sweep.py
     script_dir = Path(__file__).parent
     data_dir = script_dir / "surrogate_data"
@@ -120,7 +121,9 @@ def create_surrogate(pump_type="UF", fittype='rbf'):
 
     # Scale Data
     Data_scaled = pump_data.copy()
-    Data_scaled[output_labels[0]] = pump_data[output_labels[0]].mul(1e-2)  # Efficiency (%)
+    Data_scaled[output_labels[0]] = pump_data[output_labels[0]].mul(
+        1e-2
+    )  # Efficiency (%)
     Data_scaled[input_labels[0]] = pump_data[input_labels[0]].mul(1e-3)  # Flow (gpm)
     Data_scaled[input_labels[1]] = pump_data[input_labels[1]].mul(1e-2)  # Head (ft)
     min_flow = min(Data_scaled[input_labels[0]])
@@ -175,7 +178,7 @@ def create_surrogate(pump_type="UF", fittype='rbf'):
         output_vars=[m.eff],
     )
     m.surrogate_blk.pysmo_constraint.display()  # display()
-   
+
     # Get the absolute path of the current script
     script_dir = Path(__file__).parent
     data_dir = script_dir / "surrogate_data"
@@ -242,12 +245,12 @@ def create_surrogate(pump_type="UF", fittype='rbf'):
     X_data = pump_data["Flow (gpm)"]
     Y_data = pump_data["Head (ft)"]
     # Z_data = pump_data["total_efficiency"]
-    plt.scatter(X_data, Y_data, color="red", s=10, label = 'Training Data')
+    plt.scatter(X_data, Y_data, color="red", s=10, label="Training Data")
     plt.legend()
     plt.show()
 
+
 if __name__ == "main":
     pump_type = "UF"
-    fittype = "rbf" 
+    fittype = "rbf"
     create_surrogate(pump_type, fittype)
-
