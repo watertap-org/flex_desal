@@ -120,6 +120,8 @@ def build_pump(
     if sum(x is None for x in [Qin, head, speed]) == 3:
         blk.Qin_flag = "default"
         blk.head_flag = "default"
+    elif sum(x is None for x in [Qin, head, speed]) == 0:
+        raise AssertionError("Cannot fix flowrate, head, and speed.")
     else:
         blk.Qin_flag = None
         blk.head_flag = None
@@ -244,7 +246,7 @@ def apply_affinity_laws(blk, Qin=None, head=None, speed=None):
                     "ro_pumps",
                     f"pump_stage_{blk.stage_num}",
                 )
-        if blk.head_flag == "default":        
+        if blk.head_flag == "default" or head == "default":        
             if blk.uf:
                 head = psi_to_ft_head(
                     get_config_value(blk.config_data, "pump_outlet_pressure", "uf_pumps", "pump")
@@ -265,7 +267,6 @@ def apply_affinity_laws(blk, Qin=None, head=None, speed=None):
                         f"pump_stage_{blk.stage_num}",
                     )
                 )
-        
         blk.unit.eff.flow.fix(Qin)  # Qin already has units
         blk.unit.eff.head.fix(head) # head already has units?   
 
@@ -520,7 +521,15 @@ def initialize_pump(blk):
 
     # This is where the efficiency determination will happen so that the flowrate from the inlet can be used
     # Duplicates if the flowrate is not provided, but that will only happen during specific tests, not when doing full flowsheet
+    
+    if blk.Qin_flag is not None or blk.head_flag is not None:
+        # This should occur when system is initialized and called from other component files
+        apply_affinity_laws(blk, 
+                        Qin=blk.feed.properties[0].flow_vol_phase["Liq"], 
+                        head="default")
+
     set_pump_efficiency(blk)
+    # assert degrees_of_freedom(blk) == 0
 
     try:
         blk.unit.initialize()
@@ -658,6 +667,6 @@ if __name__ == "__main__":
     # Head and Speed, find flowrate
     # m = main(head=250, speed=0.95, stage_num=1, Pin=35.4)
     # head and flow, find speed
-    m = main(head=250, Qin=2485, stage_num=1, Pin=35.4)
+    # m = main(head=250, Qin=2485, stage_num=1, Pin=35.4)
     # Read default flow and head values from yaml, determine speed
-    # m = main(stage_num=1, Pin=35.4)
+    m = main(stage_num=1, Pin=35.4)

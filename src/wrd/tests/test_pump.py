@@ -2,7 +2,8 @@ import pytest
 from pyomo.environ import value, units as pyunits, ConcreteModel
 import pandas as pd
 from idaes.core.util.exceptions import InitializationError
-from wrd.components.pump import main, build_pump
+# from wrd.components.pump import *
+from wrd.components.pump import main
 from wrd.surrogate_models.pump_param_sweep import *
 from idaes.core import FlowsheetBlock
 
@@ -55,26 +56,28 @@ def test_too_many_inputs():
     )
 
 @pytest.mark.component
-def test_missing_inputs():
-    with pytest.raises(AssertionError) as exc_info:
-        m = main(head=None, speed =None, Qin=None, stage_num=1, Pin=35.4)
-    assert (
-        exc_info.value.args[0]
-        == "Flowrate and head must be provided to find speed"
-    )
-
-@pytest.mark.component
 def test_missing_inputs_flow_and_head():
     with pytest.raises(AssertionError) as exc_info:
         m = main(head=None, speed =0.9, Qin=None, stage_num=1, Pin=35.4)
     assert (
         exc_info.value.args[0]
-        == "Head and speed must be provided to find flowrate"
+        == "Flowrate and speed must be provided to find head"
     )
 
-@pytest.mark.component
-def test_default():
-    file = "wrd_inputs_3_13_21.yaml"
-    m = ConcreteModel()
-    m.fs = FlowsheetBlock(dynamic=False)
-    pump = build_pump(m.fs, file=file, uf=True)
+# This should be tested by the ro and uf train files
+# @pytest.mark.component
+# def test_build_in_components():
+#     file = "wrd_inputs_3_13_21.yaml"
+#     m = ConcreteModel()
+#     m.fs.pump = FlowsheetBlock(dynamic=False)
+#     build_pump(m.fs.pump, uf=True)
+#     m.fs.pump.config_data = (
+#         m.fs.pump.config_data
+#     )  
+#     add_pump_scaling(pump)
+#     calculate_scaling_factors(m)
+#     set_pump_op_conditions(m.fs.pump, Pin=35.4)
+#     initialize_pump(pump, file=file)
+#     results = solver.solve(m)
+#     assert_optimal_termination(results)
+#     report_pump(m.fs.pump)

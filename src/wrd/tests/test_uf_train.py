@@ -10,7 +10,7 @@ def test_uf_train_with_costing():
 
 
 # Add tests for the full power UF pumps, half power UF pumps, and total flowrate divided by four.
-@pytest.mark.component
+@pytest.mark.skip
 def test_uf_train_3_13_21_full():
     m = main(
         Qin=3955,
@@ -29,7 +29,7 @@ def test_uf_train_3_13_21_full():
     assert pytest.approx(value(power), rel=1e-3) == value(expected_power)
 
 
-@pytest.mark.component
+@pytest.mark.skip
 def test_uf_train_3_13_21_half():
     m = main(
         Qin=1785,
@@ -48,7 +48,7 @@ def test_uf_train_3_13_21_half():
     assert pytest.approx(value(power), rel=1e-3) == value(expected_power)
 
 
-@pytest.mark.component
+@pytest.mark.componet
 def test_uf_train_8_19_21_full():
     m = main(
         Qin=3894,

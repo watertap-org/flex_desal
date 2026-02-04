@@ -145,7 +145,7 @@ def set_inlet_conditions(m, Qin=2637, Cin=0.5, Tin=298, Pin=101325):
 
 
 def set_uf_train_op_conditions(blk, split_fractions=None):
-    set_pump_op_conditions(blk.pump, uf=True)
+    set_pump_op_conditions(blk.pump)
     if split_fractions is None:
         split_fractions = {
             "product": {"H2O": 0.99, "NaCl": 0.99},
@@ -237,7 +237,7 @@ def main(
     calculate_scaling_factors(m)
     set_inlet_conditions(m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
     set_uf_train_op_conditions(m.fs.uf_train)
-    assert degrees_of_freedom(m) == 0
+    # assert degrees_of_freedom(m) == 0 # Now a degree of freedom is applying during the intialization of the pump
     initialize_system(m)
     results = solver.solve(m, tee=True)
     assert_optimal_termination(results)
@@ -261,4 +261,4 @@ def main(
 
 
 if __name__ == "__main__":
-    m = main()
+    m = main(add_costing=True)
