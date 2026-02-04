@@ -43,3 +43,31 @@ def test_speed_and_head_inputs():
     m = main(head=250, speed =.95, stage_num=1, Pin=35.4)
     expected_flow = 2485
     assert value(pyunits.convert(m.fs.pump.feed.properties[0].flow_vol_phase["Liq"],to_units=pyunits.gallon / pyunits.minute)) == pytest.approx(expected_flow, rel=1e-3)
+
+
+@pytest.mark.component
+def test_too_many_inputs():
+    with pytest.raises(AssertionError) as exc_info:
+        m = main(head=250, speed =.95, Qin=2000, stage_num=1, Pin=35.4)
+    assert (
+        exc_info.value.args[0]
+        == "Cannot fix flowrate, head, and speed."
+    )
+
+@pytest.mark.component
+def test_missing_inputs():
+    with pytest.raises(AssertionError) as exc_info:
+        m = main(head=None, speed =None, Qin=None, stage_num=1, Pin=35.4)
+    assert (
+        exc_info.value.args[0]
+        == "Flowrate and head must be provided to find speed"
+    )
+
+@pytest.mark.component
+def test_missing_inputs_flow_and_head():
+    with pytest.raises(AssertionError) as exc_info:
+        m = main(head=None, speed =0.9, Qin=None, stage_num=1, Pin=35.4)
+    assert (
+        exc_info.value.args[0]
+        == "Head and speed must be provided to find flowrate"
+    )
