@@ -27,9 +27,7 @@ min_flow = min(Data_scaled[input_labels[0]])
 max_flow = max(Data_scaled[input_labels[0]])
 min_head = min(Data_scaled[output_labels[0]])
 max_head = max(Data_scaled[output_labels[0]])
-input_bounds = {
-    input_labels[0]: (min_flow, max_flow),
-}
+input_bounds = {input_labels[0]: (min_flow, max_flow)}
 
 # Create Surrogate Type and trainer
 trainer = PysmoPolyTrainer(

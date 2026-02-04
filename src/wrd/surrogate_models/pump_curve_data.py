@@ -5,7 +5,6 @@ from pathlib import Path
 """These functions are specificly designed to read output data 
    from WebPlotDigitizer for pump curves."""
 
-
 # For RO pumps (no efficiency curve)
 def load_ro_pump_data(file_name):
     # RO pump has multiple isoefficiency curves, so each must be extracted separately
@@ -38,7 +37,6 @@ def load_ro_pump_data(file_name):
         eff_data.to_csv(data_dir / "RO_IS_pump_eff_curve_data.csv", index=False)
         print(head_data.head())
         head_data.to_csv(data_dir / "RO_IS_pump_head_curves_data.csv", index=False)
-
 
 # For UF pump (with efficiency curve)
 def load_uf_pump_data(file_name):
