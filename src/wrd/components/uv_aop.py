@@ -117,14 +117,14 @@ def set_uv_aop_op_conditions(blk):
     pass
 
 
-def set_inlet_conditions(m, Qin=0.27, Cin=0, P_in=1):
+def set_inlet_conditions(m, Qin=4279.0, Cin=0, P_in=1):
     """
     Set the inlet conditions for the UV/AOP system.
     """
 
     # Feed flow rate in m3/s
     # Flow into one UV unit, near max flow
-    Qin = Qin * pyunits.m**3 / pyunits.s
+    Qin = Qin * pyunits.gal / pyunits.min  # Convert to gal/min
     Cin = Cin * pyunits.g / pyunits.L  # Feed concentration in g/L
     rho = 1000 * pyunits.kg / pyunits.m**3  # Approximate density of water
     feed_mass_flow_water = Qin * rho
@@ -200,10 +200,10 @@ def report_uv(blk, w=30):
     )
 
 
-def main():
+def main(Qin=4279.0, Cin=0.01, P_in=1):
 
     m = build_system()
-    set_inlet_conditions(m)
+    set_inlet_conditions(m, Qin=Qin, Cin=Cin, P_in=P_in)
     set_uv_aop_op_conditions(m.fs.uv_aop_system)
     add_uv_aop_scaling(m.fs.uv_aop_system)
     calculate_scaling_factors(m)
