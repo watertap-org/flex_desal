@@ -6,12 +6,6 @@ from wrd.components.pump import main
 from wrd.surrogate_models.pump_param_sweep import *
 
 
-@pytest.mark.component
-def test_pump_main():
-    # Just testing that the default main runs
-    _ = main()
-
-
 # Add pump tests to test robustness of soving
 @pytest.mark.component
 def test_pump_UF():
@@ -43,3 +37,9 @@ def test_pump_speed_too_high():
         exc_info.value.args[0]
         == "Pump speed ratio too high during initialization: 1.02. Check head and flow inputs."
     )
+
+@pytest.mark.component
+def test_speed_and_head_inputs():
+    m = main(head=250, speed =.95, stage_num=1, Pin=35.4)
+    expected_flow = 2485
+    assert value(pyunits.convert(m.fs.pump.feed.properties[0].flow_vol_phase["Liq"],to_units=pyunits.gallon / pyunits.minute)) == pytest.approx(expected_flow, rel=1e-3)
