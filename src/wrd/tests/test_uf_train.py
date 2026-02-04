@@ -1,5 +1,5 @@
 import pytest
-from pyomo.environ import value, units as pyunits
+from pyomo.environ import value, units as pyunits, ConcreteModel
 from pyomo.util.check_units import assert_units_consistent
 from wrd.components.UF_train import main
 

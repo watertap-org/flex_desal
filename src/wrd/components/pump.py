@@ -61,11 +61,12 @@ def build_system(
     m.fs.feed = Feed(property_package=m.fs.properties)
     touch_flow_and_conc(m.fs.feed)
     m.fs.pump = FlowsheetBlock(dynamic=False)
+
     build_pump(
         m.fs.pump,
+        file=file,
         stage_num=stage_num,
         uf=uf,
-        file=file,
         prop_package=m.fs.properties,
         Qin=Qin,
         head=head,
@@ -96,8 +97,119 @@ def build_system(
     return m
 
 
-def apply_affinity_laws(blk, stage_num=1, uf=False, Qin=None, head=None, speed=None):
-    # Create variables for flow, head, and speed. One of these should be None and will be calculated.
+
+def build_pump(
+    blk,
+    stage_num=1,
+    file="wrd_inputs_8_19_21.yaml",
+    prop_package=None,
+    uf=False,
+    Qin=None, 
+    head=None,
+    speed=None,
+):
+    if prop_package is None:
+        m = blk.model()
+        prop_package = m.fs.ro_properties
+
+    blk.config_data = load_config(get_config_file(file))
+    blk.stage_num = stage_num
+    blk.uf = uf
+
+    # If all inputs are None, Qin and head will be read from the yaml
+    if sum(x is None for x in [Qin, head, speed]) == 3:
+        blk.Qin_flag = "default"
+        blk.head_flag = "default"
+    else:
+        blk.Qin_flag = None
+        blk.head_flag = None
+        
+
+    # # Deal with different potential Qin values
+    # if blk.Qin_flag == "default":
+    #     if uf:
+    #         Qin = pyunits.convert(
+    #             get_config_value(blk.config_data, "pump_flowrate", "uf_pumps", "pump"),
+    #             to_units=pyunits.gal / pyunits.minute,
+    #         )
+    #     else:
+    #         Qin = pyunits.convert(
+    #             get_config_value(
+    #                 blk.config_data,
+    #                 "pump_flowrate",
+    #                 "ro_pumps",
+    #                 f"pump_stage_{stage_num}",
+    #             ),
+    #             to_units=pyunits.gal / pyunits.minute,
+    #         )
+
+    # elif blk.Qin_flag is None:
+    #     Qin = None
+    # else:
+    #     Qin = Qin * pyunits.gal / pyunits.minute
+
+    blk.feed = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.feed)
+
+    blk.unit = Pump(property_package=prop_package)
+
+    blk.product = StateJunction(property_package=prop_package)
+    touch_flow_and_conc(blk.product)
+
+    # Creating a sub-block for all pump efficiency related vars, param, and constraints
+    blk.unit.eff = Block()
+    blk.unit.eff.efficiency_fluid = Var(
+        initialize=0.6,
+        units=pyunits.dimensionless,
+        bounds=(0, 1),
+        doc="Pump efficiency from pump curves",
+    )
+
+    # Create variables for electrial efficiency losses
+    # Could add these to the eff block, but that kinda confuses solving that block IMO.
+    blk.unit.efficiency_motor = Param(
+        initialize=0.95,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Efficiency of motor and VFD",
+    )
+
+    blk.unit.efficiency_vfd = Param(
+        initialize=0.97,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Efficiency of VFD",
+    )
+
+    blk.unit.efficiency_loss = Param(
+        initialize=0,
+        mutable=True,
+        units=pyunits.dimensionless,
+        doc="Loss factor due to heat, age, wear, etc.",
+    )
+    
+    # Connect to the pump efficiency variable efficiency_fluid
+    blk.unit.eq_efficiency_electrical = Constraint(
+        expr=blk.unit.efficiency_pump[0]
+        == (
+            blk.unit.efficiency_motor
+            * blk.unit.efficiency_vfd
+            * blk.unit.eff.efficiency_fluid # not sure .eff
+        )
+        - blk.unit.efficiency_loss
+    )
+
+    # Add Arcs
+    blk.feed_to_unit = Arc(source=blk.feed.outlet, destination=blk.unit.inlet)
+    blk.unit_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
+
+    TransformationFactory("network.expand_arcs").apply_to(blk)
+
+
+def apply_affinity_laws(blk, Qin=None, head=None, speed=None):
+    # Create variables for flow, head, and speed
+    # One of these should be None and will be calculated
+
     blk.unit.eff.flow = Var(
         initialize=1,
         units=pyunits.m**3 / pyunits.s,
@@ -116,21 +228,57 @@ def apply_affinity_laws(blk, stage_num=1, uf=False, Qin=None, head=None, speed=N
         bounds=(0, 1.02),
         doc="Pump speed ratio (actual speed / maximum speed)",
     )
-
-    # Check at least one of the three inputs is None
-    if sum(x is None for x in [Qin, head, speed]) == 0:
-        raise AssertionError("Cannot fix flowrate, head, and speed.")
-
+    
+    # Logic for whether to read the yaml
     if speed is None:
+        # This one is different - the flow and head are read from the config yaml files
+        if blk.Qin_flag == "default":
+            if blk.uf:
+                Qin = get_config_value(
+                    blk.config_data, "pump_flowrate", "uf_pumps", "pump"
+                )
+            else:
+                Qin = get_config_value(
+                    blk.config_data,
+                    "pump_flowrate",
+                    "ro_pumps",
+                    f"pump_stage_{blk.stage_num}",
+                )
+        if blk.head_flag == "default":        
+            if blk.uf:
+                head = psi_to_ft_head(
+                    get_config_value(blk.config_data, "pump_outlet_pressure", "uf_pumps", "pump")
+                    - 14.5 * pyunits.psi
+                )  # Assuming atmospheric suction pressure
+            else:
+                head = psi_to_ft_head(
+                    get_config_value(
+                        blk.config_data,
+                        "pump_outlet_pressure",
+                        "ro_pumps",
+                        f"pump_stage_{blk.stage_num}",
+                    )
+                    - get_config_value(
+                        blk.config_data,
+                        "pump_suction_pressure",
+                        "ro_pumps",
+                        f"pump_stage_{blk.stage_num}",
+                    )
+                )
+        
+        blk.unit.eff.flow.fix(Qin)  # Qin already has units
+        blk.unit.eff.head.fix(head) # head already has units?   
+
+    elif head is None:
         try:
             assert Qin is not None
-            assert head is not None
+            assert speed is not None
         except:
-            raise AssertionError("Flowrate and head must be provided to find speed")
+            raise AssertionError("Flowrate and speed must be provided to find head")
         
         blk.unit.eff.flow.fix(Qin)  # Qin already has units
         blk.unit.eff.head.fix(head * pyunits.feet)
-
+    
     elif Qin is None:
         try:
             assert speed is not None
@@ -140,36 +288,6 @@ def apply_affinity_laws(blk, stage_num=1, uf=False, Qin=None, head=None, speed=N
         
         blk.unit.eff.speed.fix(speed * pyunits.dimensionless)
         blk.unit.eff.head.fix(head * pyunits.feet)
-    elif head is None:
-        # This one is different - the head is read from the config yaml file
-        try:
-            assert Qin is not None
-        except:
-            raise AssertionError("Flowrate must be provided to find speed.")
-        
-        if uf:
-            head = psi_to_ft_head(
-                get_config_value(
-                    blk.config_data, "pump_outlet_pressure", "uf_pumps", "pump"
-                )
-                - 14.5 * pyunits.psi
-            )  # Assuming atmospheric suction pressure
-        else:
-            head = psi_to_ft_head(
-                get_config_value(
-                    blk.config_data,
-                    "pump_outlet_pressure",
-                    "ro_pumps",
-                    f"pump_stage_{stage_num}",
-                )
-                - get_config_value(
-                    blk.config_data,
-                    "pump_suction_pressure",
-                    "ro_pumps",
-                    f"pump_stage_{stage_num}",
-                )
-            )
-
     # Create variable for pump speed and reference (100% speed) flow and head
     blk.unit.eff.ref_head = Var(
         initialize=100,
@@ -197,17 +315,17 @@ def apply_affinity_laws(blk, stage_num=1, uf=False, Qin=None, head=None, speed=N
         doc="Pump flow affinity law equation",
     )
     # Load head curve for 100% speed
-    if uf:
+    if blk.uf:
         b_0 = 323.88
         b_1 = -403.68
         b_2 = 1449.8
         b_3 = -6297.6
-    elif stage_num == 1:
+    elif blk.stage_num == 1:
         b_0 = 374.73
         b_1 = -1347.1
         b_2 = 8953.8
         b_3 = -26539
-    elif stage_num == 2:
+    elif blk.stage_num == 2:
         b_0 = 100.72
         b_1 = -189.57
         b_2 = 4535.7
@@ -257,36 +375,29 @@ def apply_affinity_laws(blk, stage_num=1, uf=False, Qin=None, head=None, speed=N
         doc="Head surrogate equation",
     )
 
+    assert degrees_of_freedom(blk.unit.eff) == 0
     solver.solve(blk.unit.eff)
-    print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
-    print(
-        f"Calculated pump flowrate for stage {stage_num}: {value(pyunits.convert(blk.unit.eff.flow,to_units=pyunits.gal/pyunits.minute))}"
-    )
+    # print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
+    # print(
+    #     f"Calculated pump flowrate for stage {stage_num}: {value(pyunits.convert(blk.unit.eff.flow,to_units=pyunits.gal/pyunits.minute))}"
+    # )
 
 
-def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None, speed=None):
-
-    # Creating a subblock for all the efficiency related vars, param, and constraints. They can be solved without solving whole pump for trouble shooting.
-    blk.unit.eff = Block()
-    blk.unit.eff.efficiency_fluid = Var(
-        initialize=0.6,
-        units=pyunits.dimensionless,
-        bounds=(0, 1),
-        doc="Pump efficiency from pump curves",
-    )
+def set_pump_efficiency(blk):
+    # eff block can be solved without solving whole pump.
     # Load Values for efficiency surrogate model
-    if uf:
+    if blk.uf:
         # Below are estimated for 100% speed
         a_0 = 0.0677
         a_1 = 5.357
         a_2 = -4.475
         a_3 = -19.578
-    elif stage_num == 1:
+    elif blk.stage_num == 1:
         a_0 = 0.389
         a_1 = -0.535
         a_2 = 41.373
         a_3 = -138.820
-    elif stage_num == 2:
+    elif blk.stage_num == 2:
         a_0 = 0.067
         a_1 = 21.112
         a_2 = -133.157
@@ -327,9 +438,9 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None, speed=N
         doc="Cubed term of Efficiency equation",
     )
 
-    apply_affinity_laws(
-        blk, stage_num=stage_num, uf=uf, Qin=Qin, head=head, speed=speed
-    )
+    # apply_affinity_laws(
+    #     blk, Qin=Qin, head=head, speed=speed
+    # )
 
     blk.unit.eff.eq_efficiency_surr = Constraint(
         expr=blk.unit.eff.efficiency_fluid
@@ -345,98 +456,10 @@ def set_pump_efficiency(blk, stage_num=1, uf=False, Qin=None, head=None, speed=N
     # print(f"Calculated pump speed for stage {stage_num}: {value(blk.unit.eff.speed)}")
 
 
-def build_pump(
-    blk,
-    stage_num=1,
-    file="wrd_inputs_8_19_21.yaml",
-    prop_package=None,
-    uf=False,
-    Qin=None,
-    head=None,
-    speed=None,
-):
-    if prop_package is None:
-        m = blk.model()
-        prop_package = m.fs.ro_properties
 
-    blk.config_data = load_config(get_config_file(file))
-
-    # Deal with different potential Qin values
-    if Qin == "default":
-        if uf:
-            Qin = pyunits.convert(
-                get_config_value(blk.config_data, "pump_flowrate", "uf_pumps", "pump"),
-                to_units=pyunits.gal / pyunits.minute,
-            )
-        else:
-            Qin = pyunits.convert(
-                get_config_value(
-                    blk.config_data,
-                    "pump_flowrate",
-                    "ro_pumps",
-                    f"pump_stage_{stage_num}",
-                ),
-                to_units=pyunits.gal / pyunits.minute,
-            )
-    elif Qin is None:
-        Qin = None
-    else:
-        Qin = Qin * pyunits.gal / pyunits.minute
-
-    blk.stage_num = stage_num
-
-    blk.feed = StateJunction(property_package=prop_package)
-    touch_flow_and_conc(blk.feed)
-
-    blk.unit = Pump(property_package=prop_package)
-
-    blk.product = StateJunction(property_package=prop_package)
-    set_pump_efficiency(
-        blk, stage_num=stage_num, uf=uf, Qin=Qin, head=head, speed=speed
-    )
-
-    # Create variable for the efficiency from the pump curves
-    blk.unit.efficiency_motor = Param(
-        initialize=0.95,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Efficiency of motor and VFD",
-    )
-
-    blk.unit.efficiency_vfd = Param(
-        initialize=0.97,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Efficiency of VFD",
-    )
-
-    blk.unit.efficiency_loss = Param(
-        initialize=0,
-        mutable=True,
-        units=pyunits.dimensionless,
-        doc="Loss factor due to heat, age, wear, etc.",
-    )
-
-    blk.unit.eq_efficiency_electrical = Constraint(
-        expr=blk.unit.efficiency_pump[0]
-        == (
-            blk.unit.efficiency_motor
-            * blk.unit.efficiency_vfd
-            * blk.unit.eff.efficiency_fluid
-        )
-        - blk.unit.efficiency_loss
-    )
-
-    # Add Arcs
-    blk.feed_to_unit = Arc(source=blk.feed.outlet, destination=blk.unit.inlet)
-    blk.unit_to_product = Arc(source=blk.unit.outlet, destination=blk.product.inlet)
-
-    TransformationFactory("network.expand_arcs").apply_to(blk)
-
-
-def set_pump_op_conditions(blk, uf=False, head="default", Pin=14.5):
-    if head == "default":
-        if uf:
+def set_pump_op_conditions(blk,Pin=14.5):
+    if blk.head_flag == "default":
+        if blk.uf:
             # All the pumps are assumed to have the same outlet pressure for UF pumps because they collect in a header
             Pout = get_config_value(
                 blk.config_data, "pump_outlet_pressure", "uf_pumps", f"pump"
@@ -451,7 +474,7 @@ def set_pump_op_conditions(blk, uf=False, head="default", Pin=14.5):
             print(
                 f"Setting pump {blk.stage_num} operating conditions, Pout = {value(Pout)} psi"
             )
-    elif head is None:
+    elif blk.head_flag is None:
         # This may need to be a constraint
         head = blk.unit.eff.head
         Pout = ft_head_to_psi(head) + Pin * pyunits.psi
@@ -463,25 +486,7 @@ def set_pump_op_conditions(blk, uf=False, head="default", Pin=14.5):
 
 
 def set_inlet_conditions(
-    m, Qin=None, Cin=0.5, Tin=302, Pin=14.5, stage_num=1, uf=False
-):
-
-    if Qin == "default":
-        if uf:
-            Qin = get_config_value(
-                m.fs.pump.config_data, "pump_flowrate", "uf_pumps", "pump"
-            )
-        else:
-            Qin = get_config_value(
-                m.fs.pump.config_data,
-                "pump_flowrate",
-                "ro_pumps",
-                f"pump_stage_{stage_num}",
-            )
-    elif Qin is None:
-        Qin = m.fs.pump.unit.eff.flow
-    else:
-        Qin = Qin * pyunits.gal / pyunits.minute
+    m, Qin=None, Cin=0.5, Tin=302, Pin=14.5):
 
     m.fs.feed.properties.calculate_state(
         var_args={
@@ -498,8 +503,7 @@ def add_pump_scaling(blk):
     set_scaling_factor(blk.unit.work_mechanical[0], 1e-3)
 
 
-def initialize_system(m):
-
+def initialize_system(m):   
     m.fs.feed.initialize()
     propagate_state(m.fs.feed_to_pump)
 
@@ -510,9 +514,14 @@ def initialize_system(m):
 
 
 def initialize_pump(blk):
-
+    # blk is m.fs.pump
     blk.feed.initialize()
     propagate_state(blk.feed_to_unit)
+
+    # This is where the efficiency determination will happen so that the flowrate from the inlet can be used
+    # Duplicates if the flowrate is not provided, but that will only happen during specific tests, not when doing full flowsheet
+    set_pump_efficiency(blk)
+
     try:
         blk.unit.initialize()
     except InitializationError:
@@ -598,10 +607,34 @@ def main(
     )
     add_pump_scaling(m.fs.pump)
     calculate_scaling_factors(m)
+    
+    
+    if Qin == None and m.fs.pump.Qin_flag is None:
+        # Can't set feed conditions before the feed flowrate is known
+        apply_affinity_laws(m.fs.pump, speed=speed, head=head)
+        Qin = m.fs.pump.unit.eff.flow 
+    else:
+        if m.fs.pump.Qin_flag is None:
+            Qin = Qin * pyunits.gal / pyunits.min
+        else:
+            # READING DEFAULT VALUES        
+            if m.fs.pump.uf:
+                Qin = get_config_value(
+                    m.fs.pump.config_data, "pump_flowrate", "uf_pumps", "pump"
+                )
+            else:
+                Qin = get_config_value(
+                    m.fs.pump.config_data,
+                    "pump_flowrate",
+                    "ro_pumps",
+                    f"pump_stage_{stage_num}",
+                )
+        apply_affinity_laws(m.fs.pump, Qin=Qin, head=head)
+
     set_inlet_conditions(
-        m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin, stage_num=stage_num, uf=uf
-    )
-    set_pump_op_conditions(m.fs.pump, head=head, Pin=Pin, uf=uf)
+        m, Qin=Qin, Cin=Cin, Tin=Tin, Pin=Pin)
+    
+    set_pump_op_conditions(m.fs.pump, Pin=Pin)
 
     if add_costing:
         add_pump_costing(m.fs.pump)
@@ -622,6 +655,9 @@ def main(
 
 
 if __name__ == "__main__":
-    m = main(head=250, speed=0.95, stage_num=1, Pin=35.4)
-
+    # Head and Speed, find flowrate
+    # m = main(head=250, speed=0.95, stage_num=1, Pin=35.4)
+    # head and flow, find speed
     m = main(head=250, Qin=2485, stage_num=1, Pin=35.4)
+    # Read default flow and head values from yaml, determine speed
+    # m = main(stage_num=1, Pin=35.4)

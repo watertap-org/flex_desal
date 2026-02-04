@@ -1,10 +1,10 @@
 import pytest
-from pyomo.environ import value, units as pyunits
+from pyomo.environ import value, units as pyunits, ConcreteModel
 import pandas as pd
 from idaes.core.util.exceptions import InitializationError
-from wrd.components.pump import main
+from wrd.components.pump import main, build_pump
 from wrd.surrogate_models.pump_param_sweep import *
-
+from idaes.core import FlowsheetBlock
 
 # Add pump tests to test robustness of soving
 @pytest.mark.component
@@ -71,3 +71,10 @@ def test_missing_inputs_flow_and_head():
         exc_info.value.args[0]
         == "Head and speed must be provided to find flowrate"
     )
+
+@pytest.mark.component
+def test_default():
+    file = "wrd_inputs_3_13_21.yaml"
+    m = ConcreteModel()
+    m.fs = FlowsheetBlock(dynamic=False)
+    pump = build_pump(m.fs, file=file, uf=True)
