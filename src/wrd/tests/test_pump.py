@@ -1,18 +1,83 @@
 import pytest
-from pyomo.environ import value, units as pyunits
+from pyomo.environ import value, units as pyunits, ConcreteModel
+import pandas as pd
+from idaes.core.util.exceptions import InitializationError
+# from wrd.components.pump import *
 from wrd.components.pump import main
+from wrd.surrogate_models.pump_param_sweep import *
+from idaes.core import FlowsheetBlock
+
+# Add pump tests to test robustness of soving
+@pytest.mark.component
+def test_pump_UF():
+    # This test should cover a range of flows and heads that could cause an issue with solving
+    test_points = pd.DataFrame(
+        [[4690, 145], [2000, 75], [2600, 150]], columns=["flow", "head"]
+    )
+    dataset = pump_param_sweep(test_pairs=test_points, pump_type="UF")
+    expected_effs = [66.921, 75.834, 74.9799]
+    for i in range(len(test_points)):
+        assert dataset["total_efficiency"][i] == pytest.approx(
+            expected_effs[i], rel=1e-3
+        )
 
 
 @pytest.mark.component
-def test_pump_main():
+def test_pump_speed_too_high():
+    test_point = (3000, 280)
+    # Check that InitializationError is raised with expected message pattern
+    with pytest.raises(InitializationError) as exc_info:
+        m = main(
+            Qin=test_point[0],
+            head=test_point[1],
+            Cin=0,
+            Tin=298,
+            stage_num=1,
+        )
+    assert (
+        exc_info.value.args[0]
+        == "Pump speed ratio too high during initialization: 1.02. Check head and flow inputs."
+    )
 
-    # August 19, 2021 Data
-    # Stage 1 is default
-    m = main()
-    assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == 0.33924  # kWh/m3
-    # Stage 2
-    m = main(Qin=1029, Pin=131.2 * pyunits.psi, stage_num=2)
-    assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == 0.07753
-    # Stage 3
-    m = main(Qin=384, Pin=(112.6 - 41.9) * pyunits.psi, stage_num=3)
-    assert pytest.approx(value(m.fs.costing.SEC), rel=1e-3) == 0.40512
+@pytest.mark.component
+def test_speed_and_head_inputs():
+    m = main(head=250, speed =.95, stage_num=1, Pin=35.4)
+    expected_flow = 2485
+    assert value(pyunits.convert(m.fs.pump.feed.properties[0].flow_vol_phase["Liq"],to_units=pyunits.gallon / pyunits.minute)) == pytest.approx(expected_flow, rel=1e-3)
+
+
+@pytest.mark.component
+def test_too_many_inputs():
+    with pytest.raises(AssertionError) as exc_info:
+        m = main(head=250, speed =.95, Qin=2000, stage_num=1, Pin=35.4)
+    assert (
+        exc_info.value.args[0]
+        == "Cannot fix flowrate, head, and speed."
+    )
+
+@pytest.mark.component
+def test_missing_inputs_flow_and_head():
+    with pytest.raises(AssertionError) as exc_info:
+        m = main(head=None, speed =0.9, Qin=None, stage_num=1, Pin=35.4)
+    assert (
+        exc_info.value.args[0]
+        == "Flowrate and speed must be provided to find head"
+    )
+
+# This should be tested by the ro and uf train files
+# @pytest.mark.component
+# def test_build_in_components():
+#     file = "wrd_inputs_3_13_21.yaml"
+#     m = ConcreteModel()
+#     m.fs.pump = FlowsheetBlock(dynamic=False)
+#     build_pump(m.fs.pump, uf=True)
+#     m.fs.pump.config_data = (
+#         m.fs.pump.config_data
+#     )  
+#     add_pump_scaling(pump)
+#     calculate_scaling_factors(m)
+#     set_pump_op_conditions(m.fs.pump, Pin=35.4)
+#     initialize_pump(pump, file=file)
+#     results = solver.solve(m)
+#     assert_optimal_termination(results)
+#     report_pump(m.fs.pump)
