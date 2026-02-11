@@ -333,3 +333,29 @@ def touch_flow_and_conc(b):
             sb = b.find_component(f"{x}_state")
             sb[0].flow_vol_phase
             sb[0].conc_mass_phase_comp
+
+
+
+def ft_head_to_psi(head):
+    """
+    Convert head (in feet) to pressure (in psi)
+    Default fluid density is for water at room temperature (998.2 kg/m^3)
+    Default gravity is 9.81 m/s^2
+    """
+    # head should have units of ft already
+    fluid_density = 62.4 * pyunits.lb / pyunits.ft**3
+    gravity = 32.174 * pyunits.ft / pyunits.s**2
+    pressure = fluid_density * gravity * head
+    return pyunits.convert(pressure, to_units=pyunits.psi)
+
+
+def psi_to_ft_head(pressure):
+    """
+    Convert pressure (in psi) to head (in feet)
+    Default fluid density is for water at room temperature (998.2 kg/m^3)
+    Default gravity is 9.81 m/s^2
+    """
+    fluid_density = 62.4 * pyunits.lb / pyunits.ft**3
+    gravity = 32.174 * pyunits.ft / pyunits.s**2
+    head = pyunits.convert(pressure / (fluid_density * gravity), to_units=pyunits.ft)
+    return head
