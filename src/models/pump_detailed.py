@@ -143,7 +143,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
             self.system_curve_geometric_head = Var(
                 initialize=0.0,
-                doc='''Geometric head constant for the pump, used to define the system curve.''',
+                doc='''Geometric head constant for the pump, that represents the static head component used to define the system curve.''',
                 units=pyunits.m,
             )
 
@@ -170,32 +170,28 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             #### Pump curve variables ####
             self.ref_flow = Var(
                 initialize=1.0,
-                doc= "Reference flowrate for the pump, used to scale the efficiency curve.",
+                doc= "Reference flowrate for the pump on the pump curve, used to scale the efficiency curve.",
                 units= pyunits.m**3 / pyunits.s,
             )
 
             self.ref_head = Var(
                 initialize=10.0,
-                doc="Reference head for the pump, used to scale the efficiency curve.",
+                doc="Reference head for the pump on the pump curve, used to scale the efficiency curve.",
                 units=pyunits.m,
             )
 
             self.ref_efficiency = Var(
                 initialize=0.8,
-                doc="Reference efficiency for the pump, used to scale the efficiency curve.",
+                doc="Reference efficiency for the pump on the pump curve, used to scale the efficiency curve.",
                 units=pyunits.dimensionless,
             )
 
             self.ref_speed_fraction = Var(
                 initialize=1,
-                doc="Reference speed fraction for the pump, used to scale the efficiency curve.",
+                doc="Reference speed fraction for the pump on the pump curve, used to scale the efficiency curve.",
                 units=pyunits.dimensionless,
             )
 
-            # Constraints to calculate reference point variables based on design point
-            @self.Constraint(doc="Reference head equality")
-            def ref_head_constraint(b):
-                return b.ref_head ==  b.system_curve_geometric_head + b.system_curve_flow_constant * (b.ref_flow**2)
             
             if self.config.pump_curve_data_type == PumpCurveDataType.DataSet:
                 # Read the dataset file path and create a constraint to fit the surrogate coefficients based on the dataset provided by the user
@@ -226,18 +222,25 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             else:
                 raise ValueError("Invalid pump curve data type specified. Must be either DataSet or SurrogateCoefficent.")
             
+            
+            # Constraints to calculate reference point variables by solving the system curve and pump curve simultaneously at the reference point.
+            @self.Constraint(doc="Reference head equality")
+            def ref_head_constraint(b):
+                return b.ref_head ==  b.system_curve_geometric_head + b.system_curve_flow_constant * (b.ref_flow**2)
+            
             @self.Constraint(doc="Reference head calculation calculated using the pump curve surrogate")
             def ref_head_surrogate(b):
                 return b.ref_head == b.head_surrogate_coefficients[1] * (b.ref_flow**3) + b.head_surrogate_coefficients[2] * b.ref_flow**2 + b.head_surrogate_coefficients[3] * b.ref_flow + b.head_surrogate_coefficients[4]
             
-            # Reference curve efficiency calculation using surrogate based on flow only
+            
+            # Calculate the reference efficiency based on the surrogate coefficients and reference flow
             @self.Constraint(doc="Reference efficiency calculated calculated using the pump curve surrogate")
             def ref_efficiency_constraint(b):
                 return b.ref_efficiency == b.efficiency_surrogate_coefficients[1] * (b.ref_flow**3) + b.efficiency_surrogate_coefficients[2] * b.ref_flow**2 + b.efficiency_surrogate_coefficients[3] * b.ref_flow + b.efficiency_surrogate_coefficients[4]
             
 
             @self.Constraint(doc="Design speed fraction calculation using affinity laws")
-            def design_speed_fraction_flow_calculation(b):
+            def design_speed_fraction_constraint(b):
                 return b.design_flow ==  b.ref_flow * (b.design_speed_fraction / b.ref_speed_fraction)
             
             
@@ -245,6 +248,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             @self.Constraint(doc="Design efficiency calculation")
             def design_efficiency_constraint(b):
                 return b.design_efficiency == b.ref_efficiency * (b.design_speed_fraction/b.ref_speed_fraction)**0.1
+            
             
             @self.Constraint(doc="Overall efficiency calculation including motor efficiency and VFD efficiency")
             def overall_efficiency_constraint(b):
