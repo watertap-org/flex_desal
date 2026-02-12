@@ -1,3 +1,4 @@
+from networkx import config
 from pyomo.environ import (
     Suffix,
     check_optimal_termination,
@@ -5,7 +6,7 @@ from pyomo.environ import (
 from watertap.core.solvers import get_solver
 
 from pyomo.common.config import ConfigValue, In
-from pyomo.environ import Var, units as pyunits, Expr_if, value
+from pyomo.environ import Var, Param, Set, units as pyunits, Expr_if, value
 
 from idaes.core.util.config import DefaultBool
 from enum import Enum, auto
@@ -25,17 +26,17 @@ from watertap.costing.unit_models.energy_recovery_device import (
 )
 
 _log = idaeslog.getLogger(__name__)
-
-# Unclear
 # How to bring in head vs flow curve surrogate?
 # How to bring in efficiency vs flow curve surrogate?
 
-# Add VFD and motor efficiencies
 
 class VariableEfficiency(Enum):
     Fixed = auto()  # default is constant efficiency
     Flow = auto()  # flow-only correlation
-    FlowHead = auto()  # flow and head correlation
+
+class PumpCurveDataType(Enum):
+    DataSet = auto()  # user provides flow and head data to fit a curve and surrogate coefficients are calculated within the model
+    SurrogateCoefficent = auto()  # curve fit correlation based on flow and head is provided by the user as surrogate coefficients.
 
 
 @declare_process_block_class("Pump")
@@ -47,7 +48,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     * This function builds on the standard pump model by adding variables and constraints to represent pump performance curves. 
     * The model includes options for defining the pump curve based on flow and head at the BEP, as well as scaling the efficiency curve accordingly. 
     * This allows for more accurate representation of pump performance under varying operating conditions.
-    
+
     """
 
     CONFIG = PumpData.CONFIG()
@@ -58,11 +59,21 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             default = VariableEfficiency.Fixed,
             domain= In(VariableEfficiency),
             description="Variable pump efficiency flag",
-            doc= '''Indicates whether pump efficiency should be variable or constant
+            doc= '''Indicates whether pump efficiency should be variable or fixed.
                 ** Fixed: The default is constant efficiency at the best efficiency point (BEP)
-                ** Flow: Efficiency is a function of flow only, scaled to the BEP flow rate
-                ** FlowHead: Efficiency is a function of both flow and head, scaled to the BEP flow rate and head
+                ** Flow: Efficiency is a function of flow only at reference speed based on pump performance curve data provided.
             ''',
+        ),
+    )
+
+    # Config defining if surrogate coefficients should be calculated based or hardcoded.
+    CONFIG.declare(
+        "pump_curve_data_type",
+        ConfigValue(
+            default=PumpCurveDataType.SurrogateCoefficent,
+            domain=In(PumpCurveDataType),
+            description="Type of pump curve data",
+            doc='''Indicates whether the pump curve data is provided as a dataset or as surrogate coefficients.''',
         ),
     )
 
@@ -78,6 +89,19 @@ class PumpIsothermalData(InitializationMixin, PumpData):
         )
         def isothermal_balance(b, t):
             return b.properties_in[t].temperature == b.properties_out[t].temperature
+        
+        # Add efficiency variables for more and VFD efficiency
+        self.vfd_efficiency = Param(
+            initialize=0.95,
+            doc="Variable frequency drive (VFD) efficiency",
+            units=pyunits.dimensionless,
+        )
+
+        self.motor_efficiency = Param(
+            initialize=0.95,
+            doc="Motor efficiency",
+            units=pyunits.dimensionless,
+        )
 
         if self.config.variable_efficiency is not VariableEfficiency.Fixed:
             # Variable efficiency pump set-up
@@ -98,13 +122,13 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 units=pyunits.m,
             )
 
-            # self.design_efficiency = Var(
-            #     initialize=0.8,
-            #     doc='''Design efficiency of the centrifugal pump. 
-            #     This could be the efficiency at the best efficiency point (BEP) or another reference point.
-            #     Used to scale the efficiency curve.''',
-            #     units=pyunits.dimensionless,
-            # )
+            self.design_efficiency = Var(
+                initialize=0.8,
+                doc='''Design efficiency of the centrifugal pump. 
+                This could be the efficiency at the best efficiency point (BEP) or another reference point.
+                Used to scale the efficiency curve.''',
+                units=pyunits.dimensionless,
+            )
 
             self.design_speed_fraction = Var(
                 initialize=0.8,
@@ -136,8 +160,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             
             @self.Constraint(doc="Design flow is the flow through the pump at the design point")
             def design_flow_constraint(b):
-                return b.design_flow == pyunits.convert(b.control_volume.properties_out[0].flow_vol_phase['Liq'], to_units=pyunits.m**3 / pyunits.s)
-
+                return b.design_flow == pyunits.convert(b.control_volume.properties_in[0].flow_vol_phase['Liq'], to_units=pyunits.m**3 / pyunits.s)
 
             # Constraints to calculate system curve constants based on design point
             @self.Constraint(doc="System curve head constant calculation")
@@ -174,24 +197,67 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             def ref_head_constraint(b):
                 return b.ref_head ==  b.system_curve_geometric_head + b.system_curve_flow_constant * (b.ref_flow**2)
             
-            #TODO: Update to calculate the surrogate coefficients based on the reference point variables, rather than hardcoding the surrogate coefficients
+            if self.config.pump_curve_data_type == PumpCurveDataType.DataSet:
+                # Read the dataset file path and create a constraint to fit the surrogate coefficients based on the dataset provided by the user
+                # To be implemented in the future
+
+                pass
+
+            elif self.config.pump_curve_data_type == PumpCurveDataType.SurrogateCoefficent:
+                # Surrogate coefficient based on flow only for head and efficiency calculation
+                # These are based on a curve fit of the pump performance curve data provided by the user
+                
+                self.surrogate_index = Set(initialize=[1,2,3,4], doc="Index for surrogate coefficients")
+
+                self.head_surrogate_coefficients = Param(
+                    self.surrogate_index,
+                    initialize={1: -8089.1, 2: 2729.2, 3: -410.6, 4: 114.22},
+                    doc="Coefficients for the head surrogate based on flow only",
+                    units=pyunits.m,
+                )
+
+                self.efficiency_surrogate_coefficients = Param(
+                    self.surrogate_index,
+                    initialize={1: -138.82, 2: 41.373, 3: -0.535, 4: 0.389},
+                    doc="Coefficients for the efficiency surrogate based on flow only",
+                    units=pyunits.dimensionless,
+                )
+            
+            else:
+                raise ValueError("Invalid pump curve data type specified. Must be either DataSet or SurrogateCoefficent.")
+            
             @self.Constraint(doc="Reference head calculation calculated using the pump curve surrogate")
             def ref_head_surrogate(b):
-                return b.ref_head == -8089.1 * (b.ref_flow**3) + 2729.2 * b.ref_flow**2 + - 410.6 * b.ref_flow + 114.22
+                return b.ref_head == b.head_surrogate_coefficients[1] * (b.ref_flow**3) + b.head_surrogate_coefficients[2] * b.ref_flow**2 + b.head_surrogate_coefficients[3] * b.ref_flow + b.head_surrogate_coefficients[4]
             
+            # Reference curve efficiency calculation using surrogate based on flow only
             @self.Constraint(doc="Reference efficiency calculated calculated using the pump curve surrogate")
             def ref_efficiency_constraint(b):
-                return b.ref_efficiency == -138.82 * (b.ref_flow**3) + 41.373 * b.ref_flow**2 + -0.535* b.ref_flow +  0.389
+                return b.ref_efficiency == b.efficiency_surrogate_coefficients[1] * (b.ref_flow**3) + b.efficiency_surrogate_coefficients[2] * b.ref_flow**2 + b.efficiency_surrogate_coefficients[3] * b.ref_flow + b.efficiency_surrogate_coefficients[4]
             
+
             @self.Constraint(doc="Design speed fraction calculation using affinity laws")
-            def design_speed_fraction_calculation(b):
-                return b.design_speed_fraction == (b.design_flow / b.ref_flow) * b.ref_speed_fraction
+            def design_speed_fraction_flow_calculation(b):
+                return b.design_flow ==  b.ref_flow * (b.design_speed_fraction / b.ref_speed_fraction)
             
-        
+            
             # Expression to calculate the efficiency at the design point based as a function of speed fraction
             @self.Constraint(doc="Design efficiency calculation")
             def design_efficiency_constraint(b):
-                return b.efficiency_pump[0] == b.ref_efficiency * b.design_speed_fraction**0.1
+                return b.design_efficiency == b.ref_efficiency * (b.design_speed_fraction/b.ref_speed_fraction)**0.1
+            
+            @self.Constraint(doc="Overall efficiency calculation including motor efficiency and VFD efficiency")
+            def overall_efficiency_constraint(b):
+                return b.efficiency_pump[0] == b.design_efficiency * b.motor_efficiency * b.vfd_efficiency
+            
+        elif self.config.variable_efficiency is VariableEfficiency.Fixed:
+            # Fixed efficiency pump set-up (efficiency is constant at the best efficiency point)
+            @self.Constraint(doc="Overall efficiency calculation including motor efficiency and VFD efficiency")
+            def overall_efficiency_constraint(b):
+                return b.efficiency_pump[0] == b.design_efficiency * b.motor_efficiency * b.vfd_efficiency
+            
+        else:
+            raise ValueError("Invalid variable efficiency option specified. Must be either VariableEfficiency.Fixed or VariableEfficiency.Flow.")
             
     
     def initialize_build(
@@ -228,7 +294,6 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
         init_log.info_high("Initialization Step 1 Complete.")
         
-
         with idaeslog.solver_log(solve_log, idaeslog.DEBUG) as slc:
             res = opt.solve(self, tee=slc.tee)
 
@@ -243,9 +308,8 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     
     def calculate_scaling_factors(self):
         super().calculate_scaling_factors()
-
-        if iscale.get_scaling_factor(self.ref_flow) is None:
-            iscale.set_scaling_factor(self.ref_flow, 1e2)
+    
+        
         
         
 
