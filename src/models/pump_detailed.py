@@ -77,6 +77,29 @@ class PumpIsothermalData(InitializationMixin, PumpData):
         ),
     )
 
+    CONFIG.declare(
+        "head_surrogate_coeffs",
+        ConfigValue(
+            default={},
+            domain=dict,
+            description="Surrogate coefficients for the pump head curve based on flow only",
+            doc='''Coefficients for the pump head curve surrogate based on flow only. 
+            The head is calculated as a function of flow using a cubic polynomial with these coefficients.''',
+        ),
+    )
+
+    CONFIG.declare(
+        "eff_surrogate_coeffs",
+        ConfigValue(
+            default={},
+            domain=dict,
+            description="Surrogate coefficients for the pump efficiency curve based on flow only",
+            doc='''Coefficients for the pump efficiency curve surrogate based on flow only. 
+            The efficiency is calculated as a function of flow using a cubic polynomial with these coefficients.''',
+        ),
+    )
+
+
     def build(self):
         super().build()
 
@@ -92,7 +115,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
         
         # Add efficiency variables for more and VFD efficiency
         self.vfd_efficiency = Param(
-            initialize=0.95,
+            initialize=0.9,
             doc="Variable frequency drive (VFD) efficiency",
             units=pyunits.dimensionless,
         )
@@ -200,21 +223,27 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 pass
 
             elif self.config.pump_curve_data_type == PumpCurveDataType.SurrogateCoefficent:
-                # Surrogate coefficient based on flow only for head and efficiency calculation
-                # These are based on a curve fit of the pump performance curve data provided by the user
+                # Surrogate coefficients based on flow only for head and efficiency calculation
+                if not self.config.head_surrogate_coeffs or not self.config.eff_surrogate_coeffs:
+                    raise ValueError("surrogate_coeffs must be provided for the pump head curve and efficiency curve when pump_curve_data_type is set to SurrogateCoefficent.")
                 
-                self.surrogate_index = Set(initialize=[1,2,3,4], doc="Index for surrogate coefficients")
-
+                self.surrogate_index = Set(initialize=[0,1,2,3], doc="Index for surrogate coefficients")
+                
+                if  list(self.config.head_surrogate_coeffs.keys()) != [0,1,2,3]:
+                    raise ValueError("head_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term.")
+                if list(self.config.eff_surrogate_coeffs.keys()) != [0,1,2,3]:
+                    raise ValueError("eff_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term.")
+                
                 self.head_surrogate_coefficients = Param(
                     self.surrogate_index,
-                    initialize={1: -8089.1, 2: 2729.2, 3: -410.6, 4: 114.22},
+                    initialize = self.config.head_surrogate_coeffs,
                     doc="Coefficients for the head surrogate based on flow only",
-                    units=pyunits.m,
+                    units=pyunits.m, # These shouldn't all have the same units???
                 )
 
                 self.efficiency_surrogate_coefficients = Param(
                     self.surrogate_index,
-                    initialize={1: -138.82, 2: 41.373, 3: -0.535, 4: 0.389},
+                    initialize=self.config.eff_surrogate_coeffs,
                     doc="Coefficients for the efficiency surrogate based on flow only",
                     units=pyunits.dimensionless,
                 )
@@ -228,15 +257,16 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             def ref_head_constraint(b):
                 return b.ref_head ==  b.system_curve_geometric_head + b.system_curve_flow_constant * (b.ref_flow**2)
             
+            
             @self.Constraint(doc="Reference head calculation calculated using the pump curve surrogate")
             def ref_head_surrogate(b):
-                return b.ref_head == b.head_surrogate_coefficients[1] * (b.ref_flow**3) + b.head_surrogate_coefficients[2] * b.ref_flow**2 + b.head_surrogate_coefficients[3] * b.ref_flow + b.head_surrogate_coefficients[4]
+                return b.ref_head == b.head_surrogate_coefficients[0] + b.head_surrogate_coefficients[1] * b.ref_flow + b.head_surrogate_coefficients[2] * (b.ref_flow**2) + b.head_surrogate_coefficients[3] * (b.ref_flow**3)
             
             
             # Calculate the reference efficiency based on the surrogate coefficients and reference flow
             @self.Constraint(doc="Reference efficiency calculated calculated using the pump curve surrogate")
             def ref_efficiency_constraint(b):
-                return b.ref_efficiency == b.efficiency_surrogate_coefficients[1] * (b.ref_flow**3) + b.efficiency_surrogate_coefficients[2] * b.ref_flow**2 + b.efficiency_surrogate_coefficients[3] * b.ref_flow + b.efficiency_surrogate_coefficients[4]
+                return b.ref_efficiency == b.efficiency_surrogate_coefficients[0] + b.efficiency_surrogate_coefficients[1] * b.ref_flow + b.efficiency_surrogate_coefficients[2] * (b.ref_flow**2) + b.efficiency_surrogate_coefficients[3] * (b.ref_flow**3)
             
 
             @self.Constraint(doc="Design speed fraction calculation using affinity laws")

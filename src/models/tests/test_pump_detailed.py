@@ -18,7 +18,7 @@ from idaes.core.util.model_statistics import degrees_of_freedom
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
 from watertap.core.control_volume_isothermal import ControlVolume0DBlock
 from watertap.core.solvers import get_solver
-from models.pump_detailed import Pump, VariableEfficiency
+from models.pump_detailed import Pump, VariableEfficiency, PumpCurveDataType
 
 solver = get_solver()
 
@@ -31,6 +31,9 @@ def build_pump_w_flow_head():
     m.fs.unit = Pump(
         property_package=m.fs.properties,
         variable_efficiency=VariableEfficiency.Flow,
+        pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
+        head_surrogate_coeffs =  {0:114.22, 1:-410.6, 2:2729.2, 3:-8089.1},
+        eff_surrogate_coeffs = {0:0.389, 1:-0.535, 2:41.373, 3:-138.82},
     )
 
     # Input flow and head
@@ -41,7 +44,6 @@ def build_pump_w_flow_head():
     # Calculated feed conditions
     feed_flow_mass = feed_flow_vol * density
     feed_mass_frac_TDS = 0.035
-
     feed_pressure_in = 101325 * pyunits.Pa
     feed_pressure_out = feed_pressure_in + pump_head * density * 9.81 * pyunits.m / pyunits.s**2
     feed_temperature = 273.15 + 25
@@ -59,7 +61,6 @@ def build_pump_w_flow_head():
 
     m.fs.unit.system_curve_geometric_head.fix(4.57)
     m.fs.unit.ref_speed_fraction.fix(1.0)
-
     return m
 
 
@@ -71,8 +72,10 @@ def build_pump_w_flow_speed():
     m.fs.unit = Pump(
         property_package=m.fs.properties,
         variable_efficiency=VariableEfficiency.Flow,
+        pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
+        head_surrogate_coeffs =  {0:114.22, 1:-410.6, 2:2729.2, 3:-8089.1},
+        eff_surrogate_coeffs = {0:0.389, 1:-0.535, 2:41.373, 3:-138.82},
     )
-
     # Input flow and speed
     feed_flow_vol = 0.126 * pyunits.m**3 / pyunits.s
     design_speed_fraction = 0.829
@@ -98,7 +101,6 @@ def build_pump_w_flow_speed():
     m.fs.unit.design_speed_fraction.fix(design_speed_fraction)
     m.fs.unit.system_curve_geometric_head.fix(4.57)
     m.fs.unit.ref_speed_fraction.fix(1.0)
-
     return m
 
 
@@ -117,6 +119,7 @@ def test_pump_w_flow_head():
     results = solver.solve(m)
     assert_optimal_termination(results)
 
+
 @pytest.mark.unit
 def test_pump_w_flow_speed():
     m = build_pump_w_flow_speed()
@@ -131,6 +134,7 @@ def test_pump_w_flow_speed():
 
     results = solver.solve(m)
     assert_optimal_termination(results)
+
 
 @pytest.mark.unit
 def test_pump_w_head_speed():
@@ -151,3 +155,7 @@ def test_pump_w_head_speed():
 
     results = solver.solve(m)
     assert_optimal_termination(results)
+
+# @pytest.mark.unit
+# def test_pass_surrogate_vals():
+#     # Values for Stage 1 RO pump
