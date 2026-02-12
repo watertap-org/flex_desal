@@ -52,25 +52,20 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     * This allows for more accurate representation of pump performance under varying operating conditions.
 
     """
-    def _validate_head_curve_data(val):
+    def _validate_curve_data(val):
         if val is None:
             return val
-        if isinstance(val, pd.DataFrame):
-            required_cols = ['flow (m3/s)', 'head (m)']
-            if all(col in val.columns for col in required_cols):
-                return val
-            raise ValueError(f"DataFrame must contain columns: {required_cols}")
-        raise ValueError("Must be a pandas DataFrame or None")
-
-    def _validate_eff_curve_data(val):
-        if val is None:
-            return val
-        if isinstance(val, pd.DataFrame):
-            required_cols = ['flow (m3/s)', 'efficiency (-)']
-            if all(col in val.columns for col in required_cols):
-                return val
-            raise ValueError(f"DataFrame must contain columns: {required_cols}")
-        raise ValueError("Must be a pandas DataFrame or None")
+        if isinstance(val, str):
+            try:
+                df = pd.read_csv(val)
+            except Exception as e:
+                raise ValueError(f"Failed to read CSV file '{val}': {e}")
+            
+            required_cols = ['flow (m3/s)', 'head (m)', "efficiency (-)"]
+            if all(col in df.columns for col in required_cols):
+                return df
+            raise ValueError(f"CSV file must contain columns: {required_cols}, but found: {list(df.columns)}")
+        raise ValueError("Must be a string filepath to a CSV file or None")
 
     CONFIG = PumpData.CONFIG()
 
@@ -121,24 +116,15 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     )
 
     CONFIG.declare(
-    "head_curve_data",
+    "pump_curves",
     ConfigValue(
         default=None,
-        domain=_validate_head_curve_data,
+        domain=_validate_curve_data,
         description="head curve at reference speed",
         doc = "Digitization of head vs. flow curve at reference speed(100%) from a pump datasheet"
         )
     )
-    
-    CONFIG.declare(
-        "eff_curve_data",
-        ConfigValue(
-            default=None,
-            domain=_validate_eff_curve_data,
-            description="efficiency curve at reference speed",
-            doc = "Digitization of efficiency vs. flow curve at reference speed(100%) from a pump datasheet"
-        )
-    )
+
 
     def build(self):
         super().build()
@@ -185,7 +171,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 units=pyunits.m,
             )
 
-            self.design_efficiency = Param(
+            self.design_efficiency = Var(
                 initialize=0.8,
                 doc='''Design efficiency of the centrifugal pump. 
                 This could be the efficiency at the best efficiency point (BEP) or another reference point.
@@ -260,8 +246,9 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 # Read the dataset file path and create a constraint to fit the surrogate coefficients based on the dataset provided by the user
                 
                 self.surrogate_index = Set(initialize=[0,1,2,3], doc="Index for surrogate coefficients")
-                
-                p = polyfit(self.config.head_curve_data['flow (m3/s)'], self.config.head_curve_data['head (m)'], 3)
+                # pump_curves is converted from a filepath name to DataFrame from the validator
+                curves_df = self.config.pump_curves
+                p = polyfit(curves_df['flow (m3/s)'], curves_df['head (m)'], 3)
                 head_surrogate_coeffs = {i: float(p[3-i]) for i in self.surrogate_index}
                 
                 self.head_surrogate_coefficients = Param(
@@ -270,7 +257,8 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                     doc="Coefficients for the head surrogate based on flow only",
                     units=pyunits.m, 
                 )
-                p = polyfit(self.config.eff_curve_data['flow (m3/s)'], self.config.eff_curve_data['efficiency (-)'], 3)
+
+                p = polyfit(curves_df['flow (m3/s)'], curves_df['efficiency (-)'], 3)
                 eff_surrogate_coeffs = {i: float(p[3-i]) for i in self.surrogate_index}
                 
                 self.efficiency_surrogate_coefficients = Param(

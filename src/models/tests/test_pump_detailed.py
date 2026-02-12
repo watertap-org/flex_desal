@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+import os
 from pyomo.environ import (
     ConcreteModel,
     TransformationFactory,
@@ -163,14 +164,14 @@ def test_data_points():
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = SeawaterParameterBlock()
+    pump_curves_filepath = os.path.join(os.path.dirname(__file__), "test_pump_curves_data.csv")
 
     m.fs.unit = Pump(
         property_package=m.fs.properties,
         variable_efficiency=VariableEfficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.DataSet,
         # flow in m3/s and head in m
-        head_curve_data = pd.DataFrame({'flow (m3/s)': [0.094625284,0.118281605,0.143515014,0.168748423,0.175246026,0.179788039,0.201867272,0.214483977,0.233409034], 'head (m)': [92.993,90.408,87.620,84.268,82.071,81.717,75.714,72.251,64.129]}),
-        eff_curve_data = pd.DataFrame({'flow (m3/s)': [0.094625284,0.118281605,0.143515014,0.168748423,0.175246026,0.179788039,0.201867272,0.214483977,0.233409034], 'efficiency (-)': [0.590,0.680,0.750,0.800,0.825,0.830,0.830,0.800,0.755]}),
+        pump_curves = pump_curves_filepath,
     )
 
     # Input flow and head
