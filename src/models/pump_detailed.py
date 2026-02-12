@@ -1,4 +1,6 @@
 from networkx import config
+import pandas as pd
+from numpy import polyfit
 from pyomo.environ import (
     Suffix,
     check_optimal_termination,
@@ -50,6 +52,25 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     * This allows for more accurate representation of pump performance under varying operating conditions.
 
     """
+    def _validate_head_curve_data(val):
+        if val is None:
+            return val
+        if isinstance(val, pd.DataFrame):
+            required_cols = ['flow (m3/s)', 'head (m)']
+            if all(col in val.columns for col in required_cols):
+                return val
+            raise ValueError(f"DataFrame must contain columns: {required_cols}")
+        raise ValueError("Must be a pandas DataFrame or None")
+
+    def _validate_eff_curve_data(val):
+        if val is None:
+            return val
+        if isinstance(val, pd.DataFrame):
+            required_cols = ['flow (m3/s)', 'efficiency (-)']
+            if all(col in val.columns for col in required_cols):
+                return val
+            raise ValueError(f"DataFrame must contain columns: {required_cols}")
+        raise ValueError("Must be a pandas DataFrame or None")
 
     CONFIG = PumpData.CONFIG()
 
@@ -99,6 +120,25 @@ class PumpIsothermalData(InitializationMixin, PumpData):
         ),
     )
 
+    CONFIG.declare(
+    "head_curve_data",
+    ConfigValue(
+        default=None,
+        domain=_validate_head_curve_data,
+        description="head curve at reference speed",
+        doc = "Digitization of head vs. flow curve at reference speed(100%) from a pump datasheet"
+        )
+    )
+    
+    CONFIG.declare(
+        "eff_curve_data",
+        ConfigValue(
+            default=None,
+            domain=_validate_eff_curve_data,
+            description="efficiency curve at reference speed",
+            doc = "Digitization of efficiency vs. flow curve at reference speed(100%) from a pump datasheet"
+        )
+    )
 
     def build(self):
         super().build()
@@ -145,7 +185,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 units=pyunits.m,
             )
 
-            self.design_efficiency = Var(
+            self.design_efficiency = Param(
                 initialize=0.8,
                 doc='''Design efficiency of the centrifugal pump. 
                 This could be the efficiency at the best efficiency point (BEP) or another reference point.
@@ -218,9 +258,28 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             
             if self.config.pump_curve_data_type == PumpCurveDataType.DataSet:
                 # Read the dataset file path and create a constraint to fit the surrogate coefficients based on the dataset provided by the user
-                # To be implemented in the future
+                
+                self.surrogate_index = Set(initialize=[0,1,2,3], doc="Index for surrogate coefficients")
+                
+                p = polyfit(self.config.head_curve_data['flow (m3/s)'], self.config.head_curve_data['head (m)'], 3)
+                head_surrogate_coeffs = {i: float(p[3-i]) for i in self.surrogate_index}
+                
+                self.head_surrogate_coefficients = Param(
+                    self.surrogate_index,
+                    initialize = head_surrogate_coeffs,
+                    doc="Coefficients for the head surrogate based on flow only",
+                    units=pyunits.m, 
+                )
+                p = polyfit(self.config.eff_curve_data['flow (m3/s)'], self.config.eff_curve_data['efficiency (-)'], 3)
+                eff_surrogate_coeffs = {i: float(p[3-i]) for i in self.surrogate_index}
+                
+                self.efficiency_surrogate_coefficients = Param(
+                    self.surrogate_index,
+                    initialize=eff_surrogate_coeffs,
+                    doc="Coefficients for the efficiency surrogate based on flow only",
+                    units=pyunits.dimensionless,
+                )
 
-                pass
 
             elif self.config.pump_curve_data_type == PumpCurveDataType.SurrogateCoefficent:
                 # Surrogate coefficients based on flow only for head and efficiency calculation
@@ -234,11 +293,13 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 if list(self.config.eff_surrogate_coeffs.keys()) != [0,1,2,3]:
                     raise ValueError("eff_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term.")
                 
+                # These shouldn't all have the same units???
+                # Also would be nice for fit to be in terms of ft and gpm, or m and m3/hr or m3/s
                 self.head_surrogate_coefficients = Param(
                     self.surrogate_index,
                     initialize = self.config.head_surrogate_coeffs,
                     doc="Coefficients for the head surrogate based on flow only",
-                    units=pyunits.m, # These shouldn't all have the same units???
+                    units=pyunits.m, 
                 )
 
                 self.efficiency_surrogate_coefficients = Param(
@@ -289,7 +350,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             @self.Constraint(doc="Overall efficiency calculation including motor efficiency and VFD efficiency")
             def overall_efficiency_constraint(b):
                 return b.efficiency_pump[0] == b.design_efficiency * b.motor_efficiency * b.vfd_efficiency
-            
+
         else:
             raise ValueError("Invalid variable efficiency option specified. Must be either VariableEfficiency.Fixed or VariableEfficiency.Flow.")
             
@@ -343,12 +404,4 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     def calculate_scaling_factors(self):
         super().calculate_scaling_factors()
     
-        
-        
-        
-
-
-
-
-
     
