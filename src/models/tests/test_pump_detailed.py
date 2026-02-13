@@ -105,8 +105,8 @@ def build_pump_w_flow_speed():
     m.fs.unit.ref_speed_fraction.fix(1.0)
     return m
 
-
-@pytest.mark.skip
+# Three tests for different combinations of inputs
+@pytest.mark.unit
 def test_pump_w_flow_head():
     m = build_pump_w_flow_head()
 
@@ -122,7 +122,7 @@ def test_pump_w_flow_head():
     assert_optimal_termination(results)
 
 
-@pytest.mark.skip
+@pytest.mark.unit
 def test_pump_w_flow_speed():
     m = build_pump_w_flow_speed()
 
@@ -138,7 +138,7 @@ def test_pump_w_flow_speed():
     assert_optimal_termination(results)
 
 
-@pytest.mark.skip
+@pytest.mark.unit
 def test_pump_w_head_speed():
     m = build_pump_w_flow_head()
 
@@ -158,7 +158,7 @@ def test_pump_w_head_speed():
     results = solver.solve(m)
     assert_optimal_termination(results)
 
-
+# Tests for take curves as dataset
 @pytest.mark.unit
 def test_data_points():
     m = ConcreteModel()
@@ -208,7 +208,98 @@ def test_data_points():
 
     results = solver.solve(m)
     assert_optimal_termination(results)
-    return value(m.fs.unit.efficiency_pump[0])
+    
+
+# Test for different pumps
+@pytest.mark.unit
+def test_ro_feed_pump():
+    # Test point from building out the pump curves?
+    m = ConcreteModel()
+    m.fs = FlowsheetBlock(dynamic=False)
+    m.fs.properties = SeawaterParameterBlock()
+
+    m.fs.unit = Pump(
+        property_package=m.fs.properties,
+        variable_efficiency=VariableEfficiency.Flow,
+        pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
+        # pump_curves = os.path.join(os.path.dirname(__file__), "test_pump_curves_data.csv"),
+        head_surrogate_coeffs =  {0:114.22, 1:-410.6, 2:2729.2, 3:-8089.1},
+        eff_surrogate_coeffs = {0:0.389, 1:-0.535, 2:41.373, 3:-138.82},
+    )
+    
+    # Input flow and head
+    feed_flow_vol = 0.14 * pyunits.m**3 / pyunits.s
+    pump_head = 172.3/3.28 * pyunits.m  
+    density = 1000 * pyunits.kg / pyunits.m**3
+
+    # Calculated feed conditions
+    feed_flow_mass = feed_flow_vol * density
+    feed_mass_frac_TDS = 0.035
+
+    feed_pressure_in = 244074.4 * pyunits.Pa # 35.4 psi converted to Pa
+    feed_pressure_out = feed_pressure_in + pump_head * density * (9.81 * pyunits.m / pyunits.s**2)
+    feed_temperature = 273.15 + 25 # Why no units?
+
+    feed_mass_frac_H2O = 1 - feed_mass_frac_TDS
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "TDS"].fix(feed_flow_mass * feed_mass_frac_TDS)
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "H2O"].fix(feed_flow_mass * feed_mass_frac_H2O)
+    m.fs.unit.inlet.pressure[0].fix(feed_pressure_in)
+    m.fs.unit.inlet.temperature[0].fix(feed_temperature)
+    m.fs.unit.outlet.pressure[0].fix(feed_pressure_out)
+
+    m.fs.unit.system_curve_geometric_head.fix(0) # Could be a default value in model?
+    m.fs.unit.ref_speed_fraction.fix(1.0) # Could be a default value in model?
+
+    m.fs.unit.initialize()
+    assert degrees_of_freedom(m) == 0
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    assert value(m.fs.unit.ref_efficiency) == pytest.approx(0.825, abs=0.02)
+    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.76, abs=0.02) # 0.76 = 0.825*.95*.97
+
+
+@pytest.mark.unit
+def test_uf_pump():
+    m = ConcreteModel()
+    m.fs = FlowsheetBlock(dynamic=False)
+    m.fs.properties = SeawaterParameterBlock()
+
+    m.fs.unit = Pump(
+        property_package=m.fs.properties,
+        variable_efficiency=VariableEfficiency.Flow,
+        pump_curve_data_type=PumpCurveDataType.DataSet,
+        pump_curves = os.path.join(os.path.dirname(__file__), "test_pump_curves_data_uf.csv"),
+    )
+    # Input flow and head
+    feed_flow_vol = 0.142 * pyunits.m**3 / pyunits.s
+    pump_head = 146.25/3.28 * pyunits.m
+    density = 1000 * pyunits.kg / pyunits.m**3
+
+    # Calculated feed conditions
+    feed_flow_mass = feed_flow_vol * density
+    feed_mass_frac_TDS = 0.035
+
+    feed_pressure_in = 101325 * pyunits.Pa
+    feed_pressure_out = feed_pressure_in + pump_head * density * (9.81 * pyunits.m / pyunits.s**2)
+    feed_temperature = 273.15 + 25
+
+    feed_mass_frac_H2O = 1 - feed_mass_frac_TDS
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "TDS"].fix(feed_flow_mass * feed_mass_frac_TDS)
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "H2O"].fix(feed_flow_mass * feed_mass_frac_H2O)
+    m.fs.unit.inlet.pressure[0].fix(feed_pressure_in)
+    m.fs.unit.inlet.temperature[0].fix(feed_temperature)
+    m.fs.unit.outlet.pressure[0].fix(feed_pressure_out)
+
+    m.fs.unit.system_curve_geometric_head.fix(4.57)
+    m.fs.unit.ref_speed_fraction.fix(1.0)
+
+    m.fs.unit.initialize()
+    assert degrees_of_freedom(m) == 0
+
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    assert value(m.fs.unit.ref_efficiency) == pytest.approx(0.79, abs=0.02) #This doesn't account for geometric head
+    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.728, abs=0.02) # 0.728 = 0.79*.95*.97
 
 if __name__ == "__main__":
     eff = test_data_points()
