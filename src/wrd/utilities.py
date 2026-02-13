@@ -335,7 +335,6 @@ def touch_flow_and_conc(b):
             sb[0].conc_mass_phase_comp
 
 
-
 def ft_head_to_psi(head):
     """
     Convert head (in feet) to pressure (in psi)
