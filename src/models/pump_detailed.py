@@ -28,8 +28,6 @@ from watertap.costing.unit_models.energy_recovery_device import (
 )
 
 _log = idaeslog.getLogger(__name__)
-# How to bring in head vs flow curve surrogate?
-# How to bring in efficiency vs flow curve surrogate?
 
 
 class VariableEfficiency(Enum):
@@ -39,11 +37,13 @@ class VariableEfficiency(Enum):
 
 class PumpCurveDataType(Enum):
     DataSet = (
-        auto()
-    )  # user provides flow and head data to fit a curve and surrogate coefficients are calculated within the model
+        auto(),
+    ) 
+    # user provides flow, head, and efficiency data to fit a curve and surrogate coefficients are calculated via polyfit
     SurrogateCoefficent = (
         auto()
-    )  # curve fit correlation based on flow and head is provided by the user as surrogate coefficients.
+    ) 
+    # curve fit correlation based on flow and head is provided by the user as surrogate coefficients.
 
 
 @declare_process_block_class("Pump")
@@ -55,7 +55,6 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     * This function builds on the standard pump model by adding variables and constraints to represent pump performance curves.
     * The model includes options for defining the pump curve based on flow and head at the BEP, as well as scaling the efficiency curve accordingly.
     * This allows for more accurate representation of pump performance under varying operating conditions.
-
     """
 
     def _validate_curve_data(val):
@@ -129,7 +128,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             default=None,
             domain=_validate_curve_data,
             description="head curve at reference speed",
-            doc="Digitization of head vs. flow curve at reference speed(100%) from a pump datasheet",
+            doc="Data from digitization of head vs. flow and efficiency vs. flow curves at a reference speed from a pump datasheet",
         ),
     )
 
@@ -181,16 +180,14 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             self.design_efficiency = Var(
                 initialize=0.8,
                 doc="""Design efficiency of the centrifugal pump. 
-                This could be the efficiency at the best efficiency point (BEP) or another reference point.
-                Used to scale the efficiency curve.""",
+                This could be the efficiency at the best efficiency point (BEP) or another reference point.""",
                 units=pyunits.dimensionless,
             )
 
             self.design_speed_fraction = Var(
                 initialize=0.8,
                 doc="""Design speed fraction of the centrifugal pump.
-                This could be the speed fraction at the best efficiency point (BEP) or another reference point.
-                Used to scale the efficiency curve.""",
+                This could be the speed fraction at the best efficiency point (BEP) or another reference point.""",
                 units=pyunits.dimensionless,
             )
 
@@ -205,8 +202,14 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
             self.system_curve_flow_constant = Var(
                 initialize=1.0,
-                doc="""Geometric flow constant for the pump, used to define the system curve.""",
+                doc="""Geometric flow constant for the pump, represents the major and minor losses in pump. Used to define the system curve.""",
                 units=pyunits.m * (pyunits.m**3 / pyunits.s) ** (-2),
+            )
+            
+            self.efficiency_adjustment_factor = Param(
+                initialize = 0,
+                doc = "Adjustment factor for design_efficiency_constraint, reducing pump efficiency at lower speeds.",
+                units = pyunits.dimensionless
             )
 
             # Constraints connecting inlet and outlet conditions to the design point head and flow, used to solve for the system curve constants
@@ -242,30 +245,32 @@ class PumpIsothermalData(InitializationMixin, PumpData):
             #### Pump curve variables ####
             self.ref_flow = Var(
                 initialize=1.0,
-                doc="Reference flowrate for the pump on the pump curve, used to scale the efficiency curve.",
+                doc="Reference flowrate for the pump on the pump curve from specification sheet",
                 units=pyunits.m**3 / pyunits.s,
             )
 
             self.ref_head = Var(
                 initialize=10.0,
-                doc="Reference head for the pump on the pump curve, used to scale the efficiency curve.",
+                doc="Reference head for the pump on the pump curve from specification sheet.",
                 units=pyunits.m,
             )
 
             self.ref_efficiency = Var(
                 initialize=0.8,
-                doc="Reference efficiency for the pump on the pump curve, used to scale the efficiency curve.",
+                doc="Reference efficiency for the pump on the pump curve from specification sheet.",
                 units=pyunits.dimensionless,
             )
 
             self.ref_speed_fraction = Var(
                 initialize=1,
-                doc="Reference speed fraction for the pump on the pump curve, used to scale the efficiency curve.",
+                doc="Reference speed fraction for the pump on the pump curve from specification sheet.",
                 units=pyunits.dimensionless,
             )
 
             if self.config.pump_curve_data_type == PumpCurveDataType.DataSet:
                 # Read the dataset file path and create a constraint to fit the surrogate coefficients based on the dataset provided by the user
+                # Check there is a dataset
+                # if not self.config.pump_curves:
 
                 self.surrogate_index = Set(
                     initialize=[0, 1, 2, 3], doc="Index for surrogate coefficients"
@@ -273,27 +278,15 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 # pump_curves is converted from a filepath name to DataFrame from the validator
                 curves_df = self.config.pump_curves
 
-                p = polyfit(curves_df["flow (m3/s)"], curves_df["head (m)"], 3)
-                head_surrogate_coeffs = {
-                    i: float(p[3 - i]) for i in self.surrogate_index
-                }
-                self.head_surrogate_coefficients = Param(
-                    self.surrogate_index,
-                    initialize=head_surrogate_coeffs,
-                    doc="Coefficients for the head surrogate based on flow only",
-                    units=pyunits.m,
-                )
+                p_head = polyfit(curves_df["flow (m3/s)"], curves_df["head (m)"], 3)
+                p_eff = polyfit(curves_df["flow (m3/s)"], curves_df["efficiency (-)"], 3)
 
-                p = polyfit(curves_df["flow (m3/s)"], curves_df["efficiency (-)"], 3)
+                head_surrogate_coeffs = {
+                    i: float(p_head[3 - i]) for i in self.surrogate_index
+                }               
                 eff_surrogate_coeffs = {
-                    i: float(p[3 - i]) for i in self.surrogate_index
+                    i: float(p_eff[3 - i]) for i in self.surrogate_index
                 }
-                self.efficiency_surrogate_coefficients = Param(
-                    self.surrogate_index,
-                    initialize=eff_surrogate_coeffs,
-                    doc="Coefficients for the efficiency surrogate based on flow only",
-                    units=pyunits.dimensionless,
-                )
 
             elif (
                 self.config.pump_curve_data_type
@@ -314,33 +307,37 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
                 if list(self.config.head_surrogate_coeffs.keys()) != [0, 1, 2, 3]:
                     raise ValueError(
-                        "head_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term."
+                        "head_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term. Ex: {0: 10, 1: 2, 2: 0.5, 3: 0.1} corresponds to the surrogate curve: = 10 + 2*flow + 0.5*flow^2 + 0.1*flow^3"
                     )
                 if list(self.config.eff_surrogate_coeffs.keys()) != [0, 1, 2, 3]:
                     raise ValueError(
-                        "eff_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term."
+                        "eff_surrogate_coeffs keys must match the surrogate_index set [0,1,2,3] where each key corresponds to the coefficient corespond to the order of each term. Ex: {0: 10, 1: 2, 2: 0.5, 3: 0.1} corresponds to the surrogate curve: = 10 + 2*flow + 0.5*flow^2 + 0.1*flow^3"
                     )
-
-                # These shouldn't all have the same units???
-                # Also would be nice for fit to be in terms of ft and gpm, or m and m3/hr or m3/s
-                self.head_surrogate_coefficients = Param(
-                    self.surrogate_index,
-                    initialize=self.config.head_surrogate_coeffs,
-                    doc="Coefficients for the head surrogate based on flow only",
-                    units=pyunits.m,
-                )
-
-                self.efficiency_surrogate_coefficients = Param(
-                    self.surrogate_index,
-                    initialize=self.config.eff_surrogate_coeffs,
-                    doc="Coefficients for the efficiency surrogate based on flow only",
-                    units=pyunits.dimensionless,
-                )
+                
+                head_surrogate_coeffs = self.config.head_surrogate_coeffs
+                eff_surrogate_coeffs = self.config.eff_surrogate_coeffs
 
             else:
                 raise ValueError(
                     "Invalid pump curve data type specified. Must be either DataSet or SurrogateCoefficent."
                 )
+
+            # Also would be nice for fit to be in terms of ft and gpm, or m and m3/hr or m3/s
+            # Note: Coefficients are dimensionless because they're applied to flow in m³/s (numeric value)
+            # The polynomial produces head in meters
+            self.head_surrogate_coefficients = Param(
+                self.surrogate_index,
+                initialize=head_surrogate_coeffs,
+                doc="Coefficients for the head surrogate based on flow only (flow in m³/s, output in m)",
+                units=pyunits.dimensionless,
+            )
+
+            self.efficiency_surrogate_coefficients = Param(
+                self.surrogate_index,
+                initialize=eff_surrogate_coeffs,
+                doc="Coefficients for the efficiency surrogate based on flow only",
+                units=pyunits.dimensionless,
+            )
 
             # Constraints to calculate reference point variables by solving the system curve and pump curve simultaneously at the reference point.
             @self.Constraint(doc="Reference head equality")
@@ -355,38 +352,26 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 doc="Reference head calculation calculated using the pump curve surrogate"
             )
             def ref_head_surrogate(b):
-                return b.ref_head == b.head_surrogate_coefficients[
-                    0
-                ] + b.head_surrogate_coefficients[
-                    1
-                ] * b.ref_flow + b.head_surrogate_coefficients[
-                    2
-                ] * (
-                    b.ref_flow**2
-                ) + b.head_surrogate_coefficients[
-                    3
-                ] * (
-                    b.ref_flow**3
-                )
+                # Convert flow to dimensionless value in m³/s for polynomial
+                # flow_val = pyunits.convert(b.ref_flow, to_units=pyunits.m**3/pyunits.s)
+                return b.ref_head == (
+                    b.head_surrogate_coefficients[0]
+                    + b.head_surrogate_coefficients[1] * (b.ref_flow / (pyunits.m**3 /pyunits.s))
+                    + b.head_surrogate_coefficients[2] * ((b.ref_flow / (pyunits.m**3 /pyunits.s))**2)
+                    + b.head_surrogate_coefficients[3] * ((b.ref_flow / (pyunits.m**3 /pyunits.s))**3)
+                ) * pyunits.m
 
             # Calculate the reference efficiency based on the surrogate coefficients and reference flow
             @self.Constraint(
                 doc="Reference efficiency calculated calculated using the pump curve surrogate"
             )
             def ref_efficiency_constraint(b):
-                return b.ref_efficiency == b.efficiency_surrogate_coefficients[
-                    0
-                ] + b.efficiency_surrogate_coefficients[
-                    1
-                ] * b.ref_flow + b.efficiency_surrogate_coefficients[
-                    2
-                ] * (
-                    b.ref_flow**2
-                ) + b.efficiency_surrogate_coefficients[
-                    3
-                ] * (
-                    b.ref_flow**3
-                )
+                # Convert flow to dimensionless value in m³/s for polynomial
+                return b.ref_efficiency == (
+                    b.efficiency_surrogate_coefficients[0]
+                    + b.efficiency_surrogate_coefficients[1] * (b.ref_flow / (pyunits.m**3 / pyunits.s))
+                    + b.efficiency_surrogate_coefficients[2] * ((b.ref_flow / ( pyunits.m**3 / pyunits.s))**2)
+                    + b.efficiency_surrogate_coefficients[3] * ((b.ref_flow / ( pyunits.m**3 / pyunits.s))**3)                )
 
             @self.Constraint(
                 doc="Design speed fraction calculation using affinity laws"
@@ -396,13 +381,14 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                     b.design_speed_fraction / b.ref_speed_fraction
                 )
 
+
             # Expression to calculate the efficiency at the design point based as a function of speed fraction
             @self.Constraint(doc="Design efficiency calculation")
             def design_efficiency_constraint(b):
                 return (
                     b.design_efficiency
                     == b.ref_efficiency
-                    * (b.design_speed_fraction / b.ref_speed_fraction) ** 0
+                    * (b.design_speed_fraction / b.ref_speed_fraction) ** b.efficiency_adjustment_factor
                 )
 
             @self.Constraint(

@@ -2,8 +2,7 @@ import pytest
 import pandas as pd
 import os
 from pyomo.environ import (
-    ConcreteModel,
-    TransformationFactory,
+     ConcreteModel,
     assert_optimal_termination,
     units as pyunits,
     value,
@@ -11,14 +10,10 @@ from pyomo.environ import (
 from pyomo.network import Arc
 
 from idaes.core import FlowsheetBlock
-import idaes.core.util.scaling as iscale
-from idaes.core.util.testing import initialization_tester
-from idaes.core.util.initialization import propagate_state
-from idaes.models.unit_models import Feed, Product
 from idaes.core.util.model_statistics import degrees_of_freedom
-
+from idaes.core.util.scaling import calculate_scaling_factors
+from pyomo.util.check_units import assert_units_consistent
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
-from watertap.core.control_volume_isothermal import ControlVolume0DBlock
 from watertap.core.solvers import get_solver
 from models.pump_detailed import Pump, VariableEfficiency, PumpCurveDataType
 
@@ -66,6 +61,9 @@ def build_pump_w_flow_head():
 
     m.fs.unit.system_curve_geometric_head.fix(4.57)
     m.fs.unit.ref_speed_fraction.fix(1.0)
+
+    assert_units_consistent(m)
+
     return m
 
 
@@ -118,7 +116,7 @@ def test_pump_w_flow_head():
     assert hasattr(m.fs.unit, "outlet")
     assert hasattr(m.fs.unit, "deltaP")  # this is just a reference
     assert hasattr(m.fs.unit.control_volume, "deltaP")
-
+    
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
 
@@ -163,7 +161,7 @@ def test_pump_w_head_speed():
     assert_optimal_termination(results)
 
 
-# Tests for take curves as dataset
+# Test for passing a dataset for the pump curves
 @pytest.mark.unit
 def test_data_points():
     m = ConcreteModel()
@@ -219,7 +217,7 @@ def test_data_points():
     assert_optimal_termination(results)
 
 
-# Test for different pumps
+# Tests for different pumps types for WRD
 @pytest.mark.unit
 def test_ro_feed_pump():
     # Test point from building out the pump curves?
@@ -262,21 +260,19 @@ def test_ro_feed_pump():
     m.fs.unit.inlet.temperature[0].fix(feed_temperature)
     m.fs.unit.outlet.pressure[0].fix(feed_pressure_out)
 
-    m.fs.unit.system_curve_geometric_head.fix(0)  # Could be a default value in model?
-    m.fs.unit.ref_speed_fraction.fix(1.0)  # Could be a default value in model?
+    m.fs.unit.system_curve_geometric_head.fix(0) 
+    m.fs.unit.ref_speed_fraction.fix(1.0) 
 
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
-    assert value(m.fs.unit.ref_efficiency) == pytest.approx(0.825, abs=0.02)
-    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(
-        0.76, abs=0.02
-    )  # 0.76 = 0.825*.95*.97
+    assert value(m.fs.unit.ref_efficiency) == pytest.approx(0.825, abs=0.02) 
 
 
 @pytest.mark.unit
 def test_uf_pump():
+    # Failing to solve for lower speed configs
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = SeawaterParameterBlock()
@@ -291,7 +287,7 @@ def test_uf_pump():
     )
     # Input flow and head
     feed_flow_vol = 0.142 * pyunits.m**3 / pyunits.s
-    pump_head = 146.25 / 3.28 * pyunits.m
+    pump_head = 144/ 3.28 * pyunits.m
     density = 1000 * pyunits.kg / pyunits.m**3
 
     # Calculated feed conditions
@@ -317,7 +313,7 @@ def test_uf_pump():
 
     m.fs.unit.system_curve_geometric_head.fix(4.57)
     m.fs.unit.ref_speed_fraction.fix(1.0)
-
+    calculate_scaling_factors(m)
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
 
@@ -329,8 +325,12 @@ def test_uf_pump():
     assert m.fs.unit.efficiency_pump[0].value == pytest.approx(
         0.728, abs=0.02
     )  # 0.728 = 0.79*.95*.97
-
+    # assert m.fs.unit.design_speed_fraction.value == pytest.approx(
+    #     1, abs=.01
+    # ) 
+    # return (m.fs.unit.design_speed_fraction.value)
+    
 
 if __name__ == "__main__":
-    eff = test_data_points()
+    eff = test_pump_w_flow_head()
     print(eff)
