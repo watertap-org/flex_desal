@@ -1,5 +1,4 @@
 import pytest
-import pandas as pd
 import os
 from pyomo.environ import (
      ConcreteModel,
@@ -7,18 +6,15 @@ from pyomo.environ import (
     units as pyunits,
     value,
 )
-from pyomo.network import Arc
-
 from idaes.core import FlowsheetBlock
 from idaes.core.util.model_statistics import degrees_of_freedom
 from idaes.core.util.scaling import calculate_scaling_factors
 from pyomo.util.check_units import assert_units_consistent
 from watertap.property_models.seawater_prop_pack import SeawaterParameterBlock
 from watertap.core.solvers import get_solver
-from models.pump_detailed import Pump, VariableEfficiency, PumpCurveDataType
+from models.pump_detailed import Pump, Efficiency, PumpCurveDataType
 
 solver = get_solver()
-
 
 # Build function with design flow and head as inputs
 def build_pump_w_flow_head():
@@ -28,7 +24,7 @@ def build_pump_w_flow_head():
 
     m.fs.unit = Pump(
         property_package=m.fs.properties,
-        variable_efficiency=VariableEfficiency.Flow,
+        variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
         head_surrogate_coeffs={0: 114.22, 1: -410.6, 2: 2729.2, 3: -8089.1},
         eff_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
@@ -74,7 +70,7 @@ def build_pump_w_flow_speed():
     m.fs.properties = SeawaterParameterBlock()
     m.fs.unit = Pump(
         property_package=m.fs.properties,
-        variable_efficiency=VariableEfficiency.Flow,
+        variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
         head_surrogate_coeffs={0: 114.22, 1: -410.6, 2: 2729.2, 3: -8089.1},
         eff_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
@@ -107,7 +103,51 @@ def build_pump_w_flow_speed():
     return m
 
 
-# Three tests for different combinations of inputs
+@pytest.mark.unit
+def test_fixed_eff_pump():
+    m = ConcreteModel()
+    m.fs = FlowsheetBlock(dynamic=False)
+    m.fs.properties = SeawaterParameterBlock()
+
+    m.fs.unit = Pump(
+        property_package=m.fs.properties,
+        variable_efficiency=Efficiency.Fixed,
+    )
+
+    # Input flow and speed
+    feed_flow_vol = 0.126 * pyunits.m**3 / pyunits.s
+    density = 1000 * pyunits.kg / pyunits.m**3
+
+    # Calculated feed conditions
+    feed_flow_mass = feed_flow_vol * density
+    feed_mass_frac_TDS = 0.035
+
+    feed_pressure_in = 101325 * pyunits.Pa
+    feed_temperature = 273.15 + 25
+
+    feed_mass_frac_H2O = 1 - feed_mass_frac_TDS
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "TDS"].fix(
+        feed_flow_mass * feed_mass_frac_TDS
+    )
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "H2O"].fix(
+        feed_flow_mass * feed_mass_frac_H2O
+    )
+    m.fs.unit.inlet.pressure[0].fix(feed_pressure_in)
+    m.fs.unit.inlet.temperature[0].fix(feed_temperature)
+   
+    m.fs.unit.efficiency_pump.fix(0.85)
+    m.fs.unit.deltaP.fix(500000)  # This is just a reference, not a real input
+
+    m.fs.unit.initialize()
+    assert degrees_of_freedom(m) == 0
+    
+    results = solver.solve(m)
+    assert_optimal_termination(results)
+    
+    assert pytest.approx(m.fs.unit.work_mechanical[0].value, rel=1e-3) == 72411
+
+
+# Three tests for different combinations of inputs for variable efficiency
 @pytest.mark.unit
 def test_pump_w_flow_head():
     m = build_pump_w_flow_head()
@@ -173,7 +213,7 @@ def test_data_points():
 
     m.fs.unit = Pump(
         property_package=m.fs.properties,
-        variable_efficiency=VariableEfficiency.Flow,
+        variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.DataSet,
         # flow in m3/s and head in m
         pump_curves=pump_curves_filepath,
@@ -227,7 +267,7 @@ def test_ro_feed_pump():
 
     m.fs.unit = Pump(
         property_package=m.fs.properties,
-        variable_efficiency=VariableEfficiency.Flow,
+        variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
         # pump_curves = os.path.join(os.path.dirname(__file__), "test_pump_curves_data.csv"),
         head_surrogate_coeffs={0: 114.22, 1: -410.6, 2: 2729.2, 3: -8089.1},
@@ -279,7 +319,7 @@ def test_uf_pump():
 
     m.fs.unit = Pump(
         property_package=m.fs.properties,
-        variable_efficiency=VariableEfficiency.Flow,
+        variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.DataSet,
         pump_curves=os.path.join(
             os.path.dirname(__file__), "test_pump_curves_data_uf.csv"
@@ -324,13 +364,9 @@ def test_uf_pump():
     )  # This doesn't account for geometric head
     assert m.fs.unit.efficiency_pump[0].value == pytest.approx(
         0.728, abs=0.02
-    )  # 0.728 = 0.79*.95*.97
-    # assert m.fs.unit.design_speed_fraction.value == pytest.approx(
-    #     1, abs=.01
-    # ) 
-    # return (m.fs.unit.design_speed_fraction.value)
+    )  
     
 
 if __name__ == "__main__":
-    eff = test_pump_w_flow_head()
+    eff = test_fixed_eff_pump()
     print(eff)

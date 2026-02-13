@@ -4,6 +4,7 @@ from numpy import polyfit
 from pyomo.environ import (
     Suffix,
     check_optimal_termination,
+    RangeSet,
 )
 from watertap.core.solvers import get_solver
 
@@ -30,7 +31,7 @@ from watertap.costing.unit_models.energy_recovery_device import (
 _log = idaeslog.getLogger(__name__)
 
 
-class VariableEfficiency(Enum):
+class Efficiency(Enum):
     Fixed = auto()  # default is constant efficiency
     Flow = auto()  # flow-only correlation
 
@@ -79,8 +80,8 @@ class PumpIsothermalData(InitializationMixin, PumpData):
     CONFIG.declare(
         "variable_efficiency",
         ConfigValue(
-            default=VariableEfficiency.Fixed,
-            domain=In(VariableEfficiency),
+            default=Efficiency.Fixed,
+            domain=In(Efficiency),
             description="Variable pump efficiency flag",
             doc="""Indicates whether pump efficiency should be variable or fixed.
                 ** Fixed: The default is constant efficiency at the best efficiency point (BEP)
@@ -145,20 +146,8 @@ class PumpIsothermalData(InitializationMixin, PumpData):
         def isothermal_balance(b, t):
             return b.properties_in[t].temperature == b.properties_out[t].temperature
 
-        # Add efficiency variables for more and VFD efficiency
-        self.vfd_efficiency = Param(
-            initialize=0.97,
-            doc="Variable frequency drive (VFD) efficiency",
-            units=pyunits.dimensionless,
-        )
 
-        self.motor_efficiency = Param(
-            initialize=0.95,
-            doc="Motor efficiency",
-            units=pyunits.dimensionless,
-        )
-
-        if self.config.variable_efficiency is not VariableEfficiency.Fixed:
+        if self.config.variable_efficiency is not Efficiency.Fixed:
             # Variable efficiency pump set-up
             #### Design point variables ####
             self.design_flow = Var(
@@ -267,32 +256,52 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                 units=pyunits.dimensionless,
             )
 
+            # Add efficiency variables for more and VFD efficiency. Only defined for variable efficiency
+            self.vfd_efficiency = Param(
+                initialize=0.97,
+                doc="Variable frequency drive (VFD) efficiency",
+                units=pyunits.dimensionless,
+            )
+
+            self.motor_efficiency = Param(
+                initialize=0.95,
+                doc="Motor efficiency",
+                units=pyunits.dimensionless,
+            )
+            
+            # Add the fit order 
+            self.fit_order = Param(
+                initialize=3,
+                doc="Order of the polynomial fit for the surrogate pump curve coefficients",
+                units=pyunits.dimensionless,
+            )
+
             if self.config.pump_curve_data_type == PumpCurveDataType.DataSet:
                 # Read the dataset file path and create a constraint to fit the surrogate coefficients based on the dataset provided by the user
                 # Check there is a dataset
                 # if not self.config.pump_curves:
 
                 self.surrogate_index = Set(
-                    initialize=[0, 1, 2, 3], doc="Index for surrogate coefficients"
+                    initialize=range(value(self.fit_order) + 1), doc="Index for surrogate coefficients"
                 )
                 # pump_curves is converted from a filepath name to DataFrame from the validator
                 curves_df = self.config.pump_curves
 
-                p_head = polyfit(curves_df["flow (m3/s)"], curves_df["head (m)"], 3)
-                p_eff = polyfit(curves_df["flow (m3/s)"], curves_df["efficiency (-)"], 3)
+                p_head = polyfit(curves_df["flow (m3/s)"], curves_df["head (m)"], value(self.fit_order))
+                p_eff = polyfit(curves_df["flow (m3/s)"], curves_df["efficiency (-)"], value(self.fit_order))
 
                 head_surrogate_coeffs = {
-                    i: float(p_head[3 - i]) for i in self.surrogate_index
+                    i: float(p_head[value(self.fit_order) - i]) for i in self.surrogate_index
                 }               
                 eff_surrogate_coeffs = {
-                    i: float(p_eff[3 - i]) for i in self.surrogate_index
+                    i: float(p_eff[value(self.fit_order) - i]) for i in self.surrogate_index
                 }
 
             elif (
                 self.config.pump_curve_data_type
                 == PumpCurveDataType.SurrogateCoefficent
             ):
-                # Surrogate coefficients based on flow only for head and efficiency calculation
+                # Surrogate coefficients based on flow only for head and efficiency calculation 
                 if (
                     not self.config.head_surrogate_coeffs
                     or not self.config.eff_surrogate_coeffs
@@ -302,7 +311,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                     )
 
                 self.surrogate_index = Set(
-                    initialize=[0, 1, 2, 3], doc="Index for surrogate coefficients"
+                    initialize=[0,1,2,3], doc="Index for surrogate coefficients"
                 )
 
                 if list(self.config.head_surrogate_coeffs.keys()) != [0, 1, 2, 3]:
@@ -400,16 +409,10 @@ class PumpIsothermalData(InitializationMixin, PumpData):
                     == b.design_efficiency * b.motor_efficiency * b.vfd_efficiency
                 )
 
-        elif self.config.variable_efficiency is VariableEfficiency.Fixed:
+        elif self.config.variable_efficiency is Efficiency.Fixed:
             # Fixed efficiency pump set-up (efficiency is constant at the best efficiency point)
-            @self.Constraint(
-                doc="Overall efficiency calculation including motor efficiency and VFD efficiency"
-            )
-            def overall_efficiency_constraint(b):
-                return (
-                    b.efficiency_pump[0]
-                    == b.design_efficiency * b.motor_efficiency * b.vfd_efficiency
-                )
+            # If fixed efficiency, user should directly fix efficiency_pump[0] and deltaP
+            pass
 
         else:
             raise ValueError(
