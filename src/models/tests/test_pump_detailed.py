@@ -1,7 +1,7 @@
 import pytest
 import os
 from pyomo.environ import (
-     ConcreteModel,
+    ConcreteModel,
     assert_optimal_termination,
     units as pyunits,
     value,
@@ -15,6 +15,7 @@ from watertap.core.solvers import get_solver
 from models.pump_detailed import Pump, Efficiency, PumpCurveDataType
 
 solver = get_solver()
+
 
 # Build function with design flow and head as inputs
 def build_pump_w_flow_head():
@@ -134,16 +135,16 @@ def test_fixed_eff_pump():
     )
     m.fs.unit.inlet.pressure[0].fix(feed_pressure_in)
     m.fs.unit.inlet.temperature[0].fix(feed_temperature)
-   
+
     m.fs.unit.efficiency_pump.fix(0.85)
-    m.fs.unit.deltaP.fix(500000)  # This is just a reference, not a real input
+    m.fs.unit.deltaP.fix(500000)
 
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
-    
+
     results = solver.solve(m)
     assert_optimal_termination(results)
-    
+
     assert pytest.approx(m.fs.unit.work_mechanical[0].value, rel=1e-3) == 72411
 
 
@@ -156,7 +157,7 @@ def test_pump_w_flow_head():
     assert hasattr(m.fs.unit, "outlet")
     assert hasattr(m.fs.unit, "deltaP")  # this is just a reference
     assert hasattr(m.fs.unit.control_volume, "deltaP")
-    
+
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
 
@@ -300,14 +301,14 @@ def test_ro_feed_pump():
     m.fs.unit.inlet.temperature[0].fix(feed_temperature)
     m.fs.unit.outlet.pressure[0].fix(feed_pressure_out)
 
-    m.fs.unit.system_curve_geometric_head.fix(0) 
-    m.fs.unit.ref_speed_fraction.fix(1.0) 
+    m.fs.unit.system_curve_geometric_head.fix(0)
+    m.fs.unit.ref_speed_fraction.fix(1.0)
 
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
     results = solver.solve(m)
     assert_optimal_termination(results)
-    assert value(m.fs.unit.ref_efficiency) == pytest.approx(0.825, abs=0.02) 
+    assert value(m.fs.unit.ref_efficiency) == pytest.approx(0.825, abs=0.02)
 
 
 @pytest.mark.unit
@@ -327,7 +328,7 @@ def test_uf_pump():
     )
     # Input flow and head
     feed_flow_vol = 0.142 * pyunits.m**3 / pyunits.s
-    pump_head = 144/ 3.28 * pyunits.m
+    pump_head = 144 / 3.28 * pyunits.m
     density = 1000 * pyunits.kg / pyunits.m**3
 
     # Calculated feed conditions
@@ -362,11 +363,4 @@ def test_uf_pump():
     assert value(m.fs.unit.ref_efficiency) == pytest.approx(
         0.79, abs=0.02
     )  # This doesn't account for geometric head
-    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(
-        0.728, abs=0.02
-    )  
-    
-
-if __name__ == "__main__":
-    eff = test_fixed_eff_pump()
-    print(eff)
+    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.728, abs=0.02)
