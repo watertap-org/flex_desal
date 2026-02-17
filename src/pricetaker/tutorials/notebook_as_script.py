@@ -13,7 +13,7 @@ from idaes.core.util.model_diagnostics import DiagnosticsToolbox
 if __name__ == "__main__":
     # Get the directory where this script is located
     script_dir = Path(__file__).parent
-    price_data = pd.read_csv(script_dir / "sbce_pricesignal_short.csv")
+    price_data = pd.read_csv(script_dir / "sbce_pricesignal_day.csv")
     price_data["Energy Rate"] = (
         price_data["electric_energy_0_2022-07-05_2022-07-14_0"]
         + price_data["electric_energy_1_2022-07-05_2022-07-14_0"]
@@ -37,16 +37,16 @@ if __name__ == "__main__":
     # Instantiate an object containing the model parameters
     m.params = FlexDesalParams(
         start_date="2022-07-05 00:00:00",
-        end_date="2022-07-05 02:15:00",
-        annual_production_AF=3125,
+        end_date="2022-07-05 23:45:00",
+        annual_production_AF=3125*1,
         # fixed_monthly_cost = 10000,
         # customer_rate=price_data["Customer Cost"][1],  # acrft/yr
     )
     m.params.intake.nominal_flowrate = 1063.5  # m3/hr
     m.params.ro.update(
         {
-            "startup_delay": 8,  # hours
-            "minimum_downtime": 4,  # hours
+            "startup_delay": 8,  # 15-min increments
+            "minimum_downtime": 4,  # 15-min increments
             "nominal_flowrate": 337.670,  # m3/hr
             "surrogate_type": "quadratic_surrogate",
             "surrogate_a": 0,
@@ -133,18 +133,22 @@ if __name__ == "__main__":
     os.environ['PATH'] = r'C:\Users\rchurchi\AppData\Local\anaconda3\pkgs\glpk-4.65-h17947e8_4\Library\bin' + os.pathsep + os.environ.get('PATH', '')
     
     solver = pyo.SolverFactory("mindtpy")
+    
     results = solver.solve(
         m,
         mip_solver="glpk",
         nlp_solver="ipopt",
         tee=True,
+        constraint_tolerance= 1e-5,
+        zero_tolerance= 1e-5,
+        # absolute_bound_tolerance= 5e-4,
+        # small_dual_tolerance = 1e-7,
     )
     
+    # Write optimal values of all operational variables to a csv file 
+    m.get_operation_var_values().to_csv(script_dir / "dummy_results.csv")
+   
     pyo.assert_optimal_termination(results)
-
-    # Write optimal values of all operational variables to a csv file
-    # This required adding a function to pricetakermodel
-    m.get_operation_var_values().to_csv("dummy_result.csv")
 
     # Plot operational variables
     fig, axs = m.plot_operation_profile(
@@ -155,7 +159,7 @@ if __name__ == "__main__":
             "num_skids_online",
         ],
     )
-    fig.savefig("operation_profile.png")
+    fig.savefig(script_dir / "operation_profile.png")
     # Return the values of all variables and expressions that do not vary with time
     print(m.get_design_var_values())
 

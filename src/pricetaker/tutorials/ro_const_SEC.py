@@ -1,4 +1,5 @@
 from idaes.apps.grid_integration import PriceTakerModel
+import os
 import pandas as pd
 import pyomo.environ as pyo
 from pathlib import Path
@@ -7,12 +8,12 @@ from pricetaker.flowsheets import utils
 from pricetaker.flowsheets.params import FlexDesalParams
 from watertap.core.solvers import get_solver
 from idaes.core.util.model_diagnostics import DiagnosticsToolbox
-
+from watertap.core.util.model_diagnostics.infeasible import *
 
 if __name__ == "__main__":
     # Get the directory where this script is located
     script_dir = Path(__file__).parent
-    price_data = pd.read_csv(script_dir / "sbce_pricesignal_short.csv")
+    price_data = pd.read_csv(script_dir / "sbce_pricesignal_day.csv")
     # price_data["Energy Rate"] = (
     #     price_data["electric_energy_on_peak"]
     #     + price_data["electric_energy_mid_peak"]
@@ -44,8 +45,8 @@ if __name__ == "__main__":
     # Instantiate an object containing the model parameters
     m.params = FlexDesalParams(
         start_date="2022-07-05 00:00:00",
-        end_date="2022-07-05 02:15:00",
-        annual_production_AF=1000,
+        end_date="2022-07-05 23:45:00",
+        annual_production_AF=3125*.75,
         # fixed_monthly_cost = 10000,
         # customer_rate=price_data["Customer Cost"][1],  # acrft/yr
     )
@@ -53,15 +54,15 @@ if __name__ == "__main__":
     m.params.wrd_uf.update(
         {
             "surrogate_type": "constant_energy_intensity",
-            "surrogate_a": 1.0,
+            "surrogate_a": 1.01,
             "surrogate_b": 0.0,
             "nominal_recovery": 1,
         }
     )
     m.params.wrd_ro.update(
         {
-            "startup_delay": 8,  # hours
-            "minimum_downtime": 4,  # hours
+            "startup_delay": 8,  # 15-min increments
+            "minimum_downtime": 4,  # 15-min increments
             "nominal_flowrate": 363.4,  # m3/hr #per skid
             "surrogate_type": "constant_energy_intensity",
             "surrogate_a": 1.0,
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     m.fix_operation_var("intake.feed_flowrate", m.params.intake.nominal_flowrate)
 
     # Pretreatment is either active (1) or inactive (0) for the entire run
-    # m.fix_operation_var("pretreatment.op_mode", 1)
+    m.fix_operation_var("pretreatment.op_mode", 1)
 
     fs.constrain_water_production(m)
 
@@ -136,16 +137,22 @@ if __name__ == "__main__":
     )
 
     # Can't use gurobi because it requires a liciense for integer variables
-    # So going to use ipopt, but may need to look into this further
     dt = DiagnosticsToolbox(m)
-    solver = get_solver()
-    results = solver.solve(m)
+    # Configure GLPK executable path
+    os.environ['PATH'] = r'C:\Users\rchurchi\AppData\Local\anaconda3\pkgs\glpk-4.65-h17947e8_4\Library\bin' + os.pathsep + os.environ.get('PATH', '')
+    
+    solver = pyo.SolverFactory("mindtpy")
+    results = solver.solve(
+        m,
+        mip_solver="glpk",
+        nlp_solver="ipopt",
+        tee=True,
+    )
+    print_infeasible_constraints(m)
+    # Write optimal values of all operational variables to a csv file
+    m.get_operation_var_values().to_csv(script_dir / "wrd_optimization_results.csv")
 
     pyo.assert_optimal_termination(results)
-
-    # Write optimal values of all operational variables to a csv file
-    m.get_operation_var_values().to_csv("dummy_wrd_result.csv")
-
     # Plot operational variables
     fig, axs = m.plot_operation_profile(
         operation_vars=[
@@ -155,7 +162,7 @@ if __name__ == "__main__":
             "num_skids_online",
         ],
     )
-    fig.savefig("operation_profile.png")
+    fig.savefig(script_dir / "operation_profile.png")
     # Return the values of all variables and expressions that do not vary with time
     print(m.get_design_var_values())
 

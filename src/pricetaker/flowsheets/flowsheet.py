@@ -24,8 +24,8 @@ from pyomo.environ import (
     Var,
     units as pyunits,
 )
-from watertap.flowsheets.flex_desal import params as um_params
-from watertap.flowsheets.flex_desal import unit_models as um
+from pricetaker.flowsheets import params as um_params
+from pricetaker.flowsheets import unit_models as um
 
 
 def add_operational_cost_expressions(blk, params: um_params.FlexDesalParams):
@@ -317,7 +317,7 @@ def constrain_water_production(m, baseline_production: float = None):
         )
 
         m.water_production_target = Constraint(
-            expr=m.total_water_production >= m.production_target_abs
+            expr=m.total_water_production * 1e-5 >= m.production_target_abs * 1e-5
         )
 
     else:
