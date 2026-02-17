@@ -130,14 +130,20 @@ def ro_skid_operation_model(blk, params: um_params.ROParams):
         )
 
     elif params.surrogate_type == "quadratic_surrogate":
-        blk.calculate_energy_intensity = Constraint(
-            expr=blk.energy_intensity
-            == (
-                blk.coeffs["a"] * blk.recovery**2
-                + blk.coeffs["b"] * blk.recovery
-                + blk.coeffs["c"]
+        if params.surrogate_a == 0:
+            blk.calculate_energy_intensity = Constraint(
+                expr=blk.energy_intensity
+                == blk.coeffs["b"] * blk.recovery + blk.coeffs["c"]
             )
-        )
+        else:
+            blk.calculate_energy_intensity = Constraint(
+                expr=blk.energy_intensity
+                == (
+                    blk.coeffs["a"] * blk.recovery**2
+                    + blk.coeffs["b"] * blk.recovery
+                    + blk.coeffs["c"]
+                )
+            )
 
 
 def reverse_osmosis_operation_model(blk, params: um_params.ROParams):
@@ -225,7 +231,7 @@ def reverse_osmosis_operation_model(blk, params: um_params.ROParams):
         return b.ro_skid[index].shutdown == b.ro_skid[1].shutdown
 
     # Update bounds on recovery and energy intensity for all skids
-    ei_lb, ei_ub = params.get_energy_intensity_bounds()
+    ei_lb, ei_ub, = params.get_energy_intensity_bounds()
     for skid in blk.set_ro_skids:
         blk.ro_skid[skid].recovery.setlb(params.minimum_recovery)
         blk.ro_skid[skid].recovery.setub(params.maximum_recovery)

@@ -191,9 +191,13 @@ class ROParams(UnitParams):
 
         else:
             # This is "quadratic_surrogate":
-            root = -coeffs["b"] / (2 * coeffs["a"])
+            if coeffs["a"] == 0:
+                # No optimum exists inside the interval, because energy is linear.
+                return None
+            else:
+                root = -coeffs["b"] / (2 * coeffs["a"])
 
-        return self.get_energy_intensity(root)
+        return root, self.get_energy_intensity(root)
 
     def get_energy_intensity_bounds(self, recovery_lb=None, recovery_ub=None):
         """

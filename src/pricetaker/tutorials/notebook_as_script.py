@@ -49,9 +49,9 @@ if __name__ == "__main__":
             "minimum_downtime": 4,  # hours
             "nominal_flowrate": 337.670,  # m3/hr
             "surrogate_type": "quadratic_surrogate",
-            "surrogate_a": 11.509,
-            "surrogate_b": -10.269,
-            "surrogate_c": 5.627,
+            "surrogate_a": 0,
+            "surrogate_b": 2.0,
+            "surrogate_c": 1.5,
             "surrogate_d": 0,
             "minimum_recovery": 0.4,
             "nominal_recovery": 0.465,
