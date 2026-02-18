@@ -28,7 +28,7 @@ def build_pump_w_flow_head():
         variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
         head_surrogate_coeffs={0: 114.22, 1: -410.6, 2: 2729.2, 3: -8089.1},
-        eff_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
+        efficiency_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
     )
 
     # Input flow and head
@@ -74,7 +74,7 @@ def build_pump_w_flow_speed():
         variable_efficiency=Efficiency.Flow,
         pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
         head_surrogate_coeffs={0: 114.22, 1: -410.6, 2: 2729.2, 3: -8089.1},
-        eff_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
+        efficiency_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
     )
     # Input flow and speed
     feed_flow_vol = 0.126 * pyunits.m**3 / pyunits.s
@@ -101,6 +101,10 @@ def build_pump_w_flow_speed():
     m.fs.unit.design_speed_fraction.fix(design_speed_fraction)
     m.fs.unit.system_curve_geometric_head.fix(4.57)
     m.fs.unit.ref_speed_fraction.fix(1.0)
+
+    calculate_scaling_factors(m)
+    assert_units_consistent(m)
+
     return m
 
 
@@ -272,7 +276,7 @@ def test_ro_feed_pump():
         pump_curve_data_type=PumpCurveDataType.SurrogateCoefficent,
         # pump_curves = os.path.join(os.path.dirname(__file__), "test_pump_curves_data.csv"),
         head_surrogate_coeffs={0: 114.22, 1: -410.6, 2: 2729.2, 3: -8089.1},
-        eff_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
+        efficiency_surrogate_coeffs={0: 0.389, 1: -0.535, 2: 41.373, 3: -138.82},
     )
 
     # Input flow and head
@@ -354,6 +358,7 @@ def test_uf_pump():
 
     m.fs.unit.system_curve_geometric_head.fix(4.57)
     m.fs.unit.ref_speed_fraction.fix(1.0)
+
     calculate_scaling_factors(m)
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
@@ -361,6 +366,6 @@ def test_uf_pump():
     results = solver.solve(m)
     assert_optimal_termination(results)
     assert value(m.fs.unit.ref_efficiency) == pytest.approx(
-        0.79, abs=0.02
+        0.79, rel=1e-5
     )  # This doesn't account for geometric head
     assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.728, abs=0.02)
