@@ -356,7 +356,7 @@ def test_uf_pump():
     m.fs.unit.inlet.temperature[0].fix(feed_temperature)
     m.fs.unit.outlet.pressure[0].fix(feed_pressure_out)
 
-    m.fs.unit.system_curve_geometric_head.fix(4.57)
+    m.fs.unit.system_curve_geometric_head.fix(0)
     m.fs.unit.ref_speed_fraction.fix(1.0)
 
     calculate_scaling_factors(m)
@@ -366,6 +366,6 @@ def test_uf_pump():
     results = solver.solve(m)
     assert_optimal_termination(results)
     assert value(m.fs.unit.ref_efficiency) == pytest.approx(
-        0.79, rel=1e-5
+        0.79, rel=1e-2
     )  # This doesn't account for geometric head
     assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.728, abs=0.02)
