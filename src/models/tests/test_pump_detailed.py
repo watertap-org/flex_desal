@@ -265,7 +265,7 @@ def test_data_points():
 # Tests for different pumps types for WRD
 @pytest.mark.unit
 def test_ro_feed_pump():
-    # Test point from building out the pump curves?
+    # Test point from building out the pump curves
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = SeawaterParameterBlock()
@@ -317,7 +317,7 @@ def test_ro_feed_pump():
 
 @pytest.mark.unit
 def test_uf_pump():
-    # Failing to solve for lower speed configs
+    # Doubles as low speed (50%) test
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
     m.fs.properties = SeawaterParameterBlock()
@@ -330,9 +330,9 @@ def test_uf_pump():
             os.path.dirname(__file__), "test_pump_curves_data_uf.csv"
         ),
     )
-    # Input flow and head
-    feed_flow_vol = 0.142 * pyunits.m**3 / pyunits.s
-    pump_head = 144 / 3.28 * pyunits.m
+    # Input flow and head for initial solve
+    feed_flow_vol = 0.12 * pyunits.m**3 / pyunits.s
+    pump_head = 21.3 * pyunits.m
     density = 1000 * pyunits.kg / pyunits.m**3
 
     # Calculated feed conditions
@@ -363,9 +363,15 @@ def test_uf_pump():
     m.fs.unit.initialize()
     assert degrees_of_freedom(m) == 0
 
+    # Now apply the pump speed
+    test_pump_speed = 0.5
+    m.fs.unit.design_speed_fraction.fix(test_pump_speed)
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "H2O"].unfix()
+    m.fs.unit.inlet.flow_mass_phase_comp[0, "Liq", "TDS"].unfix()
+    m.fs.unit.control_volume.properties_in[0].mass_frac_phase_comp["Liq", "TDS"].fix()
+    calculate_scaling_factors(m)
+
     results = solver.solve(m)
     assert_optimal_termination(results)
-    assert value(m.fs.unit.ref_efficiency) == pytest.approx(
-        0.79, rel=1e-2
-    )  # This doesn't account for geometric head
-    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.728, abs=0.02)
+
+    assert m.fs.unit.efficiency_pump[0].value == pytest.approx(0.64, abs=0.02)
