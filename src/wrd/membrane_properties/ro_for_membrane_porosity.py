@@ -57,6 +57,7 @@ __all__ = [
 
 solver = get_solver()
 
+### ONLY USED TO TEST FOR ONE MODULE ###
 
 def build_system(stage_num=1):
     m = ConcreteModel()
@@ -213,44 +214,12 @@ def set_ro_op_conditions(blk, Pout=141.9, Pin=152.6):
         )
     )
 
-    blk.unit.feed_side.length.fix(
-        get_config_value(
-            blk.config_data,
-            "number_of_elements_per_vessel",
-            "reverse_osmosis_1d",
-            f"stage_{blk.stage_num}",
-        )
-        * get_config_value(
-            blk.config_data,
-            "element_length",
-            "reverse_osmosis_1d",
-            f"stage_{blk.stage_num}",
-        )
-    )
+    blk.unit.feed_side.length.fix(1.016 * pyunits.m)
 
-    blk.unit.area.setub(1e6)
-    blk.unit.width.setub(1e5)
+    # blk.unit.area.setub(1e6)
+    # blk.unit.width.setub(1e5)
 
-    blk.unit.area.fix(
-        get_config_value(
-            blk.config_data,
-            "element_membrane_area",
-            "reverse_osmosis_1d",
-            f"stage_{blk.stage_num}",
-        )
-        * get_config_value(
-            blk.config_data,
-            "number_of_vessels",
-            "reverse_osmosis_1d",
-            f"stage_{blk.stage_num}",
-        )
-        * get_config_value(
-            blk.config_data,
-            "number_of_elements_per_vessel",
-            "reverse_osmosis_1d",
-            f"stage_{blk.stage_num}",
-        )
-    )
+    blk.unit.area.fix(37 * pyunits.m**2)
 
     deltaP = (Pout - Pin) * pyunits.psi
     blk.unit.deltaP.fix(deltaP)
@@ -263,8 +232,8 @@ def set_ro_op_conditions(blk, Pout=141.9, Pin=152.6):
             f"stage_{blk.stage_num}",
         )
     )
-
-    blk.unit.mixed_permeate[0].pressure.fix(20 * pyunits.psi)
+    # ASSUMING PERMEATE PRESSURE IS ATMOSPHERIC
+    blk.unit.mixed_permeate[0].pressure.fix(14.5 * pyunits.psi)
 
 
 def initialize_system(m):

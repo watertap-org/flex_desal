@@ -1,5 +1,5 @@
 import pandas as pd
-from wrd.membrane_properties.ro_for_membrane_properties import solve_ro_module
+from wrd.membrane_properties.ro_for_membrane_permeabilities import solve_ro_module
 from pyomo.environ import (
     assert_optimal_termination,
     units as pyunits,
@@ -7,7 +7,7 @@ from pyomo.environ import (
 from watertap.core.solvers import get_solver
 import os
 import calendar
-
+from idaes.core.util.model_statistics import degrees_of_freedom
 
 def read_and_clean_input_data(train=1, stage_num=1, month=8, year=2021):
     """
@@ -157,6 +157,7 @@ def calc_membrane_permeability(cleaned_data, train=1, stage_num=1, month=8, year
         m.fs.ro.unit.B_comp.unfix()
         m.fs.ro.unit.recovery_vol_phase[0, "Liq"].fix(stage_RR)
         m.fs.ro.unit.mixed_permeate[0].conc_mass_phase_comp["Liq", "NaCl"].fix(Cperm)
+        assert degrees_of_freedom(m) == 0
         solver = get_solver()
         results = solver.solve(m)
         assert_optimal_termination(results)
@@ -196,6 +197,7 @@ def main(train=1, stage_num=1, month=3, year=2021):
 
 if __name__ == "__main__":
 
+    # Make Changes here for different trains, stages, and months/years
     train = 1  # Change to 1, 2, 3, or 4 for different trains
     stage_num = 3  # Change to 1, 2, or 3 for different RO stages
     month = 3
