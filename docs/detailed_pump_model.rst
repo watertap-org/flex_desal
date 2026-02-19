@@ -32,7 +32,7 @@ Pump curves can be provided in two ways:
 	- The model fits cubic polynomials to the data for head and efficiency.
 2. **Surrogate Coefficients:**
 	- User provides cubic polynomial coefficients for head and efficiency as dictionaries.
-	- Example: ``{0: 10, 1: 2, 2: 0.5, 3: 0.1}`` for ``head = 10 + 2*flow + 0.5*flow^2 + 0.1*flow^3``.
+	- Example: ``{0: a, 1: b, 2: c, 3: d}`` for ``head = a + b*flow + c*flow^2 + d*flow^3``.
 
 Variables and Parameters
 -----------------------
@@ -47,6 +47,23 @@ Variables and Parameters
 - ``ref_speed_fraction``: Reference speed fraction from pump datasheet (dimensionless).
 - ``vfd_efficiency``: VFD efficiency (default 0.97).
 - ``motor_efficiency``: Motor efficiency (default 0.95).
+
+
+System Curve Equation
+--------------------
+The system curve describes the relationship between the required pump head and the flow rate in the system. It accounts for both the static (geometric) head and the dynamic head losses due to friction and fittings. The general form of the system curve equation is:
+
+.. math::
+	H_{system}(Q) = H_{static} + K Q^2
+
+where:
+
+	- :math:`H_{system}(Q)`: Total head required by the system at flow rate :math:`Q` (m)
+	- :math:`H_{static}`: Static (geometric) head, representing elevation difference or constant pressure requirement (m)
+	- :math:`K`: System loss coefficient, representing friction and minor losses (m·(m³/s)⁻²)
+	- :math:`Q`: Volumetric flow rate (m³/s)
+
+In the model, these are represented by the variables ``system_curve_geometric_head`` (for :math:`H_{static}`) and ``system_curve_flow_constant`` (for :math:`K`). The system curve is used to determine the required pump head for a given flow rate and is essential for matching the pump performance to the process requirements.
 
 Constraints
 -----------
