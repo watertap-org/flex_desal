@@ -487,3 +487,7 @@ class PumpIsothermalData(InitializationMixin, PumpData):
 
     def calculate_scaling_factors(self):
         super().calculate_scaling_factors()
+
+    @property
+    def default_costing_method(self):
+        return cost_pump
