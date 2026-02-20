@@ -9,6 +9,7 @@ import os
 import calendar
 from idaes.core.util.model_statistics import degrees_of_freedom
 
+
 def read_and_clean_input_data(train=1, stage_num=1, month=8, year=2021):
     """
     This function reads and cleans the input data for the specified RO stage and month/year.

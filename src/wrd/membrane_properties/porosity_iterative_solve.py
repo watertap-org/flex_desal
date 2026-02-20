@@ -32,8 +32,8 @@ solver = get_solver()
 #  Permeate flow and salt rejection based on the following test conditions:
 # feed pressure = 150 psi
 # feed water concentration = 2000 mg/L
-# salt rejection = 99.7% 
-# water recovery = 15% 
+# salt rejection = 99.7%
+# water recovery = 15%
 # membrane area = 37 m2
 # perm flow = 45.8 m3/d
 # Test conditions are based on 3/13/21 test day
@@ -59,6 +59,7 @@ feed_mass_flow_salt = value(
 )
 
 channel_height = 0.0008636 * pyunits.m
+
 
 def solve(m):
     # ---solving---
@@ -112,8 +113,10 @@ def estimate_params(
     m.fs.RO.inlet.pressure[0].fix(pressure)
     m.fs.RO.inlet.temperature[0].fix(298.15)
 
-    m.fs.RO.permeate.pressure[0].fix(20*pyunits.psi) # Changed from 1 atm to match WRD conditions
-    # m.fs.RO.feed_side.channel_height.fix(1e-3) 
+    m.fs.RO.permeate.pressure[0].fix(
+        20 * pyunits.psi
+    )  # Changed from 1 atm to match WRD conditions
+    # m.fs.RO.feed_side.channel_height.fix(1e-3)
     m.fs.RO.feed_side.channel_height.fix(channel_height)
     m.fs.RO.length.fix(mem_length)
 
@@ -135,7 +138,9 @@ def estimate_params(
     iscale.set_scaling_factor(m.fs.RO.area, 1e-5)
     iscale.set_scaling_factor(m.fs.RO.feed_side.area, 1e-5)
     iscale.set_scaling_factor(m.fs.RO.feed_side.spacer_porosity, 1e-1)
-    m.fs.properties.set_default_scaling("flow_mass_phase_comp", 1e-2, index=("Liq", "H2O"))
+    m.fs.properties.set_default_scaling(
+        "flow_mass_phase_comp", 1e-2, index=("Liq", "H2O")
+    )
     m.fs.properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
     )
@@ -154,7 +159,7 @@ def estimate_params(
     print("DOF = ", degrees_of_freedom(m))
 
     results = solve(m)
-    
+
     # Unfix A variable
     print("unfix A, fix perm flow...")
     m.fs.RO.A_comp.unfix()
@@ -244,4 +249,3 @@ if __name__ == "__main__":
     # ax.set_xlabel("iteration")
 
     # plt.show()
- 

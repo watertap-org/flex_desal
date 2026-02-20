@@ -59,6 +59,7 @@ solver = get_solver()
 
 ### ONLY USED TO TEST FOR ONE MODULE ###
 
+
 def build_system(stage_num=1):
     m = ConcreteModel()
     m.fs = FlowsheetBlock(dynamic=False)
