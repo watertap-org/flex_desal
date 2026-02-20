@@ -75,7 +75,7 @@ reverse_osmosis_1d:
       value: 37  # m2
       units: m**2
     element_length: 1.0  # m
-    spacer_porosity: 0.7211  # unitless
+    spacer_porosity: 0.90  # unitless
     # WRD design document
     number_of_vessels: 72 # unitless
     number_of_elements_per_vessel: 7  # unitless
@@ -94,7 +94,7 @@ reverse_osmosis_1d:
       value: 37  # m2
       units: m**2
     element_length: 1.0  # m
-    spacer_porosity: 0.7211   # unitless
+    spacer_porosity: 0.90   # unitless
     # WRD design document
     number_of_vessels: 30 # unitless
     number_of_elements_per_vessel: 7  # unitless
@@ -114,7 +114,7 @@ reverse_osmosis_1d:
       value: 37  # m2
       units: m**2
     element_length: 1.0  # m
-    spacer_porosity: 0.7211   # unitless
+    spacer_porosity: 0.90   # unitless
     # WRD design document
     number_of_vessels: 15  # unitless
     number_of_elements_per_vessel: 7  # unitless
