@@ -36,19 +36,17 @@ solver = get_solver()
 # water recovery = 15% 
 # membrane area = 37 m2
 # perm flow = 45.8 m3/d
-
-rho = 997.0 * pyunits.kg / pyunits.m**3
-
-feed_conc = 2 * pyunits.g / pyunits.liter
-recovery = 0.15
-pressure = 150 * pyunits.psi
-perm_vol_flow = 45.8 * pyunits.m**3 / pyunits.day
-salt_rej = 0.997
-
-mem_length = 1.016 * pyunits.m
-mem_area = 37 * pyunits.m**2
+# Test conditions are based on 3/13/21 test day
+feed_conc = 1.055 / 2 * pyunits.g / pyunits.liter
+recovery = 0.5728
+pressure = 153.5 * pyunits.psi
+perm_vol_flow = 1412.6 * pyunits.gal / pyunits.min
+salt_rej = 1 - 20.83 / 1055
+mem_length = 1.016 * 7 * pyunits.m
+mem_area = 37 * 72 * 7 * pyunits.m**2
 pressure_loss = -10 * pyunits.psi
 
+rho = 997.0 * pyunits.kg / pyunits.m**3
 
 perm_mass_flow = pyunits.convert(rho * perm_vol_flow, to_units=pyunits.kg / pyunits.s)
 
@@ -114,12 +112,14 @@ def estimate_params(
     m.fs.RO.inlet.pressure[0].fix(pressure)
     m.fs.RO.inlet.temperature[0].fix(298.15)
 
-    m.fs.RO.permeate.pressure[0].fix(101325)
-    # m.fs.RO.feed_side.channel_height.fix(1e-3)
+    m.fs.RO.permeate.pressure[0].fix(20*pyunits.psi) # Changed from 1 atm to match WRD conditions
+    # m.fs.RO.feed_side.channel_height.fix(1e-3) 
     m.fs.RO.feed_side.channel_height.fix(channel_height)
     m.fs.RO.length.fix(mem_length)
 
     m.fs.RO.area.fix(mem_area)
+    m.fs.RO.area.setub(1e6)
+    m.fs.RO.width.setub(1e5)
     m.fs.RO.A_comp.fix(water_perm)
     m.fs.RO.B_comp.fix(salt_perm)
     m.fs.RO.feed_side.spacer_porosity.fix(porosity)
@@ -127,11 +127,15 @@ def estimate_params(
     print("DOF = ", degrees_of_freedom(m))
     print("RO DOF = ", degrees_of_freedom(m.fs.RO))
     # assert_no_degrees_of_freedom(m)
-    iscale.set_scaling_factor(m.fs.RO.area, 1e-2)
-    iscale.set_scaling_factor(m.fs.RO.feed_side.area, 1e-2)
-    iscale.set_scaling_factor(m.fs.RO.width, 1e-2)
-
-    m.fs.properties.set_default_scaling("flow_mass_phase_comp", 1, index=("Liq", "H2O"))
+    # iscale.set_scaling_factor(m.fs.RO.area, 1e-5)
+    # iscale.set_scaling_factor(m.fs.RO.feed_side.area, 1e-2)
+    # iscale.set_scaling_factor(m.fs.RO.width, 1e-2)
+    iscale.set_scaling_factor(m.fs.RO.feed_side.length, 1e-1)
+    iscale.set_scaling_factor(m.fs.RO.feed_side.width, 1e-3)
+    iscale.set_scaling_factor(m.fs.RO.area, 1e-5)
+    iscale.set_scaling_factor(m.fs.RO.feed_side.area, 1e-5)
+    iscale.set_scaling_factor(m.fs.RO.feed_side.spacer_porosity, 1e-1)
+    m.fs.properties.set_default_scaling("flow_mass_phase_comp", 1e-2, index=("Liq", "H2O"))
     m.fs.properties.set_default_scaling(
         "flow_mass_phase_comp", 1e2, index=("Liq", "NaCl")
     )
@@ -147,7 +151,6 @@ def estimate_params(
 
     # Fix the salt rejection
     m.fs.RO.rejection_phase_comp[0, "Liq", "NaCl"].fix(salt_rej)
-
     print("DOF = ", degrees_of_freedom(m))
 
     results = solve(m)
