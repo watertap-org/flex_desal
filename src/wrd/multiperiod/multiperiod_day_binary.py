@@ -31,6 +31,7 @@ from idaes.core.util.model_statistics import *
 from idaes.apps.grid_integration.multiperiod.multiperiod import MultiPeriodModel
 from idaes.core.solvers.get_solver import get_solver
 import idaes.logger as idaeslog
+from pyomo.environ import SolverFactory
 
 # Based on rates in 2021 from GRIP Cost Tracker
 # Based on rates in 2021 from GRIP Cost Tracker
@@ -331,7 +332,8 @@ if __name__ == "__main__":
         n_time_points=n_time_points,
         elec_price=elec_price,
     )
-    solver = get_solver()
+    # solver = get_solver()
+    solver = SolverFactory("mindtpy")
     results = solver.solve(mp)
 
     flow_100 = [mp.blocks[i].process.fs.flow_100() for i in range(n_time_points)]
