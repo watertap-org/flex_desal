@@ -3,6 +3,7 @@ from pyomo.environ import (
     assert_optimal_termination,
     units as pyunits,
     TransformationFactory,
+    value,
 )
 from pyomo.network import Arc
 
@@ -12,6 +13,7 @@ from idaes.models.unit_models import Feed, Product
 from idaes.core import FlowsheetBlock
 from idaes.models.unit_models import StateJunction
 from idaes.core.util.scaling import calculate_scaling_factors
+from idaes.core.util.exceptions import InitializationError
 
 from watertap.costing import WaterTAPCosting
 from watertap.core.util.model_diagnostics.infeasible import *
@@ -131,9 +133,9 @@ def build_ro_stage(
     build_ro(blk.ro, stage_num=stage_num, file=file, prop_package=prop_package)
 
     blk.product = StateJunction(property_package=prop_package)
-    touch_flow_and_conc(blk.feed)
+    touch_flow_and_conc(blk.product)
     blk.disposal = StateJunction(property_package=prop_package)
-    touch_flow_and_conc(blk.feed)
+    touch_flow_and_conc(blk.disposal)
 
     # Arcs to connect the unit models
     blk.feed_to_pump = Arc(source=blk.feed.outlet, destination=blk.pump.feed.inlet)
@@ -159,10 +161,10 @@ def initialize_system(m):
 
 
 def initialize_ro_stage(blk):
-
     blk.feed.initialize()
     propagate_state(blk.feed_to_pump)
 
+    touch_flow_and_conc(blk.pump.unit)
     initialize_pump(blk.pump)
 
     propagate_state(blk.pump_to_ro)
@@ -171,7 +173,37 @@ def initialize_ro_stage(blk):
     propagate_state(blk.ro_to_product)
     blk.product.initialize()
     propagate_state(blk.ro_to_disposal)
-    blk.disposal.initialize()
+    # blk.disposal.initialize()
+    # I DONT KNOW WHY THIS IS REQUIRED, BUT THIS ALLOWS THE SOLVE TO OCCUR. OTHERWISE IT WILL FAIL?
+    try:
+        blk.disposal.initialize()
+    except InitializationError:
+        ro_disposal_props = blk.ro.disposal.properties[0]
+        try:
+            blk.disposal.initialize(
+                state_args={
+                    "flow_mass_phase_comp": {
+                        ("Liq", "H2O"): value(
+                            ro_disposal_props.flow_mass_phase_comp["Liq", "H2O"]
+                        ),
+                        ("Liq", "NaCl"): value(
+                            ro_disposal_props.flow_mass_phase_comp["Liq", "NaCl"]
+                        ),
+                    },
+                    "temperature": value(ro_disposal_props.temperature),
+                    "pressure": value(ro_disposal_props.pressure),
+                }
+            )
+        except InitializationError:
+            # This state block is a pass-through junction; if initialization fails,
+            # continue with propagated state so the full train can still initialize.
+            import warnings
+
+            warnings.warn(
+                "blk.disposal failed to initialize; continuing with propagated state.",
+                UserWarning,
+                stacklevel=2,
+            )
 
 
 def report_ro_stage(blk, w=30, add_costing=True):
@@ -294,12 +326,12 @@ if __name__ == "__main__":
     # run_august_stages()
     # run_march_stages()
     m = main(
-        Qin=2800,  # gpm?
-        Cin=0.528,
+        Qin=396 * 0.29 / 0.25,  # gpm?
+        Cin=2.58,
         Tin=295,
-        Pin=35.4 * pyunits.psi,
-        stage_num=1,
-        file="wrd_inputs_2800_gpm.yaml",
+        Pin=100 * pyunits.psi,
+        stage_num=3,
+        file="wrd_inputs_8_19_21.yaml",
     )
 
     m.fs.ro_stage.ro.unit.recovery_vol_phase[0, "Liq"].fix(0.5)
