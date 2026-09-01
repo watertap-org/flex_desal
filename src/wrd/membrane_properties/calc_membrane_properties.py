@@ -1,9 +1,6 @@
 import pandas as pd
 from wrd.membrane_properties.ro_for_membrane_properties import solve_ro_module
-from pyomo.environ import (
-    assert_optimal_termination,
-    units as pyunits,
-)
+from pyomo.environ import assert_optimal_termination
 from watertap.core.solvers import get_solver
 import os
 import calendar
@@ -11,7 +8,7 @@ import calendar
 
 def read_and_clean_input_data(train=1, stage_num=1, month=8, year=2021):
     """
-    This function reads and cleans the input data for the specified RO stage and month/year.
+    This function reads raw input data and pairs down to the specified RO stage, month, and year. Standardizes numeric data format.
     """
 
     folderpath = os.path.dirname(os.path.abspath(__file__))
@@ -48,17 +45,17 @@ def read_and_clean_input_data(train=1, stage_num=1, month=8, year=2021):
 
 def calculate_additional_columns(cleaned_data, stage_num):
     """
-    This function filters the cleaned data and calculates additional columns based on the stage number.
+    This function filters down to the required data columns and calculates additional inputs based on the stage number.
+    Note the conductivity is converted to salinity using a hard coded conversion factor of 0.0005.
     """
 
     # Filter rows and calculate additional columns based on stage number
-
     if stage_num == 3:
-        # Remove low flow days (off or off spec)
+        # Remove low flow days (off or off-spec)
         data_mask_perm_flow = cleaned_data["stage 3 permeate flowrate (gpm)"] >= 120
         cleaned_data = cleaned_data[data_mask_perm_flow].reset_index(drop=True)
 
-        # Remove low pressure days (off or off spec)
+        # Remove low pressure days (off or off-spec)
         data_mask_pressure = cleaned_data["stage 3 feed pressure (psi)"] >= 50
         cleaned_data = cleaned_data[data_mask_pressure].reset_index(drop=True)
 
@@ -142,6 +139,7 @@ def calc_membrane_permeability(cleaned_data, train=1, stage_num=1, month=8, year
         Pin = cleaned_data[f"stage {stage_num} feed pressure (psi)"][i]
         Pout = cleaned_data[f"stage {stage_num} concentrate pressure (psi)"][i]
 
+        # Intialize with example A and B values
         m = solve_ro_module(
             Qin=Qin,
             Cin=Cin,
@@ -151,11 +149,12 @@ def calc_membrane_permeability(cleaned_data, train=1, stage_num=1, month=8, year
             stage_num=stage_num,
         )
 
-        # Intialize, then unfix A and fix recovery or perm flowrate. Also unfix B and fix permeate salinity.
+        # Unfix A and fix recovery (and permeate flowrate).
         stage_RR = Qperm / Qin
         m.fs.ro.unit.A_comp.unfix()
-        m.fs.ro.unit.B_comp.unfix()
         m.fs.ro.unit.recovery_vol_phase[0, "Liq"].fix(stage_RR)
+        # Unfix B and fix permeate salinity.
+        m.fs.ro.unit.B_comp.unfix()
         m.fs.ro.unit.mixed_permeate[0].conc_mass_phase_comp["Liq", "NaCl"].fix(Cperm)
         solver = get_solver()
         results = solver.solve(m)
@@ -196,7 +195,7 @@ def main(train=1, stage_num=1, month=3, year=2021):
 
 if __name__ == "__main__":
 
-    train = 1  # Change to 1, 2, 3, or 4 for different trains
+    train = 1  # Change to 1, 2, 3, or 4 for different trains (however, only train 1 data is included in the repo)
     stage_num = 3  # Change to 1, 2, or 3 for different RO stages
     month = 3
     year = 2021
@@ -209,6 +208,7 @@ if __name__ == "__main__":
     folder_path = os.path.dirname(__file__)
 
     if stage_num == 3:
+        # Different naming convention for Third Stage
         cleaned_data.to_csv(
             folder_path
             + f"/cleaned_data/cleaned_data_TSRO_train{train}_{calendar.month_abbr[month].lower()}{year}.csv",
@@ -225,6 +225,7 @@ if __name__ == "__main__":
     folderpath = os.path.dirname(os.path.abspath(__file__))
 
     if stage_num == 3:
+        # Different naming convention for Third Stage
         permeability_df.to_csv(
             os.path.join(
                 folderpath,
