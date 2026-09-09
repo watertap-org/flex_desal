@@ -8,8 +8,11 @@ from pyomo.environ import (
     exp,
     units as pyunits,
 )
-from pricetaker.flowsheets import params as um_params
-from pricetaker.flowsheets.unit_models import _add_required_variables
+from watertap.flowsheets.flex_desal import params as um_params
+from watertap.flowsheets.flex_desal.unit_models import _add_required_variables
+
+from idaes.core.surrogate.pysmo_surrogate import PysmoSurrogate
+from idaes.core.surrogate.surrogate_block import SurrogateBlock
 
 
 def ro_skid_operation_model(blk, params: um_params.WRD_ROParams):
@@ -25,18 +28,51 @@ def ro_skid_operation_model(blk, params: um_params.WRD_ROParams):
         Input parameters needed for the model
     """
     _add_required_variables(blk)
-    blk.coeffs = Param(["a", "b"], initialize=params.surrogate_coeffs)
+    blk.coeffs = Param(["a", "b", "c"], initialize=params.surrogate_coeffs)
 
-    blk.operational_limits = Constraint(
-        expr=blk.feed_flowrate == blk.op_mode * params.nominal_flowrate
+    blk.op_flow_limits_lower = Constraint(
+        expr=blk.feed_flowrate >= blk.op_mode * params.minimum_flowrate,
+        doc="Enforce minimum flowrate when operating",
+    )
+    blk.op_flow_limits_upper = Constraint(
+        expr=blk.feed_flowrate <= blk.op_mode * params.maximum_flowrate,
+        doc="Enforce maximum flowrate when operating",
     )
 
-    if params.surrogate_type == "constant_energy_intensity":
+    if params.surrogate_type == "quadratic_energy_intensity":
         blk.calculate_energy_intensity = Constraint(
             expr=blk.energy_intensity
-            == (blk.coeffs["a"] + blk.coeffs["b"] * blk.feed_flowrate),
+            == (
+                blk.coeffs["a"]
+                + blk.coeffs["b"] * blk.feed_flowrate
+                + blk.coeffs["c"] * blk.feed_flowrate**2
+            ),
             doc="Calculates the specific energy requirement",
         )
+
+    elif params.surrogate_type == "PySMO_polyfit":
+        energy_surrogate = PysmoSurrogate.load_from_file(params.surrogate_file)
+        if energy_surrogate._input_bounds["Feed Flow m3/hr"][0] != 0:
+            raise ValueError(
+                "Surrogate input bounds are not correct. Lower bound should be 0."
+            )
+        blk.energy_surrogate = SurrogateBlock()
+        blk.energy_surrogate.build_model(
+            energy_surrogate,
+            input_vars=[blk.recovery, blk.feed_flowrate],  # RR,
+            output_vars=[blk.energy_intensity],
+        )
+
+        # reject_flowrate = feed - product = feed*(1-recovery), already a linear
+        # variable via mass_balance.  Using it here avoids the bilinear product
+        # feed*(1-recovery) that causes Gurobi's non-convex relaxation to
+        # produce artificially high lower bounds.
+        blk.flow_limit_from_RR = Constraint(
+            expr=blk.reject_flowrate
+            >= blk.op_mode * (3 * pyunits.m**3 / pyunits.hr * 15),
+            doc="Minimum reject flowrate when operating (linearised via reject_flowrate variable)",
+        )
+
     else:
         raise ValueError("Unrecognized surrogate type")
 
@@ -110,6 +146,13 @@ def wrd_reverse_osmosis_operation_model(blk, params: um_params.WRD_ROParams):
             return Constraint.Skip
         return b.ro_skid[index].op_mode <= b.ro_skid[index - 1].op_mode
 
+    # Also add one for the flowrate itself
+    @blk.Constraint(blk.set_ro_skids)
+    def symmetry_breaking_cuts(b, index):
+        if index == 1:
+            return Constraint.Skip
+        return b.ro_skid[index].feed_flowrate <= b.ro_skid[index - 1].feed_flowrate
+
     # Ensure that the operation of minimum number of skids is identical
     blk.set_min_operating_skids = RangeSet(2, params.minimum_operating_skids)
 
@@ -126,16 +169,20 @@ def wrd_reverse_osmosis_operation_model(blk, params: um_params.WRD_ROParams):
         return b.ro_skid[index].shutdown == b.ro_skid[1].shutdown
 
     # Update bounds on recovery and energy intensity for all skids
-    ei_lb, ei_ub = params.get_energy_intensity_bounds()
+    # I'm struggling to understand why there are bounds on energy intensity. Shouldn't flowrate bounds do this implicitly?
+    # ei_lb, ei_ub = params.get_energy_intensity_bounds()
     for skid in blk.set_ro_skids:
-        blk.ro_skid[skid].feed_flowrate.setlb(params.minimum_flowrate)
+        # Note: feed_flowrate lower bound is 0 to allow shutdown
+        # Minimum flowrate when operating is enforced by operational_limits_lower constraint
         blk.ro_skid[skid].feed_flowrate.setub(params.maximum_flowrate)
-        blk.ro_skid[skid].energy_intensity.setlb(ei_lb)
-        blk.ro_skid[skid].energy_intensity.setub(ei_ub)
+        # blk.ro_skid[skid].energy_intensity.setlb(ei_lb)
+        # blk.ro_skid[skid].energy_intensity.setub(ei_ub)
+        blk.ro_skid[skid].recovery.setlb(params.minimum_recovery)
+        blk.ro_skid[skid].recovery.setub(params.maximum_recovery)
 
 
 # Currently implementing UF same way as RO.
-# However, this will increase the decision variables significantly, increasing solve time.
+# However, this will increase the decision variables significantly, and increase solve time.
 
 
 def uf_pump_operation_model(blk, params: um_params.WRD_UFParams):
@@ -151,16 +198,31 @@ def uf_pump_operation_model(blk, params: um_params.WRD_UFParams):
         Input parameters needed for the model
     """
     _add_required_variables(blk)
-    blk.coeffs = Param(["a", "b"], initialize=params.surrogate_coeffs)
+    blk.coeffs = Param(["a", "b", "c"], initialize=params.surrogate_coeffs)
 
-    blk.operational_limits = Constraint(
-        expr=blk.feed_flowrate == blk.op_mode * params.nominal_flowrate
+    blk.operational_limits_lower = Constraint(
+        expr=blk.feed_flowrate >= blk.op_mode * params.minimum_flowrate,
+        doc="Enforce minimum flowrate when operating",
+    )
+    blk.operational_limits_upper = Constraint(
+        expr=blk.feed_flowrate <= blk.op_mode * params.maximum_flowrate,
+        doc="Enforce maximum flowrate when operating",
     )
 
-    if params.surrogate_type == "constant_energy_intensity":
+    if params.surrogate_type == "linear_energy_intensity":
         blk.calculate_energy_intensity = Constraint(
             expr=blk.energy_intensity
             == (blk.coeffs["a"] + blk.coeffs["b"] * blk.feed_flowrate),
+            doc="Calculates the specific energy requirement",
+        )  # This shouldn't be needed tbh. Linear is quadratic with c=0
+    elif params.surrogate_type == "quadratic_energy_intensity":
+        blk.calculate_energy_intensity = Constraint(
+            expr=blk.energy_intensity
+            == (
+                blk.coeffs["a"]
+                + blk.coeffs["b"] * blk.feed_flowrate
+                + blk.coeffs["c"] * blk.feed_flowrate**2
+            ),
             doc="Calculates the specific energy requirement",
         )
     else:
@@ -237,6 +299,13 @@ def wrd_uf_operation_model(blk, params: um_params.WRD_UFParams):
             return Constraint.Skip
         return b.uf_pumps[index].op_mode <= b.uf_pumps[index - 1].op_mode
 
+    # Also add one for the flowrate itself
+    @blk.Constraint(blk.set_uf_pumps)
+    def symmetry_breaking_cuts(b, index):
+        if index == 1:
+            return Constraint.Skip
+        return b.uf_pumps[index].feed_flowrate <= b.uf_pumps[index - 1].feed_flowrate
+
     # Ensure that the operation of minimum number of skids is identical
     blk.set_min_operating_pumps = RangeSet(2, params.minimum_operating_pumps)
 
@@ -255,7 +324,8 @@ def wrd_uf_operation_model(blk, params: um_params.WRD_UFParams):
     # Update bounds on recovery and energy intensity for all skids
     ei_lb, ei_ub = params.get_energy_intensity_bounds()
     for pump in blk.set_uf_pumps:
-        blk.uf_pumps[pump].feed_flowrate.setlb(params.minimum_flowrate)
+        # Note: feed_flowrate lower bound is 0 to allow shutdown
+        # Minimum flowrate when operating is enforced by operational_limits_lower constraint
         blk.uf_pumps[pump].feed_flowrate.setub(params.maximum_flowrate)
-        blk.uf_pumps[pump].energy_intensity.setlb(ei_lb)
+        # blk.uf_pumps[pump].energy_intensity.setlb(ei_lb)
         blk.uf_pumps[pump].energy_intensity.setub(ei_ub)

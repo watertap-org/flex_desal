@@ -15,7 +15,7 @@ This module contains the default values of all the required
 parameters.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -90,6 +90,8 @@ class IntakeParams(UnitParams):
     minimum_flowrate: float = 1063.5
     nominal_flowrate: float = 1063.5
     maximum_flowrate: float = 1063.5
+    feed_cost: float = 0  # in $/m3
+    chemical_cost: float = 0  # in $/m3
 
 
 @dataclass
@@ -191,13 +193,9 @@ class ROParams(UnitParams):
 
         else:
             # This is "quadratic_surrogate":
-            if coeffs["a"] == 0:
-                # No optimum exists inside the interval, because energy is linear.
-                return None
-            else:
-                root = -coeffs["b"] / (2 * coeffs["a"])
+            root = -coeffs["b"] / (2 * coeffs["a"])
 
-        return root, self.get_energy_intensity(root)
+        return self.get_energy_intensity(root)
 
     def get_energy_intensity_bounds(self, recovery_lb=None, recovery_ub=None):
         """
@@ -225,6 +223,7 @@ class PosttreatmentParams(UnitParams):
 
     energy_intensity: float = 0.41
     leakage_fraction: float = 0
+    chemical_cost: float = 0  # in $/m3
 
 
 @dataclass
@@ -233,6 +232,7 @@ class BrineDischargeParams(UnitParams):
 
     energy_intensity: float = 0.1
     leakage_fraction: float = 0
+    brine_cost: float = 0  # in $/m3
 
 
 @dataclass
@@ -270,6 +270,11 @@ class FlexDesalParams:
     include_onsite_solar: bool = False
     onsite_capacity: float = 0
 
+    nonworking_hours: list[int] = field(default_factory=list)
+    rainy_days: int = 0
+    CAPEX_yr: float = 0
+    max_daily_shutdowns: Optional[int] = None
+
     def __post_init__(self):
         self.intake = IntakeParams()
         self.pretreatment = PretreatmentParams()
@@ -306,21 +311,25 @@ class WRD_ROParams(UnitParams):
     minimum_flowrate: float = 0
     nominal_flowrate: float = 337.670
     maximum_flowrate: float = 400
-    minimum_recovery: float = 0.4  # Not used
-    nominal_recovery: float = 0.465
-    maximum_recovery: float = 0.55  # Not used
+    minimum_recovery: float = 0.88
+    nominal_recovery: float = 0.92
+    maximum_recovery: float = 0.925
     minimum_uptime: int = 1
     minimum_downtime: int = 4
     startup_delay: int = 8
     allow_variable_recovery: bool = False
+    replacement_types: list[str] = field(default_factory=list)
+    replacement_costs: list[float] = field(default_factory=list)
+    replacement_lifetimes: list[float] = field(default_factory=list)
+    replacement_max_flex_penalty: list[float] = field(default_factory=list)
 
     def __post_init__(self):
         # self._surrogate = # load the surrogate model here.
         self.surrogate_type: str = "constant_energy_intensity"
-        self.surrogate_a = (
-            1  # Not sure this input is being passed from the main script...
-        )
+        self.surrogate_file: Optional[str] = None
+        self.surrogate_a = 1
         self.surrogate_b = 1
+        self.surrogate_c = 1
 
     @property
     def surrogate_coeffs(self):
@@ -328,24 +337,48 @@ class WRD_ROParams(UnitParams):
         return {
             "a": self.surrogate_a,
             "b": self.surrogate_b,
+            "c": self.surrogate_c,
         }
 
     def get_energy_intensity(self, flowrate):
         """Returns the energy intensity for a given flowrate"""
         # Placeholder implementation
         coeffs = self.surrogate_coeffs
-        if self.surrogate_type == "constant_energy_intensity":
-            return coeffs["a"] + coeffs["b"] * flowrate
+        if self.surrogate_type == "quadratic_energy_intensity":
+            return coeffs["a"] + coeffs["b"] * flowrate + coeffs["c"] * flowrate**2
 
         return None
 
     def get_optimum_energy_intensity(self, flowrate_lb, flowrate_ub):
         """
         Returns the optimum energy intensity if it exists inside the
-        interval. Returns None is the optimum is at the bounds.
+        interval. Returns None if the optimum is at the bounds.
         """
-        # No optimum exists inside the interval, because energy is constant.
-        return None
+        # Optimum exists inside the interval, and it is unique.
+        coeffs = self.surrogate_coeffs
+        if self.surrogate_type == "exponenetial_quadratic":
+
+            def _first_der(rec):
+                return (
+                    -coeffs["a"] * coeffs["b"] * exp(-coeffs["b"] * rec)
+                    + 2 * coeffs["c"] * rec
+                )
+
+            # First derivative is a monotonically increasing function.
+            # Therefore, if the first derivative has the same sign at both
+            # ends of the interval, then there is no point in the interval
+            # at which the derivative vanishes. So, the optimum is at its bounds
+            if _first_der(flowrate_lb) * _first_der(flowrate_ub) > 0:
+                # Optimum does not exist, so return
+                return None
+
+            root = optimize.bisect(_first_der, flowrate_lb, flowrate_ub, maxiter=1000)
+
+        else:
+            # This is "quadratic_surrogate":
+            root = -coeffs["b"] / (2 * coeffs["a"])
+
+        return self.get_energy_intensity(root)
 
     def get_energy_intensity_bounds(self, flowrate_lb=None, flowrate_ub=None):
         """
@@ -364,7 +397,7 @@ class WRD_ROParams(UnitParams):
         ]
 
         ei_values = list(filter(None, ei_values))  # remove None, if it exists
-        return min(ei_values), max(ei_values)
+        return 0, 1
 
 
 @dataclass
@@ -374,9 +407,9 @@ class WRD_UFParams(UnitParams):
     num_uf_pumps: int = 4
     minimum_operating_pumps: int = 1
     allow_shutdown: bool = True
-    minimum_flowrate: float = 0
-    nominal_flowrate: float = 337.670
-    maximum_flowrate: float = 1000
+    minimum_flowrate: float = 344
+    nominal_flowrate: float = 900
+    maximum_flowrate: float = 989
     nominal_recovery: float = 1
     minimum_uptime: int = 1
     minimum_downtime: int = 4
@@ -385,11 +418,10 @@ class WRD_UFParams(UnitParams):
 
     def __post_init__(self):
         # self._surrogate = # load the surrogate model here.
-        self.surrogate_type: str = "constant_energy_intensity"
-        self.surrogate_a = (
-            1  # Not sure this input is being passed from the main script...
-        )
+        self.surrogate_type: str = "quadratic_energy_intensity"
+        self.surrogate_a = 1
         self.surrogate_b = 1
+        self.surrogate_c = 1
 
     @property
     def surrogate_coeffs(self):
@@ -397,29 +429,55 @@ class WRD_UFParams(UnitParams):
         return {
             "a": self.surrogate_a,
             "b": self.surrogate_b,
+            "c": self.surrogate_c,
         }
 
     def get_energy_intensity(self, flowrate):
         """Returns the energy intensity for a given flowrate"""
         # Placeholder implementation
         coeffs = self.surrogate_coeffs
-        if self.surrogate_type == "constant_energy_intensity":
-            return coeffs["a"] + coeffs["b"] * flowrate
+        if self.surrogate_type == "quadratic_energy_intensity":
+            return coeffs["a"] + coeffs["b"] * flowrate + coeffs["c"] * flowrate**2
 
         return None
 
     def get_optimum_energy_intensity(self, flowrate_lb, flowrate_ub):
         """
         Returns the optimum energy intensity if it exists inside the
-        interval. Returns None is the optimum is at the bounds.
+        interval. Returns None if the optimum is at the bounds.
         """
-        # No optimum exists inside the interval, because energy is constant.
-        return None
+        # Optimum exists inside the interval, and it is unique.
+        coeffs = self.surrogate_coeffs
+        if self.surrogate_type == "exponenetial_quadratic":
+
+            def _first_der(rec):
+                return (
+                    -coeffs["a"] * coeffs["b"] * exp(-coeffs["b"] * rec)
+                    + 2 * coeffs["c"] * rec
+                )
+
+            # First derivative is a monotonically increasing function.
+            # Therefore, if the first derivative has the same sign at both
+            # ends of the interval, then there is no point in the interval
+            # at which the derivative vanishes. So, the optimum is at its bounds
+            if _first_der(flowrate_lb) * _first_der(flowrate_ub) > 0:
+                # Optimum does not exist, so return
+                return None
+
+            root = optimize.bisect(_first_der, flowrate_lb, flowrate_ub, maxiter=1000)
+
+        else:
+            # This is "quadratic_surrogate":
+            root = -coeffs["b"] / (2 * coeffs["a"])
+
+        return self.get_energy_intensity(root)
 
     def get_energy_intensity_bounds(self, flowrate_lb=None, flowrate_ub=None):
         """
         Returns the bounds on energy intensity based on the bounds of
         flowrate
+        # NOT CLEAR TO ME WHY THIS ENERGY INTENSITY BOUND THING IS NEEDED?
+        # Also this logic doesn't work if energy intensity at the max flowrate is lower than what the surrogate gives for 0 flow
         """
         if flowrate_lb is None:
             flowrate_lb = self.minimum_flowrate
@@ -433,4 +491,5 @@ class WRD_UFParams(UnitParams):
         ]
 
         ei_values = list(filter(None, ei_values))  # remove None, if it exists
-        return min(ei_values), max(ei_values)
+        # Overwriting the bounds really quick here.
+        return 0, 1

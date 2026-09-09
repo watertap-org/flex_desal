@@ -317,7 +317,7 @@ def constrain_water_production(m, baseline_production: float = None):
         )
 
         m.water_production_target = Constraint(
-            expr=m.total_water_production * 1e-5 >= m.production_target_abs * 1e-5
+            expr=m.total_water_production >= m.production_target_abs
         )
 
     else:

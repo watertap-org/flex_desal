@@ -27,10 +27,11 @@ from pyomo.environ import (
 )
 from pricetaker.flowsheets import params as um_params
 
-
 # NOTE: OperationModel class automatically adds startup, shutdown,
 # and op_mode binary variables. So, no need to define these variables
 # explicitly.
+
+
 def _add_required_variables(blk):
     """Function for defining common variables and constraints"""
     # Declare variables
@@ -76,6 +77,16 @@ def intake_operation_model(blk, params: um_params.IntakeParams):
     _add_required_variables(blk)
     blk.recovery.fix(params.get_recovery)
     blk.energy_intensity.fix(params.energy_intensity)
+    blk.feed_cost = Var(within=NonNegativeReals, doc="Cost of feed water")
+    blk.calculate_feed_cost = Constraint(
+        expr=blk.feed_cost == params.feed_cost * blk.feed_flowrate,
+        doc="Calculates the feed cost based on flowrate and unit cost ($/hr)",
+    )
+    blk.chemical_cost = Var(within=NonNegativeReals, doc="Cost of chemicals per m^3")
+    blk.calculate_chemical_cost = Constraint(
+        expr=blk.chemical_cost == params.chemical_cost * blk.feed_flowrate,
+        doc="Calculates the chemical cost based on flowrate and unit cost ($/hr)",
+    )
 
 
 def pretreatment_operation_model(blk, params: um_params.PretreatmentParams):
@@ -130,20 +141,14 @@ def ro_skid_operation_model(blk, params: um_params.ROParams):
         )
 
     elif params.surrogate_type == "quadratic_surrogate":
-        if params.surrogate_a == 0:
-            blk.calculate_energy_intensity = Constraint(
-                expr=blk.energy_intensity
-                == blk.coeffs["b"] * blk.recovery + blk.coeffs["c"]
+        blk.calculate_energy_intensity = Constraint(
+            expr=blk.energy_intensity
+            == (
+                blk.coeffs["a"] * blk.recovery**2
+                + blk.coeffs["b"] * blk.recovery
+                + blk.coeffs["c"]
             )
-        else:
-            blk.calculate_energy_intensity = Constraint(
-                expr=blk.energy_intensity
-                == (
-                    blk.coeffs["a"] * blk.recovery**2
-                    + blk.coeffs["b"] * blk.recovery
-                    + blk.coeffs["c"]
-                )
-            )
+        )
 
 
 def reverse_osmosis_operation_model(blk, params: um_params.ROParams):
@@ -231,7 +236,7 @@ def reverse_osmosis_operation_model(blk, params: um_params.ROParams):
         return b.ro_skid[index].shutdown == b.ro_skid[1].shutdown
 
     # Update bounds on recovery and energy intensity for all skids
-    ei_lb, ei_ub, = params.get_energy_intensity_bounds()
+    ei_lb, ei_ub = params.get_energy_intensity_bounds()
     for skid in blk.set_ro_skids:
         blk.ro_skid[skid].recovery.setlb(params.minimum_recovery)
         blk.ro_skid[skid].recovery.setub(params.maximum_recovery)
@@ -270,6 +275,12 @@ def posttreatment_operation_model(blk, params: um_params.FlexDesalParams):
     blk.calculate_power_consumption.set_value(
         blk.power_consumption == blk.energy_intensity * blk.feed_flowrate,
     )
+    blk.chemical_cost = Var(within=NonNegativeReals, doc="Cost of chemicals")
+    blk.calculate_chemical_cost = Constraint(
+        expr=blk.chemical_cost
+        == params.posttreatment.chemical_cost * blk.feed_flowrate,
+        doc="Calculates the chemical cost based on flowrate and unit cost ($/hr)",
+    )
 
 
 def brine_discharge_operation_model(blk, params: um_params.FlexDesalParams):
@@ -294,6 +305,11 @@ def brine_discharge_operation_model(blk, params: um_params.FlexDesalParams):
     # Declare essential variables
     blk.feed_flowrate = Var(within=NonNegativeReals, units=pyunits.m**3 / pyunits.hr)
     blk.power_consumption = Var(within=NonNegativeReals, units=pyunits.kW)
+    blk.brine_cost = Var(within=NonNegativeReals, doc="Cost of brine discharge")
+    blk.calculate_brine_cost = Constraint(
+        expr=blk.brine_cost == params.brinedischarge.brine_cost * blk.feed_flowrate,
+        doc="Calculates the brine cost based on flowrate and unit cost ($/hr)",
+    )
 
     # the brine sump only consumes power if the RO is off,
     # otherwise brine is pushed out by the leftover RO pressure
