@@ -31,6 +31,7 @@ from idaes.apps.grid_integration import PriceTakerModel
 
 
 def plot_function(m, n_time_points, output_stem, peak_hours=None):
+    """Function to plot the results of the optimization model."""
     time = np.linspace(0, n_time_points - 1, n_time_points)
     fig = plt.figure(figsize=(8, 8))
     gs = fig.add_gridspec(2, 1, height_ratios=[1, 1])
